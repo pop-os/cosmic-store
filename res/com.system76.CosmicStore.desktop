@@ -1,0 +1,10 @@
+#TODO: more build-out, desktop actions, translations?
+[Desktop Entry]
+Name=COSMIC App Store
+Exec=cosmic-store
+Terminal=false
+Type=Application
+StartupNotify=true
+Icon=system-software-package-manager
+Categories=COSMIC;System;PackageManager;
+Keywords=App;Software;Store;
