@@ -74,6 +74,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn get_translatable<'a>(translatable: &'a appstream::TranslatableString, locale: &str) -> &'a str {
+    match translatable.get_for_locale(locale) {
+        Some(some) => some.as_str(),
+        None => match translatable.get_default() {
+            Some(some) => some.as_str(),
+            None => "",
+        },
+    }
+}
+
+fn get_markup_translatable<'a>(
+    translatable: &'a appstream::MarkupTranslatableString,
+    locale: &str,
+) -> &'a str {
+    match translatable.get_for_locale(locale) {
+        Some(some) => some.as_str(),
+        None => match translatable.get_default() {
+            Some(some) => some.as_str(),
+            None => "",
+        },
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Flags {
     config_handler: Option<cosmic_config::Config>,
@@ -121,30 +144,6 @@ pub struct App {
 }
 
 impl App {
-    //TODO: handle missing data better
-    fn get_translatable<'a>(&self, translatable: &'a appstream::TranslatableString) -> &'a str {
-        match translatable.get_for_locale(&self.locale) {
-            Some(some) => some.as_str(),
-            None => match translatable.get_default() {
-                Some(some) => some.as_str(),
-                None => "",
-            },
-        }
-    }
-
-    fn get_markup_translatable<'a>(
-        &self,
-        translatable: &'a appstream::MarkupTranslatableString,
-    ) -> &'a str {
-        match translatable.get_for_locale(&self.locale) {
-            Some(some) => some.as_str(),
-            None => match translatable.get_default() {
-                Some(some) => some.as_str(),
-                None => "",
-            },
-        }
-    }
-
     fn update_config(&mut self) -> Command<Message> {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
@@ -381,14 +380,21 @@ impl Application for App {
                     .spacing(space_xxs),
                 );
                 for component in appstream.components.iter() {
-                    column = column.push(widget::text(self.get_translatable(&component.name)));
+                    column = column.push(widget::text(get_translatable(
+                        &component.name,
+                        &self.locale,
+                    )));
                     if let Some(summary) = &component.summary {
-                        column = column.push(widget::text(self.get_translatable(summary)));
+                        column = column.push(widget::text(get_translatable(summary, &self.locale)));
                     }
+                    /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
                     if let Some(description) = &component.description {
-                        column =
-                            column.push(widget::text(self.get_markup_translatable(description)));
+                        column = column.push(widget::text(get_markup_translatable(
+                            description,
+                            &self.locale,
+                        )));
                     }
+                    */
                 }
                 widget::scrollable(column).into()
             }

@@ -14,13 +14,13 @@ impl Flatpak {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        println!("{:?}", (inst.id(), inst.display_name()));
         Ok(Self { inst })
     }
 }
 
 impl Backend for Flatpak {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+        //TODO: show non-desktop items?
         let installed = self
             .inst
             .list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)?;
