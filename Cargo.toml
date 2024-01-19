@@ -15,7 +15,11 @@ tokio = { version = "1" }
 i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester"] }
 i18n-embed-fl = "0.6"
 rust-embed = "6"
+# appstream
+appstream = "0.2"
+sys-locale = "0.3"
 # flatpak feature
+flate2 = { version = "1", optional = true }
 libflatpak = { version = "0.4", optional = true }
 
 [dependencies.libcosmic]
@@ -26,7 +30,7 @@ features = ["tokio", "winit"]
 
 [features]
 default = ["flatpak", "wgpu"]
-flatpak = ["libflatpak"]
+flatpak = ["dep:flate2", "dep:libflatpak"]
 wgpu = ["libcosmic/wgpu"]
 
 [patch.crates-io]

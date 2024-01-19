@@ -1,5 +1,6 @@
+use appstream::Collection;
 use cosmic::widget;
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -10,11 +11,12 @@ pub struct Package {
     pub icon: widget::icon::Named,
     pub name: String,
     pub version: String,
-    //TODO: more fields
+    pub extra: HashMap<String, String>,
 }
 
 pub trait Backend {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
+    fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>>;
 }
 
 pub fn backends() -> Vec<Box<dyn Backend>> {
