@@ -5,6 +5,8 @@ Maintainer: Jeremy Soller <jeremy@system76.com>
 Build-Depends:
     debhelper-compat (=13),
     just (>= 1.13.0),
+    libflatpak-dev,
+    libpackagekit-glib2-dev,
     pkg-config,
     rust-all,
 Standards-Version: 4.6.2
