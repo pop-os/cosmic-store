@@ -11,6 +11,9 @@ use cosmic::{
 };
 use std::{any::TypeId, env, process};
 
+use appstream_cache::AppstreamCache;
+mod appstream_cache;
+
 use backend::{Backend, Package};
 mod backend;
 
@@ -137,6 +140,7 @@ pub struct App {
     config: Config,
     locale: String,
     app_themes: Vec<String>,
+    appstream_cache: AppstreamCache,
     backends: Vec<Box<dyn Backend>>,
     context_page: ContextPage,
     installed: Vec<(usize, Package)>,
@@ -207,16 +211,17 @@ impl Application for App {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
         });
-
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
-
+        let appstream_cache = AppstreamCache::new();
+        let backends = backend::backends();
         let mut app = App {
             core,
             config_handler: flags.config_handler,
             config: flags.config,
             locale,
             app_themes,
-            backends: backend::backends(),
+            appstream_cache,
+            backends,
             context_page: ContextPage::Settings,
             installed: Vec::new(),
             current_package: None,

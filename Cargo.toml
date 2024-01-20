@@ -15,11 +15,12 @@ tokio = { version = "1" }
 i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester"] }
 i18n-embed-fl = "0.6"
 rust-embed = "6"
-# appstream
+# appstream (should this be a feature?)
 appstream = "0.2"
+flate2 = "1"
 sys-locale = "0.3"
+serde_yaml = "0.9"
 # flatpak feature
-flate2 = { version = "1", optional = true }
 libflatpak = { version = "0.4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
@@ -32,7 +33,7 @@ features = ["tokio", "winit"]
 
 [features]
 default = ["flatpak", "packagekit", "wgpu"]
-flatpak = ["dep:flate2", "dep:libflatpak"]
+flatpak = ["dep:libflatpak"]
 packagekit = ["dep:packagekit-zbus"]
 wgpu = ["libcosmic/wgpu"]
 
