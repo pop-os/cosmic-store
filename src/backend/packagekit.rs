@@ -28,6 +28,25 @@ impl Backend for Packagekit {
             .destination("org.freedesktop.PackageKit")?
             .path(&tx_path)?
             .build()?;
+        let filter_installed = 1 << 2;
+        tx.get_packages(filter_installed)?;
+        for signal in tx.receive_all_signals()? {
+            match signal.member() {
+                Some(member) => {
+                    if member == "Package" {
+                        // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Package
+                        let (info, package_id, summary) = signal.body::<(u32, &str, &str)>()?;
+                        println!("{} {}: {}", info, package_id, summary);
+                    } else if member == "Finished" {
+                        break;
+                    }
+                }
+                None => {}
+            }
+        }
+        //TODO
+        //let packages = tx.receive_packages()?;
+        //println!("{:?}", packages);
         Err("unimplemented".into())
     }
 
