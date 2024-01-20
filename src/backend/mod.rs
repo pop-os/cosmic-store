@@ -5,7 +5,8 @@ use std::{collections::HashMap, error::Error};
 #[cfg(feature = "flatpak")]
 mod flatpak;
 
-mod system;
+#[cfg(feature = "packagekit")]
+mod packagekit;
 
 #[derive(Clone, Debug)]
 pub struct Package {
@@ -24,15 +25,6 @@ pub trait Backend {
 pub fn backends() -> Vec<Box<dyn Backend>> {
     let mut backends = Vec::<Box<dyn Backend>>::new();
 
-    match system::System::new() {
-        Ok(backend) => {
-            backends.push(Box::new(backend));
-        }
-        Err(err) => {
-            log::error!("failed to load system backend: {}", err);
-        }
-    }
-
     #[cfg(feature = "flatpak")]
     {
         match flatpak::Flatpak::new() {
@@ -41,6 +33,18 @@ pub fn backends() -> Vec<Box<dyn Backend>> {
             }
             Err(err) => {
                 log::error!("failed to load flatpak backend: {}", err);
+            }
+        }
+    }
+
+    #[cfg(feature = "packagekit")]
+    {
+        match packagekit::Packagekit::new() {
+            Ok(backend) => {
+                backends.push(Box::new(backend));
+            }
+            Err(err) => {
+                log::error!("failed to load packagekit backend: {}", err);
             }
         }
     }

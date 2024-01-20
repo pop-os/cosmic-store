@@ -22,7 +22,7 @@ sys-locale = "0.3"
 flate2 = { version = "1", optional = true }
 libflatpak = { version = "0.4", optional = true }
 # packagekit feature
-packagekit = { git = "https://github.com/pop-os/packagekit-rs.git", optional = true }
+packagekit-zbus = { version = "0.1", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -33,6 +33,7 @@ features = ["tokio", "winit"]
 [features]
 default = ["flatpak", "packagekit", "wgpu"]
 flatpak = ["dep:flate2", "dep:libflatpak"]
+packagekit = ["dep:packagekit-zbus"]
 wgpu = ["libcosmic/wgpu"]
 
 [patch.crates-io]
