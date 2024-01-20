@@ -1,4 +1,4 @@
-use appstream::{xmltree, Collection};
+use appstream::{xmltree, Collection, ParseError};
 use cosmic::widget;
 use flate2::read::GzDecoder;
 use libflatpak::{gio::Cancellable, prelude::*, Installation, RefKind};
@@ -58,7 +58,7 @@ impl Backend for Flatpak {
         let bytes = r.load_appdata(Cancellable::NONE)?;
         let mut gz = GzDecoder::new(&*bytes);
         let element = xmltree::Element::parse(&mut gz)?;
-        let collection = Collection::try_from(&element)?;
+        let collection = Collection::try_from(&element).map_err(ParseError::from)?;
         Ok(collection)
     }
 }

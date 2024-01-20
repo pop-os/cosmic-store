@@ -16,7 +16,7 @@ i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester
 i18n-embed-fl = "0.6"
 rust-embed = "6"
 # appstream (should this be a feature?)
-appstream = "0.2"
+appstream = { version = "0.2", path = "appstream" }
 flate2 = "1"
 sys-locale = "0.3"
 serde_yaml = "0.9"

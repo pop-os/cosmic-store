@@ -1,6 +1,33 @@
+use appstream::{Collection, Component};
 use flate2::read::GzDecoder;
 use serde::Deserialize;
-use std::{collections::BTreeMap, fs, path::Path, time::SystemTime};
+use std::{collections::BTreeMap, error::Error, fs, io::Read, path::Path, time::SystemTime};
+
+fn parse_yml<R: Read>(path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+    for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
+        let value = match serde_yaml::Value::deserialize(doc) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::error!("failed to parse document {} in {:?}: {}", doc_i, path, err);
+                continue;
+            }
+        };
+        if doc_i == 0 {
+            //println!("HEADER: {:?}", value);
+        } else {
+            match Component::deserialize(&value) {
+                Ok(component) => {
+                    //println!("COMPONENT {}: {:?}", doc_i, component);
+                }
+                Err(err) => {
+                    log::error!("failed to parse {:?} in {:?}: {}", value["ID"], path, err);
+                }
+            }
+        }
+    }
+    //TODO: return collection or error
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AppstreamCacheTag {
@@ -137,14 +164,10 @@ impl AppstreamCache {
             } else if file_name.ends_with(".yml.gz") {
                 println!("Compressed YAML: {:?}", path);
                 let mut gz = GzDecoder::new(&mut file);
-                for doc in serde_yaml::Deserializer::from_reader(&mut gz) {
-                    match serde_yaml::Value::deserialize(doc) {
-                        Ok(value) => {
-                            //println!("{:?}", value);
-                        }
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                        }
+                match parse_yml(path, &mut gz) {
+                    Ok(collection) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
                     }
                 }
             } else if file_name.ends_with(".xml") {
@@ -152,14 +175,10 @@ impl AppstreamCache {
                 //TODO: support XML
             } else if file_name.ends_with(".yml") {
                 println!("YAML: {:?}", path);
-                for doc in serde_yaml::Deserializer::from_reader(&mut file) {
-                    match serde_yaml::Value::deserialize(doc) {
-                        Ok(value) => {
-                            //println!("{:?}", value);
-                        }
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                        }
+                match parse_yml(path, &mut file) {
+                    Ok(collection) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
                     }
                 }
             } else {
