@@ -21,6 +21,8 @@ sys-locale = "0.3"
 # flatpak feature
 flate2 = { version = "1", optional = true }
 libflatpak = { version = "0.4", optional = true }
+# packagekit feature
+packagekit = { git = "https://github.com/pop-os/packagekit-rs.git", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -29,7 +31,7 @@ features = ["tokio", "winit"]
 #path = "../libcosmic"
 
 [features]
-default = ["flatpak", "wgpu"]
+default = ["flatpak", "packagekit", "wgpu"]
 flatpak = ["dep:flate2", "dep:libflatpak"]
 wgpu = ["libcosmic/wgpu"]
 
