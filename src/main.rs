@@ -392,7 +392,7 @@ impl Application for App {
                 column = column.push(widget::button("Back").on_press(Message::SelectNone));
                 column = column.push(
                     widget::row::with_children(vec![
-                        widget::icon::icon(package.icon.clone()).size(32).into(),
+                        widget::icon::icon(package.icon.clone()).size(128).into(),
                         widget::text(&package.name).into(),
                         widget::horizontal_space(Length::Fill).into(),
                         widget::text(&package.version).into(),

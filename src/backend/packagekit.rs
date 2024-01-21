@@ -4,7 +4,7 @@ use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{cmp, collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
 use crate::{get_translatable, AppstreamCache};
@@ -88,7 +88,7 @@ impl Backend for Packagekit {
                             Some(collection) => {
                                 for component in collection.components.iter() {
                                     let mut icon_opt = None;
-                                    //TODO: find best icon by size
+                                    let mut cached_size = 0;
                                     for component_icon in component.icons.iter() {
                                         //TODO: support other types of icons
                                         match component_icon {
@@ -98,6 +98,14 @@ impl Backend for Packagekit {
                                                 height,
                                                 scale,
                                             } => {
+                                                let size = cmp::min(
+                                                    width.unwrap_or(0),
+                                                    height.unwrap_or(0),
+                                                );
+                                                if size < cached_size {
+                                                    // Skip if size is less than cached size
+                                                    continue;
+                                                }
                                                 if let Some(icon_path) = AppstreamCache::icon_path(
                                                     collection.origin.as_deref(),
                                                     path,
@@ -107,12 +115,17 @@ impl Backend for Packagekit {
                                                 ) {
                                                     icon_opt =
                                                         Some(widget::icon::from_path(icon_path));
-                                                    break;
+                                                    cached_size = size;
                                                 }
                                             }
                                             Icon::Stock(stock) => {
+                                                if cached_size != 0 {
+                                                    // Skip if a cached icon was found
+                                                }
                                                 icon_opt = Some(
-                                                    widget::icon::from_name(stock.clone()).handle(),
+                                                    widget::icon::from_name(stock.clone())
+                                                        .size(128)
+                                                        .handle(),
                                                 );
                                             }
                                             _ => {}
@@ -122,7 +135,9 @@ impl Backend for Packagekit {
                                         id: id.clone(),
                                         //TODO: get icon from appstream data?
                                         icon: icon_opt.unwrap_or_else(|| {
-                                            widget::icon::from_name("package-x-generic").handle()
+                                            widget::icon::from_name("package-x-generic")
+                                                .size(128)
+                                                .handle()
                                         }),
                                         name: get_translatable(&component.name, &self.locale)
                                             .to_string(),
