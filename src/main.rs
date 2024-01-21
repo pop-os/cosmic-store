@@ -213,7 +213,7 @@ impl Application for App {
         });
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
         let appstream_cache = Arc::new(AppstreamCache::new());
-        let backends = backend::backends(&appstream_cache);
+        let backends = backend::backends(&appstream_cache, &locale);
         let mut app = App {
             core,
             config_handler: flags.config_handler,

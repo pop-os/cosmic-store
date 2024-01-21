@@ -24,7 +24,7 @@ pub trait Backend {
     fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>>;
 }
 
-pub fn backends(appstream_cache: &Arc<AppstreamCache>) -> Vec<Box<dyn Backend>> {
+pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Vec<Box<dyn Backend>> {
     let mut backends = Vec::<Box<dyn Backend>>::new();
 
     #[cfg(feature = "flatpak")]
@@ -41,7 +41,7 @@ pub fn backends(appstream_cache: &Arc<AppstreamCache>) -> Vec<Box<dyn Backend>> 
 
     #[cfg(feature = "packagekit")]
     {
-        match packagekit::Packagekit::new(appstream_cache) {
+        match packagekit::Packagekit::new(appstream_cache, locale) {
             Ok(backend) => {
                 backends.push(Box::new(backend));
             }

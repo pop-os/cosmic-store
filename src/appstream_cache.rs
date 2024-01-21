@@ -189,7 +189,17 @@ impl AppstreamCache {
                 //println!("HEADER: {:?}", value);
             } else {
                 match Component::deserialize(&value) {
-                    Ok(component) => {
+                    Ok(mut component) => {
+                        //TODO: full icon deserialize
+                        match &value["Icon"]["stock"] {
+                            serde_yaml::Value::String(icon_name) => {
+                                component
+                                    .icons
+                                    .push(appstream::enums::Icon::Stock(icon_name.clone()));
+                            }
+                            _ => {}
+                        }
+
                         let id = component.id.to_string();
                         if let Some(pkgname) = &component.pkgname {
                             self.pkgnames
