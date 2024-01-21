@@ -1,4 +1,7 @@
-use appstream::{enums::Icon, Collection};
+use appstream::{
+    enums::{ComponentKind, Icon},
+    Collection,
+};
 use cosmic::widget;
 use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
@@ -87,6 +90,12 @@ impl Backend for Packagekit {
                         match self.appstream_cache.collections.get(id) {
                             Some(collection) => {
                                 for component in collection.components.iter() {
+                                    if component.kind != ComponentKind::DesktopApplication {
+                                        // Skip anything that is not a desktop application
+                                        //TODO: should we allow more components?
+                                        continue;
+                                    }
+
                                     let mut icon_opt = None;
                                     let mut cached_size = 0;
                                     for component_icon in component.icons.iter() {
