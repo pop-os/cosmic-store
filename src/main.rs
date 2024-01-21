@@ -9,7 +9,7 @@ use cosmic::{
     iced::{subscription::Subscription, window, Alignment, Length},
     widget, Application, ApplicationExt, Element,
 };
-use std::{any::TypeId, env, process};
+use std::{any::TypeId, env, process, sync::Arc};
 
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
@@ -140,7 +140,7 @@ pub struct App {
     config: Config,
     locale: String,
     app_themes: Vec<String>,
-    appstream_cache: AppstreamCache,
+    appstream_cache: Arc<AppstreamCache>,
     backends: Vec<Box<dyn Backend>>,
     context_page: ContextPage,
     installed: Vec<(usize, Package)>,
@@ -212,8 +212,8 @@ impl Application for App {
             String::from("en-US")
         });
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
-        let appstream_cache = AppstreamCache::new();
-        let backends = backend::backends();
+        let appstream_cache = Arc::new(AppstreamCache::new());
+        let backends = backend::backends(&appstream_cache);
         let mut app = App {
             core,
             config_handler: flags.config_handler,

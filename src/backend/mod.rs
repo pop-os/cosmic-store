@@ -1,6 +1,8 @@
 use appstream::Collection;
 use cosmic::widget;
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
+
+use crate::AppstreamCache;
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -22,7 +24,7 @@ pub trait Backend {
     fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>>;
 }
 
-pub fn backends() -> Vec<Box<dyn Backend>> {
+pub fn backends(appstream_cache: &Arc<AppstreamCache>) -> Vec<Box<dyn Backend>> {
     let mut backends = Vec::<Box<dyn Backend>>::new();
 
     #[cfg(feature = "flatpak")]
@@ -39,7 +41,7 @@ pub fn backends() -> Vec<Box<dyn Backend>> {
 
     #[cfg(feature = "packagekit")]
     {
-        match packagekit::Packagekit::new() {
+        match packagekit::Packagekit::new(appstream_cache) {
             Ok(backend) => {
                 backends.push(Box::new(backend));
             }

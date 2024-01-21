@@ -4,19 +4,24 @@ use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
+use crate::AppstreamCache;
 
 pub struct Packagekit {
     connection: Connection,
+    appstream_cache: Arc<AppstreamCache>,
 }
 
 impl Packagekit {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(appstream_cache: &Arc<AppstreamCache>) -> Result<Self, Box<dyn Error>> {
         //TODO: cache more zbus stuff?
         let connection = Connection::system()?;
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            appstream_cache: appstream_cache.clone(),
+        })
     }
 
     fn transaction(&self) -> Result<TransactionProxyBlocking, Box<dyn Error>> {
@@ -77,6 +82,38 @@ impl Backend for Packagekit {
     }
 
     fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>> {
-        Err("unimplemented".into())
+        let mut parts = package.id.split(';');
+        let name = parts.next().unwrap_or(&package.id);
+        let version = parts.next();
+        let architecture = parts.next().map(|x| x.to_string());
+
+        let data = parts.next().unwrap_or("");
+        let mut data_parts = data.split(':');
+        let status = data_parts.next();
+        let origin = data_parts.next().map(|x| x.to_string());
+
+        match self.appstream_cache.pkgnames.get(name) {
+            Some(ids) => {
+                let mut collection = Collection {
+                    //TODO: fill in these fields
+                    version: String::new(),
+                    origin,
+                    components: Vec::new(),
+                    architecture,
+                };
+                for id in ids.iter() {
+                    match self.appstream_cache.components.get(id) {
+                        Some(component) => {
+                            collection.components.push(component.clone());
+                        }
+                        None => {
+                            return Err(format!("failed to find component {}", id).into());
+                        }
+                    }
+                }
+                Ok(collection)
+            }
+            None => Err(format!("no components for package {}", name).into()),
+        }
     }
 }

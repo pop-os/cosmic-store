@@ -1,33 +1,14 @@
 use appstream::{Collection, Component};
 use flate2::read::GzDecoder;
 use serde::Deserialize;
-use std::{collections::BTreeMap, error::Error, fs, io::Read, path::Path, time::SystemTime};
-
-fn parse_yml<R: Read>(path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
-    for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
-        let value = match serde_yaml::Value::deserialize(doc) {
-            Ok(ok) => ok,
-            Err(err) => {
-                log::error!("failed to parse document {} in {:?}: {}", doc_i, path, err);
-                continue;
-            }
-        };
-        if doc_i == 0 {
-            //println!("HEADER: {:?}", value);
-        } else {
-            match Component::deserialize(&value) {
-                Ok(component) => {
-                    //println!("COMPONENT {}: {:?}", doc_i, component);
-                }
-                Err(err) => {
-                    log::error!("failed to parse {:?} in {:?}: {}", value["ID"], path, err);
-                }
-            }
-        }
-    }
-    //TODO: return collection or error
-    Ok(())
-}
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    error::Error,
+    fs,
+    io::Read,
+    path::Path,
+    time::SystemTime,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AppstreamCacheTag {
@@ -37,7 +18,11 @@ pub struct AppstreamCacheTag {
     pub size: u64,
 }
 
-pub struct AppstreamCache;
+#[derive(Debug, Default)]
+pub struct AppstreamCache {
+    pub components: HashMap<String, Component>,
+    pub pkgnames: HashMap<String, HashSet<String>>,
+}
 
 impl AppstreamCache {
     //TODO: make async?
@@ -134,6 +119,7 @@ impl AppstreamCache {
         }
 
         //TODO: save cache to disk and update when tags change
+        let mut appstream_cache = Self::default();
         for (path, _tag) in paths.iter() {
             let file_name = match path.file_name() {
                 Some(file_name_os) => match file_name_os.to_str() {
@@ -164,8 +150,8 @@ impl AppstreamCache {
             } else if file_name.ends_with(".yml.gz") {
                 println!("Compressed YAML: {:?}", path);
                 let mut gz = GzDecoder::new(&mut file);
-                match parse_yml(path, &mut gz) {
-                    Ok(collection) => {}
+                match appstream_cache.parse_yml(path, &mut gz) {
+                    Ok(()) => {}
                     Err(err) => {
                         log::error!("failed to parse {:?}: {}", path, err);
                     }
@@ -175,8 +161,8 @@ impl AppstreamCache {
                 //TODO: support XML
             } else if file_name.ends_with(".yml") {
                 println!("YAML: {:?}", path);
-                match parse_yml(path, &mut file) {
-                    Ok(collection) => {}
+                match appstream_cache.parse_yml(path, &mut file) {
+                    Ok(()) => {}
                     Err(err) => {
                         log::error!("failed to parse {:?}: {}", path, err);
                     }
@@ -187,6 +173,45 @@ impl AppstreamCache {
             };
         }
 
-        Self
+        appstream_cache
+    }
+
+    fn parse_yml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+        for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
+            let value = match serde_yaml::Value::deserialize(doc) {
+                Ok(ok) => ok,
+                Err(err) => {
+                    log::error!("failed to parse document {} in {:?}: {}", doc_i, path, err);
+                    continue;
+                }
+            };
+            if doc_i == 0 {
+                //println!("HEADER: {:?}", value);
+            } else {
+                match Component::deserialize(&value) {
+                    Ok(component) => {
+                        let id = component.id.to_string();
+                        if let Some(pkgname) = &component.pkgname {
+                            self.pkgnames
+                                .entry(pkgname.clone())
+                                .or_insert_with(|| HashSet::new())
+                                .insert(id.clone());
+                        }
+                        match self.components.insert(id, component) {
+                            Some(old_component) => {
+                                //TODO: merge based on priority
+                                log::warn!("found duplicate component {}", old_component.id);
+                            }
+                            None => {}
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("failed to parse {:?} in {:?}: {}", value["ID"], path, err);
+                    }
+                }
+            }
+        }
+        //TODO: return collection or error
+        Ok(())
     }
 }
