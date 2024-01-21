@@ -48,8 +48,8 @@ impl Backend for Packagekit {
         {
             let tx = self.transaction()?;
             let filter_installed = 1 << 2;
-            let filter_application = 1 << 24;
-            tx.get_packages(filter_installed | filter_application)?;
+            //let filter_application = 1 << 24;
+            tx.get_packages(filter_installed)?;
             for signal in tx.receive_all_signals()? {
                 match signal.member() {
                     Some(member) => {
@@ -121,7 +121,7 @@ impl Backend for Packagekit {
                 }
                 None => {
                     // Ignore packages with no components
-                    log::info!("no components for package {}", package_name);
+                    log::debug!("no components for package {}", package_name);
                 }
             }
         }

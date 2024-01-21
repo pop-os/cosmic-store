@@ -9,7 +9,7 @@ use cosmic::{
     iced::{subscription::Subscription, window, Alignment, Length},
     widget, Application, ApplicationExt, Element,
 };
-use std::{any::TypeId, env, process, sync::Arc};
+use std::{any::TypeId, collections::HashMap, env, process, sync::Arc, time::Instant};
 
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
@@ -141,10 +141,10 @@ pub struct App {
     locale: String,
     app_themes: Vec<String>,
     appstream_cache: Arc<AppstreamCache>,
-    backends: Vec<Box<dyn Backend>>,
+    backends: HashMap<&'static str, Arc<dyn Backend>>,
     context_page: ContextPage,
-    installed: Vec<(usize, Package)>,
-    current_package: Option<(usize, Package, Collection)>,
+    installed: Vec<(&'static str, Package)>,
+    current_package: Option<(&'static str, Package, Collection)>,
 }
 
 impl App {
@@ -212,8 +212,20 @@ impl Application for App {
             String::from("en-US")
         });
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
-        let appstream_cache = Arc::new(AppstreamCache::new());
-        let backends = backend::backends(&appstream_cache, &locale);
+        let appstream_cache = {
+            let start = Instant::now();
+            let appstream_cache = AppstreamCache::new();
+            let duration = start.elapsed();
+            log::info!("loaded appstream cache in {:?}", duration);
+            Arc::new(appstream_cache)
+        };
+        let backends = {
+            let start = Instant::now();
+            let backends = backend::backends(&appstream_cache, &locale);
+            let duration = start.elapsed();
+            log::info!("loaded backends in {:?}", duration);
+            backends
+        };
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -228,17 +240,20 @@ impl Application for App {
         };
 
         //TODO: move to command, ability to refresh
-        for (backend_i, backend) in app.backends.iter().enumerate() {
+        for (backend_name, backend) in app.backends.iter() {
+            let start = Instant::now();
             match backend.installed() {
                 Ok(installed) => {
                     for package in installed {
-                        app.installed.push((backend_i, package));
+                        app.installed.push((backend_name, package));
                     }
                 }
                 Err(err) => {
                     log::error!("failed to list installed: {}", err);
                 }
             }
+            let duration = start.elapsed();
+            log::info!("loaded installed from {} in {:?}", backend_name, duration);
         }
         app.installed
             .sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
@@ -293,13 +308,13 @@ impl Application for App {
                 }
             }
             Message::SelectInstalled(installed_i) => {
-                if let Some((backend_i, package)) = self.installed.get(installed_i) {
-                    if let Some(backend) = self.backends.get(*backend_i) {
+                if let Some((backend_name, package)) = self.installed.get(installed_i) {
+                    if let Some(backend) = self.backends.get(backend_name) {
                         //TODO: do async
                         match backend.appstream(&package) {
                             Ok(appstream) => {
                                 self.current_package =
-                                    Some((*backend_i, package.clone(), appstream));
+                                    Some((backend_name, package.clone(), appstream));
                             }
                             Err(err) => {
                                 log::error!(
@@ -366,7 +381,7 @@ impl Application for App {
         } = self.core().system_theme().cosmic().spacing;
 
         let content: Element<_> = match &self.current_package {
-            Some((backend_i, package, appstream)) => {
+            Some((backend_name, package, appstream)) => {
                 //TODO: capacity may go over due to summary
                 let mut column = widget::column::with_capacity(appstream.components.len() + 2)
                     // Hack to make room for scroll bar

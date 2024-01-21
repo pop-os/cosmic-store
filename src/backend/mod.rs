@@ -24,14 +24,17 @@ pub trait Backend {
     fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>>;
 }
 
-pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Vec<Box<dyn Backend>> {
-    let mut backends = Vec::<Box<dyn Backend>>::new();
+pub fn backends(
+    appstream_cache: &Arc<AppstreamCache>,
+    locale: &str,
+) -> HashMap<&'static str, Arc<dyn Backend>> {
+    let mut backends = HashMap::<&'static str, Arc<dyn Backend>>::new();
 
     #[cfg(feature = "flatpak")]
     {
         match flatpak::Flatpak::new() {
             Ok(backend) => {
-                backends.push(Box::new(backend));
+                backends.insert("flatpak", Arc::new(backend));
             }
             Err(err) => {
                 log::error!("failed to load flatpak backend: {}", err);
@@ -43,7 +46,7 @@ pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Vec<Box<
     {
         match packagekit::Packagekit::new(appstream_cache, locale) {
             Ok(backend) => {
-                backends.push(Box::new(backend));
+                backends.insert("packagekit", Arc::new(backend));
             }
             Err(err) => {
                 log::error!("failed to load packagekit backend: {}", err);
