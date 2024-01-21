@@ -13,7 +13,7 @@ mod packagekit;
 #[derive(Clone, Debug)]
 pub struct Package {
     pub id: String,
-    pub icon: widget::icon::Named,
+    pub icon: widget::icon::Handle,
     pub name: String,
     pub version: String,
     pub extra: HashMap<String, String>,

@@ -313,6 +313,7 @@ impl Application for App {
                         //TODO: do async
                         match backend.appstream(&package) {
                             Ok(appstream) => {
+                                println!("{}: {:#?}", package.id, appstream);
                                 self.current_package =
                                     Some((backend_name, package.clone(), appstream));
                             }
@@ -391,7 +392,7 @@ impl Application for App {
                 column = column.push(widget::button("Back").on_press(Message::SelectNone));
                 column = column.push(
                     widget::row::with_children(vec![
-                        package.icon.clone().size(32).into(),
+                        widget::icon::icon(package.icon.clone()).size(32).into(),
                         widget::text(&package.name).into(),
                         widget::horizontal_space(Length::Fill).into(),
                         widget::text(&package.version).into(),
@@ -428,7 +429,7 @@ impl Application for App {
                     column = column.push(
                         widget::mouse_area(
                             widget::row::with_children(vec![
-                                package.icon.clone().size(32).into(),
+                                widget::icon::icon(package.icon.clone()).size(32).into(),
                                 widget::text(&package.name).into(),
                                 widget::horizontal_space(Length::Fill).into(),
                                 widget::text(&package.version).into(),

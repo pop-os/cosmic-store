@@ -1,4 +1,4 @@
-use appstream::{Collection, Component};
+use appstream::{enums::Icon, Collection, Component};
 use flate2::read::GzDecoder;
 use serde::Deserialize;
 use std::{
@@ -6,9 +6,12 @@ use std::{
     error::Error,
     fs,
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
     time::SystemTime,
 };
+
+const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
+const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AppstreamCacheTag {
@@ -20,7 +23,7 @@ pub struct AppstreamCacheTag {
 
 #[derive(Debug, Default)]
 pub struct AppstreamCache {
-    pub components: HashMap<String, Component>,
+    pub collections: HashMap<String, Collection>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
@@ -30,13 +33,13 @@ impl AppstreamCache {
         // Uses btreemap for stable sort order
         let mut paths = BTreeMap::new();
         //TODO: get using xdg dirs?
-        for prefix in &["/usr/share", "/var/lib", "/var/cache"] {
+        for prefix in PREFIXES {
             let prefix_path = Path::new(prefix);
             if !prefix_path.is_dir() {
                 continue;
             }
 
-            for catalog in &["swcatalog", "app-info"] {
+            for catalog in CATALOGS {
                 let catalog_path = prefix_path.join(catalog);
                 if !catalog_path.is_dir() {
                     continue;
@@ -176,7 +179,53 @@ impl AppstreamCache {
         appstream_cache
     }
 
+    pub fn icon_path(
+        origin_opt: Option<&str>,
+        name: &Path,
+        width_opt: Option<u32>,
+        height_opt: Option<u32>,
+        scale_opt: Option<u32>,
+    ) -> Option<PathBuf> {
+        //TODO: what to do with no origin?
+        let origin = origin_opt?;
+        //TODO: what to do with no width or height?
+        let width = width_opt?;
+        let height = height_opt?;
+        let size = match scale_opt {
+            //TODO: should a scale of 0 or 1 not add @scale?
+            Some(scale) => format!("{}x{}@{}", width, height, scale),
+            None => format!("{}x{}", width, height),
+        };
+
+        for prefix in PREFIXES {
+            let prefix_path = Path::new(prefix);
+            if !prefix_path.is_dir() {
+                continue;
+            }
+
+            for catalog in CATALOGS {
+                let catalog_path = prefix_path.join(catalog);
+                if !catalog_path.is_dir() {
+                    continue;
+                }
+
+                let icon_path = catalog_path
+                    .join("icons")
+                    .join(origin)
+                    .join(&size)
+                    .join(name);
+                if icon_path.is_file() {
+                    return Some(icon_path);
+                }
+            }
+        }
+
+        None
+    }
+
     fn parse_yml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+        let mut version_opt = None;
+        let mut origin_opt = None;
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
             let value = match serde_yaml::Value::deserialize(doc) {
                 Ok(ok) => ok,
@@ -186,18 +235,87 @@ impl AppstreamCache {
                 }
             };
             if doc_i == 0 {
-                //println!("HEADER: {:?}", value);
+                version_opt = value["Version"].as_str().map(|x| x.to_string());
+                origin_opt = value["Origin"].as_str().map(|x| x.to_string());
             } else {
                 match Component::deserialize(&value) {
                     Ok(mut component) => {
-                        //TODO: full icon deserialize
-                        match &value["Icon"]["stock"] {
-                            serde_yaml::Value::String(icon_name) => {
-                                component
-                                    .icons
-                                    .push(appstream::enums::Icon::Stock(icon_name.clone()));
+                        //TODO: move to appstream crate
+                        if let Some(icons) = value["Icon"].as_mapping() {
+                            for (key, icon) in icons.iter() {
+                                match key.as_str() {
+                                    Some("cached") => match icon.as_sequence() {
+                                        Some(sequence) => {
+                                            for cached in sequence {
+                                                match cached["name"].as_str() {
+                                                    Some(name) => {
+                                                        component.icons.push(Icon::Cached {
+                                                            //TODO: add prefix?
+                                                            path: PathBuf::from(name),
+                                                            //TODO: handle parsing errors for these numbers
+                                                            width: cached["width"]
+                                                                .as_u64()
+                                                                .and_then(|x| x.try_into().ok()),
+                                                            height: cached["height"]
+                                                                .as_u64()
+                                                                .and_then(|x| x.try_into().ok()),
+                                                            scale: cached["scale"]
+                                                                .as_u64()
+                                                                .and_then(|x| x.try_into().ok()),
+                                                        });
+                                                    }
+                                                    None => {
+                                                        log::warn!(
+                                                        "unsupported cached icon {:?} for {:?} in {:?}",
+                                                        cached,
+                                                        component.id,
+                                                        path
+                                                    );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            log::warn!(
+                                                "unsupported cached icons {:?} for {:?} in {:?}",
+                                                icon,
+                                                component.id,
+                                                path
+                                            );
+                                        }
+                                    },
+                                    Some("remote") => {
+                                        // For now we just ignore remote icons
+                                        log::debug!(
+                                            "ignoring remote icons {:?} for {:?} in {:?}",
+                                            icon,
+                                            component.id,
+                                            path
+                                        );
+                                    }
+                                    Some("stock") => match icon.as_str() {
+                                        Some(stock) => {
+                                            component.icons.push(Icon::Stock(stock.to_string()));
+                                        }
+                                        None => {
+                                            log::warn!(
+                                                "unsupported stock icon {:?} for {:?} in {:?}",
+                                                icon,
+                                                component.id,
+                                                path
+                                            );
+                                        }
+                                    },
+                                    _ => {
+                                        log::warn!(
+                                            "unsupported icon kind {:?} for {:?} in {:?}",
+                                            key,
+                                            component.id,
+                                            path
+                                        );
+                                    }
+                                }
                             }
-                            _ => {}
                         }
 
                         let id = component.id.to_string();
@@ -207,10 +325,20 @@ impl AppstreamCache {
                                 .or_insert_with(|| HashSet::new())
                                 .insert(id.clone());
                         }
-                        match self.components.insert(id, component) {
-                            Some(old_component) => {
+                        match self.collections.insert(
+                            id.clone(),
+                            Collection {
+                                //TODO: default version
+                                version: version_opt.clone().unwrap_or_default(),
+                                origin: origin_opt.clone(),
+                                components: vec![component],
+                                //TODO: architecture
+                                architecture: None,
+                            },
+                        ) {
+                            Some(_old) => {
                                 //TODO: merge based on priority
-                                log::warn!("found duplicate component {}", old_component.id);
+                                log::debug!("found duplicate collection {}", id);
                             }
                             None => {}
                         }

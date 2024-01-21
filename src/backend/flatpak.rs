@@ -37,7 +37,7 @@ impl Backend for Flatpak {
                 packages.push(Package {
                     id: id.to_string(),
                     //TODO: get icon from appstream data?
-                    icon: widget::icon::from_name(id.to_string()),
+                    icon: widget::icon::from_name(id.to_string()).handle(),
                     name: r.appdata_name().unwrap_or(id).to_string(),
                     version: r.appdata_version().unwrap_or_default().to_string(),
                     extra,

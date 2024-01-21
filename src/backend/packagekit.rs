@@ -1,4 +1,4 @@
-use appstream::Collection;
+use appstream::{enums::Icon, Collection};
 use cosmic::widget;
 use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
@@ -81,40 +81,58 @@ impl Backend for Packagekit {
             let status_opt = data_parts.next();
             let origin_opt = data_parts.next();
 
-            let mut extra = HashMap::new();
-            if let Some(architecture) = architecture_opt {
-                extra.insert("architecture".to_string(), architecture.to_string());
-            }
-            if let Some(origin) = origin_opt {
-                extra.insert("origin".to_string(), origin.to_string());
-            }
             match self.appstream_cache.pkgnames.get(package_name) {
-                Some(component_ids) => {
-                    for component_id in component_ids.iter() {
-                        match self.appstream_cache.components.get(component_id) {
-                            Some(component) => {
-                                let mut icon_name = "package-x-generic".to_string();
-                                for icon in component.icons.iter() {
-                                    //TODO: support other types of icons
-                                    match icon {
-                                        appstream::enums::Icon::Stock(stock) => {
-                                            icon_name = stock.clone();
+                Some(ids) => {
+                    for id in ids.iter() {
+                        match self.appstream_cache.collections.get(id) {
+                            Some(collection) => {
+                                for component in collection.components.iter() {
+                                    let mut icon_opt = None;
+                                    //TODO: find best icon by size
+                                    for component_icon in component.icons.iter() {
+                                        //TODO: support other types of icons
+                                        match component_icon {
+                                            Icon::Cached {
+                                                path,
+                                                width,
+                                                height,
+                                                scale,
+                                            } => {
+                                                if let Some(icon_path) = AppstreamCache::icon_path(
+                                                    collection.origin.as_deref(),
+                                                    path,
+                                                    *width,
+                                                    *height,
+                                                    *scale,
+                                                ) {
+                                                    icon_opt =
+                                                        Some(widget::icon::from_path(icon_path));
+                                                    break;
+                                                }
+                                            }
+                                            Icon::Stock(stock) => {
+                                                icon_opt = Some(
+                                                    widget::icon::from_name(stock.clone()).handle(),
+                                                );
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
+                                    packages.push(Package {
+                                        id: id.clone(),
+                                        //TODO: get icon from appstream data?
+                                        icon: icon_opt.unwrap_or_else(|| {
+                                            widget::icon::from_name("package-x-generic").handle()
+                                        }),
+                                        name: get_translatable(&component.name, &self.locale)
+                                            .to_string(),
+                                        version: version_opt.unwrap_or("").to_string(),
+                                        extra: HashMap::new(),
+                                    });
                                 }
-                                packages.push(Package {
-                                    id: component_id.clone(),
-                                    //TODO: get icon from appstream data?
-                                    icon: widget::icon::from_name(icon_name),
-                                    name: get_translatable(&component.name, &self.locale)
-                                        .to_string(),
-                                    version: version_opt.unwrap_or("").to_string(),
-                                    extra: extra.clone(),
-                                });
                             }
                             None => {
-                                log::warn!("failed to find component {}", component_id);
+                                log::warn!("failed to find component {}", id);
                             }
                         }
                     }
@@ -129,16 +147,8 @@ impl Backend for Packagekit {
     }
 
     fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>> {
-        match self.appstream_cache.components.get(&package.id) {
-            Some(component) => {
-                Ok(Collection {
-                    //TODO: fill in this field
-                    version: String::new(),
-                    origin: package.extra.get("origin").cloned(),
-                    components: vec![component.clone()],
-                    architecture: package.extra.get("architecture").cloned(),
-                })
-            }
+        match self.appstream_cache.collections.get(&package.id) {
+            Some(collection) => Ok(collection.clone()),
             None => Err(format!("failed to find component {}", package.id).into()),
         }
     }
