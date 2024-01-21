@@ -9,7 +9,7 @@ use cosmic::{
     iced::{subscription::Subscription, window, Alignment, Length},
     widget, Application, ApplicationExt, Element,
 };
-use std::{any::TypeId, collections::HashMap, env, process, sync::Arc, time::Instant};
+use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
 
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
@@ -112,6 +112,7 @@ pub enum Message {
     Todo,
     AppTheme(AppTheme),
     Config(Config),
+    Search(widget::search::Message),
     SelectInstalled(usize),
     SelectNone,
     SystemThemeModeChange(cosmic_theme::ThemeMode),
@@ -133,6 +134,13 @@ impl ContextPage {
     }
 }
 
+#[derive(Clone, Debug)]
+struct SearchResult {
+    id: String,
+    name: String,
+    weight: usize,
+}
+
 /// The [`App`] stores application-specific state.
 pub struct App {
     core: Core,
@@ -143,8 +151,10 @@ pub struct App {
     appstream_cache: Arc<AppstreamCache>,
     backends: HashMap<&'static str, Arc<dyn Backend>>,
     context_page: ContextPage,
+    search_model: widget::search::Model,
     installed: Vec<(&'static str, Package)>,
     current_package: Option<(&'static str, Package, Collection)>,
+    search_results: Option<Vec<SearchResult>>,
 }
 
 impl App {
@@ -235,8 +245,10 @@ impl Application for App {
             appstream_cache,
             backends,
             context_page: ContextPage::Settings,
+            search_model: widget::search::Model::default(),
             installed: Vec::new(),
             current_package: None,
+            search_results: None,
         };
 
         //TODO: move to command, ability to refresh
@@ -307,6 +319,68 @@ impl Application for App {
                     return self.update_config();
                 }
             }
+            Message::Search(search_message) => match search_message {
+                widget::search::Message::Activate => {
+                    return self.search_model.focus();
+                }
+                widget::search::Message::Changed(phrase) => {
+                    self.search_model.phrase = phrase;
+                }
+                widget::search::Message::Clear => {
+                    self.search_model.phrase.clear();
+                }
+                widget::search::Message::Submit => {
+                    if !self.search_model.phrase.is_empty() {
+                        let start = Instant::now();
+                        let phrase = &self.search_model.phrase;
+                        let mut results = Vec::new();
+                        //TODO: search by backend instead
+                        for (id, collection) in self.appstream_cache.collections.iter() {
+                            for component in collection.components.iter() {
+                                //TODO: fuzzy match (nucleus-matcher?)
+                                let name = get_translatable(&component.name, &self.locale);
+                                let weight_opt = if name == phrase {
+                                    Some(10)
+                                } else if name.starts_with(phrase) {
+                                    Some(9)
+                                } else if name.contains(phrase) {
+                                    Some(8)
+                                } else {
+                                    let summary = component
+                                        .summary
+                                        .as_ref()
+                                        .map_or("", |x| get_translatable(x, &self.locale));
+                                    if summary == phrase {
+                                        Some(7)
+                                    } else if summary.starts_with(phrase) {
+                                        Some(6)
+                                    } else if summary.contains(phrase) {
+                                        Some(5)
+                                    } else {
+                                        None
+                                    }
+                                };
+                                if let Some(weight) = weight_opt {
+                                    results.push(SearchResult {
+                                        id: id.clone(),
+                                        name: name.to_string(),
+                                        weight,
+                                    });
+                                }
+                            }
+                        }
+                        results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+                            cmp::Ordering::Equal => {
+                                lexical_sort::natural_lexical_cmp(&a.name, &b.name)
+                            }
+                            ordering => ordering,
+                        });
+                        let duration = start.elapsed();
+                        log::info!("searched in {:?}", duration);
+                        self.search_results = Some(results);
+                    }
+                }
+            },
             Message::SelectInstalled(installed_i) => {
                 if let Some((backend_name, package)) = self.installed.get(installed_i) {
                     if let Some(backend) = self.backends.get(backend_name) {
@@ -372,6 +446,10 @@ impl Application for App {
         })
     }
 
+    fn header_start(&self) -> Vec<Element<Message>> {
+        vec![widget::search::search(&self.search_model, Message::Search).into()]
+    }
+
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
         let cosmic_theme::Spacing {
@@ -380,67 +458,89 @@ impl Application for App {
             ..
         } = self.core().system_theme().cosmic().spacing;
 
-        let content: Element<_> = match &self.current_package {
-            Some((backend_name, package, appstream)) => {
-                //TODO: capacity may go over due to summary
-                let mut column = widget::column::with_capacity(appstream.components.len() + 2)
+        let content: Element<_> = match &self.search_results {
+            Some(results) => {
+                let mut column = widget::column::with_capacity(results.len())
                     // Hack to make room for scroll bar
                     .padding([0, space_xs, 0, 0])
                     .spacing(space_xxs)
                     .width(Length::Fill);
-                column = column.push(widget::button("Back").on_press(Message::SelectNone));
-                column = column.push(
-                    widget::row::with_children(vec![
-                        widget::icon::icon(package.icon.clone()).size(128).into(),
-                        widget::text(&package.name).into(),
-                        widget::horizontal_space(Length::Fill).into(),
-                        widget::text(&package.version).into(),
-                    ])
-                    .align_items(Alignment::Center)
-                    .spacing(space_xxs),
-                );
-                for component in appstream.components.iter() {
-                    column = column.push(widget::text(get_translatable(
-                        &component.name,
-                        &self.locale,
-                    )));
-                    if let Some(summary) = &component.summary {
-                        column = column.push(widget::text(get_translatable(summary, &self.locale)));
-                    }
-                    /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
-                    if let Some(description) = &component.description {
-                        column = column.push(widget::text(get_markup_translatable(
-                            description,
-                            &self.locale,
-                        )));
-                    }
-                    */
-                }
-                widget::scrollable(column).into()
-            }
-            None => {
-                let mut column = widget::column::with_capacity(self.installed.len() + 1)
-                    .padding([0, space_xs, 0, 0])
-                    .spacing(space_xxs)
-                    .width(Length::Fill);
-                column = column.push(widget::text("Installed:"));
-                for (installed_i, (_backend_i, package)) in self.installed.iter().enumerate() {
+                //TODO: back button?
+                for result in results.iter() {
                     column = column.push(
-                        widget::mouse_area(
-                            widget::row::with_children(vec![
-                                widget::icon::icon(package.icon.clone()).size(32).into(),
-                                widget::text(&package.name).into(),
-                                widget::horizontal_space(Length::Fill).into(),
-                                widget::text(&package.version).into(),
-                            ])
-                            .align_items(Alignment::Center)
-                            .spacing(space_xxs),
-                        )
-                        .on_press(Message::SelectInstalled(installed_i)),
+                        widget::row::with_children(vec![
+                            //TODO: widget::icon::icon(package.icon.clone()).size(128).into(),
+                            widget::text(&result.name).into(),
+                        ])
+                        .align_items(Alignment::Center)
+                        .spacing(space_xxs),
                     );
                 }
                 widget::scrollable(column).into()
             }
+            None => match &self.current_package {
+                Some((backend_name, package, appstream)) => {
+                    //TODO: capacity may go over due to summary
+                    let mut column = widget::column::with_capacity(appstream.components.len() + 2)
+                        // Hack to make room for scroll bar
+                        .padding([0, space_xs, 0, 0])
+                        .spacing(space_xxs)
+                        .width(Length::Fill);
+                    column = column.push(widget::button("Back").on_press(Message::SelectNone));
+                    column = column.push(
+                        widget::row::with_children(vec![
+                            widget::icon::icon(package.icon.clone()).size(128).into(),
+                            widget::text(&package.name).into(),
+                            widget::horizontal_space(Length::Fill).into(),
+                            widget::text(&package.version).into(),
+                        ])
+                        .align_items(Alignment::Center)
+                        .spacing(space_xxs),
+                    );
+                    for component in appstream.components.iter() {
+                        column = column.push(widget::text(get_translatable(
+                            &component.name,
+                            &self.locale,
+                        )));
+                        if let Some(summary) = &component.summary {
+                            column =
+                                column.push(widget::text(get_translatable(summary, &self.locale)));
+                        }
+                        /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
+                        if let Some(description) = &component.description {
+                            column = column.push(widget::text(get_markup_translatable(
+                                description,
+                                &self.locale,
+                            )));
+                        }
+                        */
+                    }
+                    widget::scrollable(column).into()
+                }
+                None => {
+                    let mut column = widget::column::with_capacity(self.installed.len() + 1)
+                        .padding([0, space_xs, 0, 0])
+                        .spacing(space_xxs)
+                        .width(Length::Fill);
+                    column = column.push(widget::text("Installed:"));
+                    for (installed_i, (_backend_i, package)) in self.installed.iter().enumerate() {
+                        column = column.push(
+                            widget::mouse_area(
+                                widget::row::with_children(vec![
+                                    widget::icon::icon(package.icon.clone()).size(32).into(),
+                                    widget::text(&package.name).into(),
+                                    widget::horizontal_space(Length::Fill).into(),
+                                    widget::text(&package.version).into(),
+                                ])
+                                .align_items(Alignment::Center)
+                                .spacing(space_xxs),
+                            )
+                            .on_press(Message::SelectInstalled(installed_i)),
+                        );
+                    }
+                    widget::scrollable(column).into()
+                }
+            },
         };
 
         // Uncomment to debug layout:
