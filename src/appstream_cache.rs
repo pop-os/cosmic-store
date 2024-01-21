@@ -1,7 +1,9 @@
 use appstream::{enums::Icon, Collection, Component};
+use cosmic::widget;
 use flate2::read::GzDecoder;
 use serde::Deserialize;
 use std::{
+    cmp,
     collections::{BTreeMap, HashMap, HashSet},
     error::Error,
     fs,
@@ -221,6 +223,46 @@ impl AppstreamCache {
         }
 
         None
+    }
+
+    pub fn icon(origin_opt: Option<&str>, component: &Component) -> widget::icon::Handle {
+        let mut icon_opt = None;
+        let mut cached_size = 0;
+        for component_icon in component.icons.iter() {
+            //TODO: support other types of icons
+            match component_icon {
+                Icon::Cached {
+                    path,
+                    width,
+                    height,
+                    scale,
+                } => {
+                    let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
+                    if size < cached_size {
+                        // Skip if size is less than cached size
+                        continue;
+                    }
+                    if let Some(icon_path) =
+                        AppstreamCache::icon_path(origin_opt, path, *width, *height, *scale)
+                    {
+                        icon_opt = Some(widget::icon::from_path(icon_path));
+                        cached_size = size;
+                    }
+                }
+                Icon::Stock(stock) => {
+                    if cached_size != 0 {
+                        // Skip if a cached icon was found
+                    }
+                    icon_opt = Some(widget::icon::from_name(stock.clone()).size(128).handle());
+                }
+                _ => {}
+            }
+        }
+        icon_opt.unwrap_or_else(|| {
+            widget::icon::from_name("package-x-generic")
+                .size(128)
+                .handle()
+        })
     }
 
     fn parse_yml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {

@@ -137,6 +137,7 @@ impl ContextPage {
 #[derive(Clone, Debug)]
 struct SearchResult {
     id: String,
+    icon: widget::icon::Handle,
     name: String,
     weight: usize,
 }
@@ -363,6 +364,10 @@ impl Application for App {
                                 if let Some(weight) = weight_opt {
                                     results.push(SearchResult {
                                         id: id.clone(),
+                                        icon: AppstreamCache::icon(
+                                            collection.origin.as_deref(),
+                                            component,
+                                        ),
                                         name: name.to_string(),
                                         weight,
                                     });
@@ -469,7 +474,7 @@ impl Application for App {
                 for result in results.iter() {
                     column = column.push(
                         widget::row::with_children(vec![
-                            //TODO: widget::icon::icon(package.icon.clone()).size(128).into(),
+                            widget::icon::icon(result.icon.clone()).size(32).into(),
                             widget::text(&result.name).into(),
                         ])
                         .align_items(Alignment::Center)
