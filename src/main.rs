@@ -336,6 +336,7 @@ impl Application for App {
                         let phrase = &self.search_model.phrase;
                         let mut results = Vec::new();
                         //TODO: search by backend instead
+                        //TODO: allow ignoring case (but it lowers weight)
                         for (id, collection) in self.appstream_cache.collections.iter() {
                             for component in collection.components.iter() {
                                 //TODO: fuzzy match (nucleus-matcher?)
