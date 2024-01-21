@@ -61,7 +61,7 @@ impl Backend for Packagekit {
                         } else if member == "Finished" {
                             break;
                         } else {
-                            println!("unknown signal {}", member);
+                            log::warn!("unknown signal {}", member);
                         }
                     }
                     None => {}

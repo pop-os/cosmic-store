@@ -147,11 +147,11 @@ impl AppstreamCache {
             };
 
             if file_name.ends_with(".xml.gz") {
-                println!("Compressed XML: {:?}", path);
+                log::info!("Compressed XML: {:?}", path);
                 let mut gz = GzDecoder::new(&mut file);
                 //TODO: support XML
             } else if file_name.ends_with(".yml.gz") {
-                println!("Compressed YAML: {:?}", path);
+                log::info!("Compressed YAML: {:?}", path);
                 let mut gz = GzDecoder::new(&mut file);
                 match appstream_cache.parse_yml(path, &mut gz) {
                     Ok(()) => {}
@@ -160,10 +160,10 @@ impl AppstreamCache {
                     }
                 }
             } else if file_name.ends_with(".xml") {
-                println!("XML: {:?}", path);
+                log::info!("XML: {:?}", path);
                 //TODO: support XML
             } else if file_name.ends_with(".yml") {
-                println!("YAML: {:?}", path);
+                log::info!("YAML: {:?}", path);
                 match appstream_cache.parse_yml(path, &mut file) {
                     Ok(()) => {}
                     Err(err) => {

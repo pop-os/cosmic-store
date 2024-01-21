@@ -313,7 +313,6 @@ impl Application for App {
                         //TODO: do async
                         match backend.appstream(&package) {
                             Ok(appstream) => {
-                                println!("{}: {:#?}", package.id, appstream);
                                 self.current_package =
                                     Some((backend_name, package.clone(), appstream));
                             }
