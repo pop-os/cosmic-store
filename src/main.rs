@@ -108,7 +108,7 @@ pub enum Message {
     SearchActivate,
     SearchClear,
     SearchInput(String),
-    SearchResults(Vec<SearchResult>),
+    SearchResults(String, Vec<SearchResult>),
     SearchSubmit,
     SelectInstalled(usize),
     SelectNone,
@@ -163,13 +163,25 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
-    installed: Vec<(&'static str, Package)>,
-    search_results: Option<Vec<SearchResult>>,
+    installed: Option<Vec<(&'static str, Package)>>,
+    search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
 
 impl App {
-    fn search(&self, regex: regex::Regex) -> Command<Message> {
+    fn search(&self) -> Command<Message> {
+        let input = self.search_input.clone();
+        let pattern = regex::escape(&input);
+        let regex = match regex::RegexBuilder::new(&pattern)
+            .case_insensitive(true)
+            .build()
+        {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to parse regex {:?}: {}", pattern, err);
+                return Command::none();
+            }
+        };
         let backends = self.backends.clone();
         Command::perform(
             async move {
@@ -231,8 +243,8 @@ impl App {
                         ordering => ordering,
                     });
                     let duration = start.elapsed();
-                    log::info!("searched in {:?}", duration);
-                    message::app(Message::SearchResults(results))
+                    log::info!("searched for {:?} in {:?}", input, duration);
+                    message::app(Message::SearchResults(input, results))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -396,7 +408,7 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
-            installed: Vec::new(),
+            installed: None,
             search_results: None,
             selected_opt: None,
         };
@@ -467,7 +479,7 @@ impl Application for App {
                 }
             }
             Message::Installed(installed) => {
-                self.installed = installed;
+                self.installed = Some(installed);
             }
             Message::Key(modifiers, key_code) => {
                 for (key_bind, action) in self.key_binds.iter() {
@@ -486,41 +498,45 @@ impl Application for App {
                 self.search_results = None;
             }
             Message::SearchInput(input) => {
-                self.search_input = input;
-            }
-            Message::SearchResults(results) => {
-                self.search_results = Some(results);
-            }
-            Message::SearchSubmit => {
-                if !self.search_input.is_empty() {
-                    let pattern = regex::escape(&self.search_input);
-                    match regex::RegexBuilder::new(&pattern)
-                        .case_insensitive(true)
-                        .build()
-                    {
-                        Ok(regex) => {
-                            return self.search(regex);
-                        }
-                        Err(err) => {
-                            log::warn!("failed to parse regex {:?}: {}", pattern, err);
-                        }
+                if input != self.search_input {
+                    self.search_input = input;
+                    // This performs live search
+                    if !self.search_input.is_empty() {
+                        return self.search();
                     }
                 }
             }
+            Message::SearchResults(input, results) => {
+                if input != self.search_input {
+                    log::warn!(
+                        "received {} results for {:?} after search changed to {:?}",
+                        results.len(),
+                        input,
+                        self.search_input
+                    );
+                }
+                self.search_results = Some((input, results));
+            }
+            Message::SearchSubmit => {
+                if !self.search_input.is_empty() {
+                    return self.search();
+                }
+            }
             Message::SelectInstalled(installed_i) => {
-                match self
-                    .installed
-                    .get(installed_i)
-                    .map(|(backend_name, package)| (backend_name, package.clone()))
-                {
-                    Some((backend_name, package)) => {
-                        return self.select_package(backend_name, package);
-                    }
-                    None => {
-                        log::error!(
-                            "failed to find installed package with index {}",
-                            installed_i
-                        );
+                if let Some(installed) = &self.installed {
+                    match installed
+                        .get(installed_i)
+                        .map(|(backend_name, package)| (backend_name, package.clone()))
+                    {
+                        Some((backend_name, package)) => {
+                            return self.select_package(backend_name, package);
+                        }
+                        None => {
+                            log::error!(
+                                "failed to find installed package with index {}",
+                                installed_i
+                            );
+                        }
                     }
                 }
             }
@@ -528,7 +544,7 @@ impl Application for App {
                 self.selected_opt = None;
             }
             Message::SelectSearchResult(result_i) => {
-                if let Some(results) = &self.search_results {
+                if let Some((_input, results)) = &self.search_results {
                     match results.get(result_i) {
                         Some(result) => {
                             self.selected_opt = Some(Selected {
@@ -632,13 +648,19 @@ impl Application for App {
                 widget::scrollable(column).into()
             }
             None => match &self.search_results {
-                Some(results) => {
-                    let mut column = widget::column::with_capacity(results.len())
+                Some((input, results)) => {
+                    let mut column = widget::column::with_capacity(results.len() + 1)
                         // Hack to make room for scroll bar
                         .padding([0, space_xs, 0, 0])
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
+                    //TODO: translate
+                    column = column.push(widget::text(format!(
+                        "{} results for {:?}",
+                        results.len(),
+                        input
+                    )));
                     for (result_i, result) in results.iter().enumerate() {
                         column = column.push(
                             widget::mouse_area(
@@ -656,28 +678,44 @@ impl Application for App {
                     }
                     widget::scrollable(column).into()
                 }
-                None => {
-                    let mut column = widget::column::with_capacity(self.installed.len())
-                        .padding([0, space_xs, 0, 0])
-                        .spacing(space_xxs)
-                        .width(Length::Fill);
-                    for (installed_i, (_backend_i, package)) in self.installed.iter().enumerate() {
-                        column = column.push(
-                            widget::mouse_area(
-                                widget::row::with_children(vec![
-                                    widget::icon::icon(package.icon.clone()).size(32).into(),
-                                    widget::text(&package.name).into(),
-                                    widget::horizontal_space(Length::Fill).into(),
-                                    widget::text(&package.version).into(),
-                                ])
-                                .align_items(Alignment::Center)
-                                .spacing(space_xxs),
-                            )
-                            .on_press(Message::SelectInstalled(installed_i)),
-                        );
+                None => match &self.installed {
+                    Some(installed) => {
+                        let mut column = widget::column::with_capacity(installed.len() + 1)
+                            .padding([0, space_xs, 0, 0])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        //TODO: translate
+                        column = column.push(widget::text(format!(
+                            "{} installed applications",
+                            installed.len(),
+                        )));
+                        for (installed_i, (_backend_i, package)) in installed.iter().enumerate() {
+                            column = column.push(
+                                widget::mouse_area(
+                                    widget::row::with_children(vec![
+                                        widget::icon::icon(package.icon.clone()).size(32).into(),
+                                        widget::text(&package.name).into(),
+                                        widget::horizontal_space(Length::Fill).into(),
+                                        widget::text(&package.version).into(),
+                                    ])
+                                    .align_items(Alignment::Center)
+                                    .spacing(space_xxs),
+                                )
+                                .on_press(Message::SelectInstalled(installed_i)),
+                            );
+                        }
+                        widget::scrollable(column).into()
                     }
-                    widget::scrollable(column).into()
-                }
+                    None => {
+                        let mut column = widget::column::with_capacity(1)
+                            .padding([0, space_xs, 0, 0])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        //TODO: translate
+                        column = column.push(widget::text("Loading"));
+                        widget::scrollable(column).into()
+                    }
+                },
             },
         };
 
