@@ -252,6 +252,7 @@ impl AppstreamCache {
                 Icon::Stock(stock) => {
                     if cached_size != 0 {
                         // Skip if a cached icon was found
+                        continue;
                     }
                     icon_opt = Some(widget::icon::from_name(stock.clone()).size(128).handle());
                 }
