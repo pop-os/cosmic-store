@@ -659,7 +659,10 @@ impl Application for App {
             }
             None => match &self.search_results {
                 Some((input, results)) => {
-                    let mut column = widget::column::with_capacity(results.len() + 1)
+                    //TODO: paging or dynamic load
+                    let results_len = cmp::min(results.len(), 256);
+
+                    let mut column = widget::column::with_capacity(results_len + 1)
                         // Hack to make room for scroll bar
                         .padding([0, space_xs, 0, 0])
                         .spacing(space_xxs)
@@ -671,7 +674,7 @@ impl Application for App {
                         results.len(),
                         input
                     )));
-                    for (result_i, result) in results.iter().enumerate() {
+                    for (result_i, result) in results.iter().take(results_len).enumerate() {
                         column = column.push(
                             widget::mouse_area(
                                 widget::row::with_children(vec![
