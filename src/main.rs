@@ -353,23 +353,23 @@ impl Application for App {
                                             Some(mat) => if mat.range().start == 0 {
                                                 if mat.range().end == name.len() {
                                                     // Name equals search phrase
-                                                    Some(10)
+                                                    Some(0)
                                                 } else {
                                                     // Name starts with search phrase
-                                                    Some(9)
+                                                    Some(1)
                                                 }
                                             } else {
                                                 // Name contains search phrase
-                                                Some(8)
+                                                Some(2)
                                             },
                                             None => match regex.find(summary) {
                                                 Some(mat) => if mat.range().start == 0 {
                                                     if mat.range().end == name.len() {
                                                         // Summary equals search phrase
-                                                        Some(7)
+                                                        Some(3)
                                                     } else {
                                                         // Summary starts with search phrase
-                                                        Some(6)
+                                                        Some(4)
                                                     }
                                                 } else {
                                                     // Summary contains search phrase
