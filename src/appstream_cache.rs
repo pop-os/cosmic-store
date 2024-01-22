@@ -14,7 +14,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     sync::Arc,
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 
 use crate::AppInfo;
@@ -34,13 +34,13 @@ pub struct AppstreamCacheTag {
 pub struct AppstreamCache {
     // Uses btreemap for stable sort order
     pub path_tags: BTreeMap<PathBuf, AppstreamCacheTag>,
-    //TODO: icon paths
+    pub icons_paths: Vec<PathBuf>,
     pub infos: HashMap<String, Arc<AppInfo>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
 impl AppstreamCache {
-    pub fn new<P: AsRef<Path>>(paths: &[P], locale: &str) -> Self {
+    pub fn new<P: AsRef<Path>>(paths: &[P], icons_paths: Vec<PathBuf>, locale: &str) -> Self {
         let mut path_tags = BTreeMap::new();
         for path in paths.iter() {
             let canonical = match fs::canonicalize(path) {
@@ -151,6 +151,7 @@ impl AppstreamCache {
 
         let mut appstream_cache = Self::default();
         appstream_cache.path_tags = path_tags;
+        appstream_cache.icons_paths = icons_paths;
         for infos in path_results {
             for (id, info) in infos {
                 if let Some(pkgname) = &info.pkgname {
@@ -175,6 +176,7 @@ impl AppstreamCache {
 
     pub fn system(locale: &str) -> Self {
         let mut paths = Vec::new();
+        let mut icons_paths = Vec::new();
         //TODO: get using xdg dirs?
         for prefix in PREFIXES {
             let prefix_path = Path::new(prefix);
@@ -218,13 +220,19 @@ impl AppstreamCache {
                         paths.push(entry.path());
                     }
                 }
+
+                let icons_path = catalog_path.join("icons");
+                if icons_path.is_dir() {
+                    icons_paths.push(icons_path);
+                }
             }
         }
 
-        AppstreamCache::new(&paths, locale)
+        AppstreamCache::new(&paths, icons_paths, locale)
     }
 
     pub fn icon_path(
+        &self,
         origin_opt: Option<&str>,
         name: &Path,
         width_opt: Option<u32>,
@@ -242,26 +250,10 @@ impl AppstreamCache {
             None => format!("{}x{}", width, height),
         };
 
-        for prefix in PREFIXES {
-            let prefix_path = Path::new(prefix);
-            if !prefix_path.is_dir() {
-                continue;
-            }
-
-            for catalog in CATALOGS {
-                let catalog_path = prefix_path.join(catalog);
-                if !catalog_path.is_dir() {
-                    continue;
-                }
-
-                let icon_path = catalog_path
-                    .join("icons")
-                    .join(origin)
-                    .join(&size)
-                    .join(name);
-                if icon_path.is_file() {
-                    return Some(icon_path);
-                }
+        for icons_path in self.icons_paths.iter() {
+            let icon_path = icons_path.join(origin).join(&size).join(name);
+            if icon_path.is_file() {
+                return Some(icon_path);
             }
         }
 
@@ -285,13 +277,9 @@ impl AppstreamCache {
                         // Skip if size is less than cached size
                         continue;
                     }
-                    if let Some(icon_path) = AppstreamCache::icon_path(
-                        info.origin_opt.as_deref(),
-                        path,
-                        *width,
-                        *height,
-                        *scale,
-                    ) {
+                    if let Some(icon_path) =
+                        self.icon_path(info.origin_opt.as_deref(), path, *width, *height, *scale)
+                    {
                         icon_opt = Some(widget::icon::from_path(icon_path));
                         cached_size = size;
                     }
@@ -318,6 +306,8 @@ impl AppstreamCache {
         reader: R,
         locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
+        let start = Instant::now();
+        //TODO: just running this and not saving the results makes a huge memory leak!
         let e = xmltree::Element::parse(reader)?;
         let _version = e
             .attributes
@@ -364,6 +354,13 @@ impl AppstreamCache {
                 None
             })
             .collect();
+        let duration = start.elapsed();
+        log::info!(
+            "loaded {} items from {:?} in {:?}",
+            infos.len(),
+            path,
+            duration
+        );
         Ok(infos)
     }
 
@@ -372,9 +369,10 @@ impl AppstreamCache {
         reader: R,
         locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
+        let start = Instant::now();
         let mut origin_opt = None;
         let mut infos = Vec::new();
-        //TODO: par_iter
+        //TODO: par_iter?
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
             let value = match serde_yaml::Value::deserialize(doc) {
                 Ok(ok) => ok,
@@ -484,6 +482,13 @@ impl AppstreamCache {
                 }
             }
         }
+        let duration = start.elapsed();
+        log::info!(
+            "loaded {} items from {:?} in {:?}",
+            infos.len(),
+            path,
+            duration
+        );
         Ok(infos)
     }
 }

@@ -15,6 +15,7 @@ impl Flatpak {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
         let mut paths = Vec::new();
+        let mut icons_paths = Vec::new();
         for remote in inst.list_remotes(Cancellable::NONE)? {
             if let Some(appstream_dir) = remote.appstream_dir(None).and_then(|x| x.path()) {
                 let xml_gz_path = appstream_dir.join("appstream.xml.gz");
@@ -26,12 +27,17 @@ impl Flatpak {
                         paths.push(xml_path);
                     }
                 }
+
+                let icons_path = appstream_dir.join("icons");
+                if icons_path.is_dir() {
+                    icons_paths.push(icons_path);
+                }
             }
         }
 
         // We don't store the installation because it is not Send
         Ok(Self {
-            appstream_cache: Arc::new(AppstreamCache::new(&paths, locale)),
+            appstream_cache: Arc::new(AppstreamCache::new(&paths, icons_paths, locale)),
         })
     }
 }
