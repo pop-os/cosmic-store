@@ -931,6 +931,7 @@ dependencies = [
  "log",
  "packagekit-zbus",
  "paste",
+ "regex",
  "rust-embed",
  "serde",
  "serde_yaml",

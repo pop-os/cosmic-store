@@ -14,6 +14,32 @@ impl Flatpak {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
+        {
+            let start = std::time::Instant::now();
+            match inst.list_remotes(Cancellable::NONE) {
+                Ok(remotes) => for remote in remotes {
+                    let remote_name = match remote.name() {
+                        Some(some) => some,
+                        None => {
+                            continue;
+                        }
+                    };
+                    match inst.list_remote_refs_sync(&remote_name, Cancellable::NONE) {
+                        Ok(refs) => {
+                            println!("remote {} has {} refs", remote_name, refs.len());
+                        },
+                        Err(err) => {
+                            log::warn!("list remote {} refs error: {}", remote_name, err);
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::warn!("list remotes error: {}", err);
+                }
+            }
+            let duration = start.elapsed();
+            log::info!("listed remote refs in {:?}", duration);
+        }
         Ok(Self { inst })
     }
 }

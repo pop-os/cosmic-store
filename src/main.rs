@@ -139,6 +139,7 @@ struct SearchResult {
     id: String,
     icon: widget::icon::Handle,
     name: String,
+    summary: String,
     weight: usize,
 }
 
@@ -329,61 +330,82 @@ impl Application for App {
                 }
                 widget::search::Message::Clear => {
                     self.search_model.phrase.clear();
+                    self.search_model.state = widget::search::State::Inactive;
+                    self.search_results = None;
                 }
                 widget::search::Message::Submit => {
                     if !self.search_model.phrase.is_empty() {
-                        let start = Instant::now();
-                        let phrase = &self.search_model.phrase;
-                        let mut results = Vec::new();
-                        //TODO: search by backend instead
-                        //TODO: allow ignoring case (but it lowers weight)
-                        for (id, collection) in self.appstream_cache.collections.iter() {
-                            for component in collection.components.iter() {
-                                //TODO: fuzzy match (nucleus-matcher?)
-                                let name = get_translatable(&component.name, &self.locale);
-                                let weight_opt = if name == phrase {
-                                    Some(10)
-                                } else if name.starts_with(phrase) {
-                                    Some(9)
-                                } else if name.contains(phrase) {
-                                    Some(8)
-                                } else {
-                                    let summary = component
-                                        .summary
-                                        .as_ref()
-                                        .map_or("", |x| get_translatable(x, &self.locale));
-                                    if summary == phrase {
-                                        Some(7)
-                                    } else if summary.starts_with(phrase) {
-                                        Some(6)
-                                    } else if summary.contains(phrase) {
-                                        Some(5)
-                                    } else {
-                                        None
+                        let pattern = regex::escape(&self.search_model.phrase);
+                        match regex::RegexBuilder::new(&pattern).case_insensitive(true).build() {
+                            Ok(regex) => {
+                                let start = Instant::now();
+                                let mut results = Vec::new();
+                                //TODO: search by backend instead
+                                for (id, collection) in self.appstream_cache.collections.iter() {
+                                    for component in collection.components.iter() {
+                                        //TODO: fuzzy match (nucleus-matcher?)
+                                        let name = get_translatable(&component.name, &self.locale);
+                                        let summary = component
+                                            .summary
+                                            .as_ref()
+                                            .map_or("", |x| get_translatable(x, &self.locale));
+                                        let weight_opt = match regex.find(name) {
+                                            Some(mat) => if mat.range().start == 0 {
+                                                if mat.range().end == name.len() {
+                                                    // Name equals search phrase
+                                                    Some(10)
+                                                } else {
+                                                    // Name starts with search phrase
+                                                    Some(9)
+                                                }
+                                            } else {
+                                                // Name contains search phrase
+                                                Some(8)
+                                            },
+                                            None => match regex.find(summary) {
+                                                Some(mat) => if mat.range().start == 0 {
+                                                    if mat.range().end == name.len() {
+                                                        // Summary equals search phrase
+                                                        Some(7)
+                                                    } else {
+                                                        // Summary starts with search phrase
+                                                        Some(6)
+                                                    }
+                                                } else {
+                                                    // Summary contains search phrase
+                                                    Some(5)
+                                                },
+                                                None => None,
+                                            }
+                                        };
+                                        if let Some(weight) = weight_opt {
+                                            results.push(SearchResult {
+                                                id: id.clone(),
+                                                icon: AppstreamCache::icon(
+                                                    collection.origin.as_deref(),
+                                                    component,
+                                                ),
+                                                name: name.to_string(),
+                                                summary: summary.to_string(),
+                                                weight,
+                                            });
+                                        }
                                     }
-                                };
-                                if let Some(weight) = weight_opt {
-                                    results.push(SearchResult {
-                                        id: id.clone(),
-                                        icon: AppstreamCache::icon(
-                                            collection.origin.as_deref(),
-                                            component,
-                                        ),
-                                        name: name.to_string(),
-                                        weight,
-                                    });
                                 }
+                                results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+                                    cmp::Ordering::Equal => {
+                                        lexical_sort::natural_lexical_cmp(&a.name, &b.name)
+                                    }
+                                    ordering => ordering,
+                                });
+                                let duration = start.elapsed();
+                                log::info!("searched in {:?}", duration);
+                                self.search_results = Some(results);
+                            },
+                            Err(err) => {
+                                log::warn!("failed to parse regex {:?}: {}", pattern, err);
                             }
                         }
-                        results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                            cmp::Ordering::Equal => {
-                                lexical_sort::natural_lexical_cmp(&a.name, &b.name)
-                            }
-                            ordering => ordering,
-                        });
-                        let duration = start.elapsed();
-                        log::info!("searched in {:?}", duration);
-                        self.search_results = Some(results);
                     }
                 }
             },
@@ -477,6 +499,8 @@ impl Application for App {
                         widget::row::with_children(vec![
                             widget::icon::icon(result.icon.clone()).size(32).into(),
                             widget::text(&result.name).into(),
+                            widget::horizontal_space(Length::Fill).into(),
+                            widget::text(&result.summary).into(),
                         ])
                         .align_items(Alignment::Center)
                         .spacing(space_xxs),
