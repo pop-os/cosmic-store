@@ -32,6 +32,9 @@ mod key_bind;
 
 mod localize;
 
+const ICON_SIZE_LIST: u16 = 48;
+const ICON_SIZE_DETAILS: u16 = 128;
+
 /// Runs application with these settings
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -637,14 +640,21 @@ impl Application for App {
                 column = column.push(widget::button("Back").on_press(Message::SelectNone));
                 column = column.push(
                     widget::row::with_children(vec![
-                        widget::icon::icon(selected.icon.clone()).size(128).into(),
-                        widget::text(&selected.info.name).into(),
+                        widget::icon::icon(selected.icon.clone())
+                            .size(ICON_SIZE_DETAILS)
+                            .into(),
+                        widget::column::with_children(vec![
+                            widget::text(&selected.info.name).into(),
+                            widget::text(&selected.info.summary).into(),
+                        ])
+                        .into(),
                         widget::horizontal_space(Length::Fill).into(),
-                        widget::text(&selected.info.summary).into(),
+                        //TODO: buttons for status
                     ])
                     .align_items(Alignment::Center)
                     .spacing(space_xxs),
                 );
+                //TODO: screenshots, description, releases, etc.
                 widget::scrollable(column).into()
             }
             None => match &self.search_results {
@@ -665,7 +675,9 @@ impl Application for App {
                         column = column.push(
                             widget::mouse_area(
                                 widget::row::with_children(vec![
-                                    widget::icon::icon(result.icon.clone()).size(32).into(),
+                                    widget::icon::icon(result.icon.clone())
+                                        .size(ICON_SIZE_LIST)
+                                        .into(),
                                     widget::text(&result.info.name).into(),
                                     widget::horizontal_space(Length::Fill).into(),
                                     widget::text(&result.info.summary).into(),
@@ -693,8 +705,14 @@ impl Application for App {
                             column = column.push(
                                 widget::mouse_area(
                                     widget::row::with_children(vec![
-                                        widget::icon::icon(package.icon.clone()).size(32).into(),
-                                        widget::text(&package.name).into(),
+                                        widget::icon::icon(package.icon.clone())
+                                            .size(ICON_SIZE_LIST)
+                                            .into(),
+                                        widget::column::with_children(vec![
+                                            widget::text(&package.name).into(),
+                                            widget::text(&package.summary).into(),
+                                        ])
+                                        .into(),
                                         widget::horizontal_space(Length::Fill).into(),
                                         widget::text(&package.version).into(),
                                     ])
