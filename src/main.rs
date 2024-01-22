@@ -6,7 +6,12 @@ use cosmic::{
     app::{Command, Core, Settings},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
-    iced::{subscription::Subscription, window, Alignment, Length},
+    iced::{
+        event::{self, Event},
+        keyboard::{Event as KeyEvent, KeyCode, Modifiers},
+        subscription::Subscription,
+        window, Alignment, Length,
+    },
     widget, Application, ApplicationExt, Element,
 };
 use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
@@ -19,6 +24,9 @@ mod backend;
 
 use config::{AppTheme, Config, CONFIG_VERSION};
 mod config;
+
+use key_bind::{key_binds, KeyBind};
+mod key_bind;
 
 mod localize;
 
@@ -100,6 +108,19 @@ fn get_markup_translatable<'a>(
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Action {
+    Search,
+}
+
+impl Action {
+    pub fn message(&self) -> Message {
+        match self {
+            Self::Search => Message::Search(widget::search::Message::Activate),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Flags {
     config_handler: Option<cosmic_config::Config>,
@@ -112,6 +133,7 @@ pub enum Message {
     Todo,
     AppTheme(AppTheme),
     Config(Config),
+    Key(Modifiers, KeyCode),
     Search(widget::search::Message),
     SelectInstalled(usize),
     SelectNone,
@@ -153,7 +175,8 @@ pub struct App {
     appstream_cache: Arc<AppstreamCache>,
     backends: HashMap<&'static str, Arc<dyn Backend>>,
     context_page: ContextPage,
-    search_model: widget::search::Model,
+    key_binds: HashMap<KeyBind, Action>,
+    search: widget::search::Model,
     installed: Vec<(&'static str, Package)>,
     current_package: Option<(&'static str, Package, Collection)>,
     search_results: Option<Vec<SearchResult>>,
@@ -247,7 +270,8 @@ impl Application for App {
             appstream_cache,
             backends,
             context_page: ContextPage::Settings,
-            search_model: widget::search::Model::default(),
+            key_binds: key_binds(),
+            search: widget::search::Model::default(),
             installed: Vec::new(),
             current_package: None,
             search_results: None,
@@ -274,6 +298,18 @@ impl Application for App {
 
         let command = app.update_title();
         (app, command)
+    }
+
+    fn on_escape(&mut self) -> Command<Message> {
+        if self.core.window.show_context {
+            // Close context drawer if open
+            self.core.window.show_context = false;
+        } else if self.search.state == widget::search::State::Active {
+            // Close search if open
+            self.search.state = widget::search::State::Inactive;
+            self.search_results = None;
+        }
+        Command::none()
     }
 
     /// Handle application events here.
@@ -321,22 +357,32 @@ impl Application for App {
                     return self.update_config();
                 }
             }
+            Message::Key(modifiers, key_code) => {
+                for (key_bind, action) in self.key_binds.iter() {
+                    if key_bind.matches(modifiers, key_code) {
+                        return self.update(action.message());
+                    }
+                }
+            }
             Message::Search(search_message) => match search_message {
                 widget::search::Message::Activate => {
-                    return self.search_model.focus();
+                    return self.search.focus();
                 }
                 widget::search::Message::Changed(phrase) => {
-                    self.search_model.phrase = phrase;
+                    self.search.phrase = phrase;
                 }
                 widget::search::Message::Clear => {
-                    self.search_model.phrase.clear();
-                    self.search_model.state = widget::search::State::Inactive;
+                    self.search.phrase.clear();
+                    self.search.state = widget::search::State::Inactive;
                     self.search_results = None;
                 }
                 widget::search::Message::Submit => {
-                    if !self.search_model.phrase.is_empty() {
-                        let pattern = regex::escape(&self.search_model.phrase);
-                        match regex::RegexBuilder::new(&pattern).case_insensitive(true).build() {
+                    if !self.search.phrase.is_empty() {
+                        let pattern = regex::escape(&self.search.phrase);
+                        match regex::RegexBuilder::new(&pattern)
+                            .case_insensitive(true)
+                            .build()
+                        {
                             Ok(regex) => {
                                 let start = Instant::now();
                                 let mut results = Vec::new();
@@ -350,33 +396,37 @@ impl Application for App {
                                             .as_ref()
                                             .map_or("", |x| get_translatable(x, &self.locale));
                                         let weight_opt = match regex.find(name) {
-                                            Some(mat) => if mat.range().start == 0 {
-                                                if mat.range().end == name.len() {
-                                                    // Name equals search phrase
-                                                    Some(0)
-                                                } else {
-                                                    // Name starts with search phrase
-                                                    Some(1)
-                                                }
-                                            } else {
-                                                // Name contains search phrase
-                                                Some(2)
-                                            },
-                                            None => match regex.find(summary) {
-                                                Some(mat) => if mat.range().start == 0 {
+                                            Some(mat) => {
+                                                if mat.range().start == 0 {
                                                     if mat.range().end == name.len() {
-                                                        // Summary equals search phrase
-                                                        Some(3)
+                                                        // Name equals search phrase
+                                                        Some(0)
                                                     } else {
-                                                        // Summary starts with search phrase
-                                                        Some(4)
+                                                        // Name starts with search phrase
+                                                        Some(1)
                                                     }
                                                 } else {
-                                                    // Summary contains search phrase
-                                                    Some(5)
-                                                },
-                                                None => None,
+                                                    // Name contains search phrase
+                                                    Some(2)
+                                                }
                                             }
+                                            None => match regex.find(summary) {
+                                                Some(mat) => {
+                                                    if mat.range().start == 0 {
+                                                        if mat.range().end == name.len() {
+                                                            // Summary equals search phrase
+                                                            Some(3)
+                                                        } else {
+                                                            // Summary starts with search phrase
+                                                            Some(4)
+                                                        }
+                                                    } else {
+                                                        // Summary contains search phrase
+                                                        Some(5)
+                                                    }
+                                                }
+                                                None => None,
+                                            },
                                         };
                                         if let Some(weight) = weight_opt {
                                             results.push(SearchResult {
@@ -401,7 +451,7 @@ impl Application for App {
                                 let duration = start.elapsed();
                                 log::info!("searched in {:?}", duration);
                                 self.search_results = Some(results);
-                            },
+                            }
                             Err(err) => {
                                 log::warn!("failed to parse regex {:?}: {}", pattern, err);
                             }
@@ -475,7 +525,7 @@ impl Application for App {
     }
 
     fn header_start(&self) -> Vec<Element<Message>> {
-        vec![widget::search::search(&self.search_model, Message::Search).into()]
+        vec![widget::search::search(&self.search, Message::Search).into()]
     }
 
     /// Creates a view after each update.
@@ -548,11 +598,10 @@ impl Application for App {
                     widget::scrollable(column).into()
                 }
                 None => {
-                    let mut column = widget::column::with_capacity(self.installed.len() + 1)
+                    let mut column = widget::column::with_capacity(self.installed.len())
                         .padding([0, space_xs, 0, 0])
                         .spacing(space_xxs)
                         .width(Length::Fill);
-                    column = column.push(widget::text("Installed:"));
                     for (installed_i, (_backend_i, package)) in self.installed.iter().enumerate() {
                         column = column.push(
                             widget::mouse_area(
@@ -583,6 +632,13 @@ impl Application for App {
         struct ThemeSubscription;
 
         Subscription::batch([
+            event::listen_with(|event, _status| match event {
+                Event::Keyboard(KeyEvent::KeyPressed {
+                    key_code,
+                    modifiers,
+                }) => Some(Message::Key(modifiers, key_code)),
+                _ => None,
+            }),
             cosmic_config::config_subscription(
                 TypeId::of::<ConfigSubscription>(),
                 Self::APP_ID.into(),
