@@ -705,11 +705,7 @@ impl Application for App {
             )
             .map(|update| {
                 if !update.errors.is_empty() {
-                    log::info!(
-                        "errors loading config {:?}: {:?}",
-                        update.keys,
-                        update.errors
-                    );
+                    log::debug!("errors loading config: {:?}", update.errors);
                 }
                 Message::SystemThemeModeChange(update.config)
             }),
@@ -720,11 +716,7 @@ impl Application for App {
             )
             .map(|update| {
                 if !update.errors.is_empty() {
-                    log::info!(
-                        "errors loading theme mode {:?}: {:?}",
-                        update.keys,
-                        update.errors
-                    );
+                    log::debug!("errors loading theme mode: {:?}", update.errors);
                 }
                 Message::SystemThemeModeChange(update.config)
             }),

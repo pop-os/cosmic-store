@@ -323,8 +323,8 @@ impl AppstreamCache {
             .attributes
             .get("version")
             .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
-        let origin = e.attributes.get("origin");
-        let _architecture = e.attributes.get("architecture");
+        let origin_opt = e.attributes.get("origin");
+        let _arch_opt = e.attributes.get("architecture");
         let infos: Vec<_> = e
             .children
             .par_iter()
@@ -343,7 +343,7 @@ impl AppstreamCache {
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
-                                        origin.map(|x| x.clone()),
+                                        origin_opt.map(|x| x.as_str()),
                                         component,
                                         locale,
                                     )),
@@ -475,7 +475,7 @@ impl AppstreamCache {
                         let id = component.id.to_string();
                         infos.push((
                             id,
-                            Arc::new(AppInfo::new(origin_opt.clone(), component, locale)),
+                            Arc::new(AppInfo::new(origin_opt.as_deref(), component, locale)),
                         ));
                     }
                     Err(err) => {

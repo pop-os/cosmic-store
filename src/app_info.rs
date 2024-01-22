@@ -35,7 +35,7 @@ pub struct AppInfo {
 }
 
 impl AppInfo {
-    pub fn new(origin_opt: Option<String>, component: Component, locale: &str) -> Self {
+    pub fn new(origin_opt: Option<&str>, component: Component, locale: &str) -> Self {
         let name = get_translatable(&component.name, locale);
         let summary = component
             .summary
@@ -50,7 +50,7 @@ impl AppInfo {
         }
         */
         Self {
-            origin_opt,
+            origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
             pkgname: component.pkgname,
