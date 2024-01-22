@@ -16,18 +16,24 @@ impl Flatpak {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        let mut appstream_cache = AppstreamCache::default();
+        let mut paths = Vec::new();
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            println!(
-                "{:?}: {:?}",
-                remote.name(),
-                remote.appstream_dir(None).and_then(|x| x.path())
-            );
+            if let Some(appstream_dir) = remote.appstream_dir(None).and_then(|x| x.path()) {
+                let xml_gz_path = appstream_dir.join("appstream.xml.gz");
+                if xml_gz_path.is_file() {
+                    paths.push(xml_gz_path);
+                } else {
+                    let xml_path = appstream_dir.join("appstream.xml");
+                    if xml_path.is_file() {
+                        paths.push(xml_path);
+                    }
+                }
+            }
         }
 
         // We don't store the installation because it is not Send
         Ok(Self {
-            appstream_cache: Arc::new(appstream_cache),
+            appstream_cache: Arc::new(AppstreamCache::new(&paths)),
         })
     }
 }

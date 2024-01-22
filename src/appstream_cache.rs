@@ -1,4 +1,4 @@
-use appstream::{enums::Icon, Collection, Component};
+use appstream::{enums::Icon, xmltree, Collection, Component, ParseError};
 use cosmic::widget;
 use flate2::read::GzDecoder;
 use serde::Deserialize;
@@ -26,15 +26,126 @@ pub struct AppstreamCacheTag {
 
 #[derive(Debug, Default)]
 pub struct AppstreamCache {
+    // Uses btreemap for stable sort order
+    pub path_tags: BTreeMap<PathBuf, AppstreamCacheTag>,
+    //TODO: icon paths
     pub collections: HashMap<String, Arc<Collection>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
 impl AppstreamCache {
-    //TODO: make async?
+    pub fn new<P: AsRef<Path>>(paths: &[P]) -> Self {
+        let mut path_tags = BTreeMap::new();
+        for path in paths.iter() {
+            let canonical = match fs::canonicalize(path) {
+                Ok(ok) => ok,
+                Err(err) => {
+                    log::error!("failed to canonicalize {:?}: {}", path.as_ref(), err);
+                    continue;
+                }
+            };
+
+            let metadata = match fs::metadata(&canonical) {
+                Ok(ok) => ok,
+                Err(err) => {
+                    log::error!("failed to read metadata of {:?}: {}", canonical, err);
+                    continue;
+                }
+            };
+
+            let modified = match metadata.modified() {
+                Ok(system_time) => match system_time.duration_since(SystemTime::UNIX_EPOCH) {
+                    Ok(duration) => duration.as_secs(),
+                    Err(err) => {
+                        log::error!(
+                            "failed to convert modified time of {:?} to unix epoch: {}",
+                            canonical,
+                            err
+                        );
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    log::error!("failed to read modified time of {:?}: {}", canonical, err);
+                    continue;
+                }
+            };
+
+            let size = metadata.len();
+
+            path_tags.insert(canonical, AppstreamCacheTag { modified, size });
+        }
+
+        let mut appstream_cache = Self::default();
+        for (path, _tag) in path_tags.iter() {
+            let file_name = match path.file_name() {
+                Some(file_name_os) => match file_name_os.to_str() {
+                    Some(some) => some,
+                    None => {
+                        log::error!("failed to convert to UTF-8: {:?}", file_name_os);
+                        continue;
+                    }
+                },
+                None => {
+                    log::error!("path has no file name: {:?}", path);
+                    continue;
+                }
+            };
+
+            let mut file = match fs::File::open(&path) {
+                Ok(ok) => ok,
+                Err(err) => {
+                    log::error!("failed to open {:?}: {}", path, err);
+                    continue;
+                }
+            };
+
+            if file_name.ends_with(".xml.gz") {
+                log::info!("Compressed XML: {:?}", path);
+                let mut gz = GzDecoder::new(&mut file);
+                match appstream_cache.parse_xml(path, &mut gz) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
+                    }
+                }
+            } else if file_name.ends_with(".yml.gz") {
+                log::info!("Compressed YAML: {:?}", path);
+                let mut gz = GzDecoder::new(&mut file);
+                match appstream_cache.parse_yml(path, &mut gz) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
+                    }
+                }
+            } else if file_name.ends_with(".xml") {
+                log::info!("XML: {:?}", path);
+                match appstream_cache.parse_xml(path, &mut file) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
+                    }
+                }
+            } else if file_name.ends_with(".yml") {
+                log::info!("YAML: {:?}", path);
+                match appstream_cache.parse_yml(path, &mut file) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        log::error!("failed to parse {:?}: {}", path, err);
+                    }
+                }
+            } else {
+                log::error!("unknown appstream file type: {:?}", path);
+                continue;
+            };
+        }
+        appstream_cache.path_tags = path_tags;
+
+        appstream_cache
+    }
+
     pub fn system() -> Self {
-        // Uses btreemap for stable sort order
-        let mut paths = BTreeMap::new();
+        let mut paths = Vec::new();
         //TODO: get using xdg dirs?
         for prefix in PREFIXES {
             let prefix_path = Path::new(prefix);
@@ -75,111 +186,13 @@ impl AppstreamCache {
                             }
                         };
 
-                        let path = entry.path();
-                        let canonical = match fs::canonicalize(&path) {
-                            Ok(ok) => ok,
-                            Err(err) => {
-                                log::error!("failed to canonicalize {:?}: {}", path, err);
-                                continue;
-                            }
-                        };
-
-                        let metadata = match fs::metadata(&canonical) {
-                            Ok(ok) => ok,
-                            Err(err) => {
-                                log::error!("failed to read metadata of {:?}: {}", canonical, err);
-                                continue;
-                            }
-                        };
-
-                        let modified = match metadata.modified() {
-                            Ok(system_time) => {
-                                match system_time.duration_since(SystemTime::UNIX_EPOCH) {
-                                    Ok(duration) => duration.as_secs(),
-                                    Err(err) => {
-                                        log::error!(
-                                            "failed to convert modified time of {:?} to unix epoch: {}",
-                                            canonical,
-                                            err
-                                        );
-                                        continue;
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                log::error!(
-                                    "failed to read modified time of {:?}: {}",
-                                    canonical,
-                                    err
-                                );
-                                continue;
-                            }
-                        };
-
-                        let size = metadata.len();
-
-                        paths.insert(canonical, AppstreamCacheTag { modified, size });
+                        paths.push(entry.path());
                     }
                 }
             }
         }
 
-        //TODO: save cache to disk and update when tags change
-        let mut appstream_cache = Self::default();
-        for (path, _tag) in paths.iter() {
-            let file_name = match path.file_name() {
-                Some(file_name_os) => match file_name_os.to_str() {
-                    Some(some) => some,
-                    None => {
-                        log::error!("failed to convert to UTF-8: {:?}", file_name_os);
-                        continue;
-                    }
-                },
-                None => {
-                    log::error!("path has no file name: {:?}", path);
-                    continue;
-                }
-            };
-
-            let mut file = match fs::File::open(&path) {
-                Ok(ok) => ok,
-                Err(err) => {
-                    log::error!("failed to open {:?}: {}", path, err);
-                    continue;
-                }
-            };
-
-            if file_name.ends_with(".xml.gz") {
-                log::info!("Compressed XML: {:?}", path);
-                let mut gz = GzDecoder::new(&mut file);
-                //TODO: support XML
-            } else if file_name.ends_with(".yml.gz") {
-                log::info!("Compressed YAML: {:?}", path);
-                let mut gz = GzDecoder::new(&mut file);
-                match appstream_cache.parse_yml(path, &mut gz) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
-                    }
-                }
-            } else if file_name.ends_with(".xml") {
-                log::info!("XML: {:?}", path);
-                //TODO: support XML
-            } else if file_name.ends_with(".yml") {
-                log::info!("YAML: {:?}", path);
-                match appstream_cache.parse_yml(path, &mut file) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
-                    }
-                }
-            } else {
-                log::error!("unknown appstream file type: {:?}", path);
-                continue;
-            };
-        }
-
-        appstream_cache
+        AppstreamCache::new(&paths)
     }
 
     pub fn icon_path(
@@ -265,6 +278,58 @@ impl AppstreamCache {
                 .size(128)
                 .handle()
         })
+    }
+
+    fn parse_xml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+        let e = xmltree::Element::parse(reader)?;
+        let version = e
+            .attributes
+            .get("version")
+            .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
+        let origin = e.attributes.get("origin");
+        let architecture = e.attributes.get("architecture");
+        for node in &e.children {
+            if let xmltree::XMLNode::Element(ref e) = node {
+                if &*e.name == "component" {
+                    match Component::try_from(e) {
+                        Ok(component) => {
+                            let id = component.id.to_string();
+                            if let Some(pkgname) = &component.pkgname {
+                                self.pkgnames
+                                    .entry(pkgname.clone())
+                                    .or_insert_with(|| HashSet::new())
+                                    .insert(id.clone());
+                            }
+                            match self.collections.insert(
+                                id.clone(),
+                                Arc::new(Collection {
+                                    version: version.clone(),
+                                    origin: origin.cloned(),
+                                    components: vec![component],
+                                    architecture: architecture.cloned(),
+                                }),
+                            ) {
+                                Some(_old) => {
+                                    //TODO: merge based on priority
+                                    log::debug!("found duplicate collection {}", id);
+                                }
+                                None => {}
+                            }
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "failed to parse {:?} in {:?}: {}",
+                                e.get_child("id")
+                                    .and_then(|x| appstream::AppId::try_from(x).ok()),
+                                path,
+                                err
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn parse_yml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
@@ -393,7 +458,6 @@ impl AppstreamCache {
                 }
             }
         }
-        //TODO: return collection or error
         Ok(())
     }
 }
