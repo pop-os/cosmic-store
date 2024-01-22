@@ -1,7 +1,6 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use appstream::Collection;
 use cosmic::{
     app::{message, Command, Core, Settings},
     cosmic_config::{self, CosmicConfigEntry},
@@ -15,6 +14,9 @@ use cosmic::{
     widget, Application, ApplicationExt, Element,
 };
 use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
+
+use app_info::AppInfo;
+mod app_info;
 
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
@@ -33,16 +35,6 @@ mod localize;
 /// Runs application with these settings
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(all(unix, not(target_os = "redox")))]
-    match fork::daemon(true, true) {
-        Ok(fork::Fork::Child) => (),
-        Ok(fork::Fork::Parent(_child_pid)) => process::exit(0),
-        Err(err) => {
-            eprintln!("failed to daemonize: {:?}", err);
-            process::exit(1);
-        }
-    }
-
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
     localize::localize();
@@ -83,29 +75,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     cosmic::app::run::<App>(settings, flags)?;
 
     Ok(())
-}
-
-fn get_translatable<'a>(translatable: &'a appstream::TranslatableString, locale: &str) -> &'a str {
-    match translatable.get_for_locale(locale) {
-        Some(some) => some.as_str(),
-        None => match translatable.get_default() {
-            Some(some) => some.as_str(),
-            None => "",
-        },
-    }
-}
-
-fn get_markup_translatable<'a>(
-    translatable: &'a appstream::MarkupTranslatableString,
-    locale: &str,
-) -> &'a str {
-    match translatable.get_for_locale(locale) {
-        Some(some) => some.as_str(),
-        None => match translatable.get_default() {
-            Some(some) => some.as_str(),
-            None => "",
-        },
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -169,9 +138,7 @@ pub struct SearchResult {
     backend_name: &'static str,
     id: String,
     icon: widget::icon::Handle,
-    name: String,
-    summary: String,
-    collection: Arc<Collection>,
+    info: Arc<AppInfo>,
     weight: usize,
 }
 
@@ -180,9 +147,7 @@ pub struct Selected {
     backend_name: &'static str,
     id: String,
     icon: widget::icon::Handle,
-    name: String,
-    summary: String,
-    collection: Arc<Collection>,
+    info: Arc<AppInfo>,
 }
 
 /// The [`App`] stores application-specific state.
@@ -206,74 +171,63 @@ pub struct App {
 impl App {
     fn search(&self, regex: regex::Regex) -> Command<Message> {
         let backends = self.backends.clone();
-        let locale = self.locale.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let mut results = Vec::<SearchResult>::new();
                     for (backend_name, backend) in backends.iter() {
-                        let appstream_cache = backend.appstream_cache();
-                        for (id, collection) in appstream_cache.collections.iter() {
-                            for component in collection.components.iter() {
-                                //TODO: fuzzy match (nucleus-matcher?)
-                                let name = get_translatable(&component.name, &locale);
-                                let summary = component
-                                    .summary
-                                    .as_ref()
-                                    .map_or("", |x| get_translatable(x, &locale));
-                                let weight_opt = match regex.find(name) {
+                        let appstream_cache = backend.info_cache();
+                        for (id, info) in appstream_cache.infos.iter() {
+                            //TODO: fuzzy match (nucleus-matcher?)
+                            let weight_opt = match regex.find(&info.name) {
+                                Some(mat) => {
+                                    if mat.range().start == 0 {
+                                        if mat.range().end == info.name.len() {
+                                            // Name equals search phrase
+                                            Some(0)
+                                        } else {
+                                            // Name starts with search phrase
+                                            Some(1)
+                                        }
+                                    } else {
+                                        // Name contains search phrase
+                                        Some(2)
+                                    }
+                                }
+                                None => match regex.find(&info.summary) {
                                     Some(mat) => {
                                         if mat.range().start == 0 {
-                                            if mat.range().end == name.len() {
-                                                // Name equals search phrase
-                                                Some(0)
+                                            if mat.range().end == info.summary.len() {
+                                                // Summary equals search phrase
+                                                Some(3)
                                             } else {
-                                                // Name starts with search phrase
-                                                Some(1)
+                                                // Summary starts with search phrase
+                                                Some(4)
                                             }
                                         } else {
-                                            // Name contains search phrase
-                                            Some(2)
+                                            // Summary contains search phrase
+                                            Some(5)
                                         }
                                     }
-                                    None => match regex.find(summary) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == name.len() {
-                                                    // Summary equals search phrase
-                                                    Some(3)
-                                                } else {
-                                                    // Summary starts with search phrase
-                                                    Some(4)
-                                                }
-                                            } else {
-                                                // Summary contains search phrase
-                                                Some(5)
-                                            }
-                                        }
-                                        None => None,
-                                    },
-                                };
-                                if let Some(weight) = weight_opt {
-                                    results.push(SearchResult {
-                                        backend_name,
-                                        id: id.clone(),
-                                        icon: AppstreamCache::icon(
-                                            collection.origin.as_deref(),
-                                            component,
-                                        ),
-                                        name: name.to_string(),
-                                        summary: summary.to_string(),
-                                        collection: collection.clone(),
-                                        weight,
-                                    });
-                                }
+                                    None => None,
+                                },
+                            };
+                            if let Some(weight) = weight_opt {
+                                results.push(SearchResult {
+                                    backend_name,
+                                    id: id.clone(),
+                                    icon: appstream_cache.icon(info),
+                                    info: info.clone(),
+                                    weight,
+                                });
                             }
                         }
                     }
                     results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                        cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(&a.name, &b.name),
+                        cmp::Ordering::Equal => {
+                            lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name)
+                        }
                         ordering => ordering,
                     });
                     let duration = start.elapsed();
@@ -296,14 +250,12 @@ impl App {
         };
         Command::perform(
             async move {
-                tokio::task::spawn_blocking(move || match backend.appstream(&package) {
-                    Ok(collection) => message::app(Message::Selected(Selected {
+                tokio::task::spawn_blocking(move || match backend.info(&package) {
+                    Ok(info) => message::app(Message::Selected(Selected {
                         backend_name,
                         id: package.id,
                         icon: package.icon,
-                        name: package.name,
-                        summary: package.summary,
-                        collection,
+                        info,
                     })),
                     Err(err) => {
                         log::error!("failed to get appstream data for {}: {}", package.id, err);
@@ -583,9 +535,7 @@ impl Application for App {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
-                                name: result.name.clone(),
-                                summary: result.summary.clone(),
-                                collection: result.collection.clone(),
+                                info: result.info.clone(),
                             })
                         }
                         None => {
@@ -663,41 +613,22 @@ impl Application for App {
 
         let content: Element<_> = match &self.selected_opt {
             Some(selected) => {
-                //TODO: capacity may go over due to summary
-                let mut column =
-                    widget::column::with_capacity(selected.collection.components.len() + 2)
-                        // Hack to make room for scroll bar
-                        .padding([0, space_xs, 0, 0])
-                        .spacing(space_xxs)
-                        .width(Length::Fill);
+                let mut column = widget::column::with_capacity(2)
+                    // Hack to make room for scroll bar
+                    .padding([0, space_xs, 0, 0])
+                    .spacing(space_xxs)
+                    .width(Length::Fill);
                 column = column.push(widget::button("Back").on_press(Message::SelectNone));
                 column = column.push(
                     widget::row::with_children(vec![
                         widget::icon::icon(selected.icon.clone()).size(128).into(),
-                        widget::text(&selected.name).into(),
+                        widget::text(&selected.info.name).into(),
                         widget::horizontal_space(Length::Fill).into(),
-                        widget::text(&selected.summary).into(),
+                        widget::text(&selected.info.summary).into(),
                     ])
                     .align_items(Alignment::Center)
                     .spacing(space_xxs),
                 );
-                for component in selected.collection.components.iter() {
-                    column = column.push(widget::text(get_translatable(
-                        &component.name,
-                        &self.locale,
-                    )));
-                    if let Some(summary) = &component.summary {
-                        column = column.push(widget::text(get_translatable(summary, &self.locale)));
-                    }
-                    /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
-                    if let Some(description) = &component.description {
-                        column = column.push(widget::text(get_markup_translatable(
-                            description,
-                            &self.locale,
-                        )));
-                    }
-                    */
-                }
                 widget::scrollable(column).into()
             }
             None => match &self.search_results {
@@ -713,9 +644,9 @@ impl Application for App {
                             widget::mouse_area(
                                 widget::row::with_children(vec![
                                     widget::icon::icon(result.icon.clone()).size(32).into(),
-                                    widget::text(&result.name).into(),
+                                    widget::text(&result.info.name).into(),
                                     widget::horizontal_space(Length::Fill).into(),
-                                    widget::text(&result.summary).into(),
+                                    widget::text(&result.info.summary).into(),
                                 ])
                                 .align_items(Alignment::Center)
                                 .spacing(space_xxs),

@@ -45,6 +45,3 @@ smithay-client-toolkit = { git = "https://github.com/pop-os/client-toolkit", bra
 [profile.release-with-debug]
 inherits = "release"
 debug = true
-
-[target.'cfg(unix)'.dependencies]
-fork = "0.1"

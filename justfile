@@ -46,6 +46,10 @@ check *args:
 # Runs a clippy check with JSON message format
 check-json: (check '--message-format=json')
 
+# Profile memory usage with heaptrack
+heaptrack:
+    cargo heaptrack --profile release-with-debug
+
 # Run with debug logs
 run *args:
     env RUST_LOG=cosmic_store=info RUST_BACKTRACE=full cargo run --release {{args}}

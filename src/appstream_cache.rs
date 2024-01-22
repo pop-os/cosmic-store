@@ -1,4 +1,7 @@
-use appstream::{enums::Icon, xmltree, Collection, Component, ParseError};
+use appstream::{
+    enums::{ComponentKind, Icon},
+    xmltree, Component, ParseError,
+};
 use cosmic::widget;
 use flate2::read::GzDecoder;
 use rayon::prelude::*;
@@ -13,6 +16,8 @@ use std::{
     sync::Arc,
     time::SystemTime,
 };
+
+use crate::AppInfo;
 
 const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
@@ -30,12 +35,12 @@ pub struct AppstreamCache {
     // Uses btreemap for stable sort order
     pub path_tags: BTreeMap<PathBuf, AppstreamCacheTag>,
     //TODO: icon paths
-    pub collections: HashMap<String, Arc<Collection>>,
+    pub infos: HashMap<String, Arc<AppInfo>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
 impl AppstreamCache {
-    pub fn new<P: AsRef<Path>>(paths: &[P]) -> Self {
+    pub fn new<P: AsRef<Path>>(paths: &[P], locale: &str) -> Self {
         let mut path_tags = BTreeMap::new();
         for path in paths.iter() {
             let canonical = match fs::canonicalize(path) {
@@ -105,8 +110,8 @@ impl AppstreamCache {
 
                 if file_name.ends_with(".xml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_xml(path, &mut gz) {
-                        Ok(collections) => Some(collections),
+                    match AppstreamCache::parse_xml(path, &mut gz, locale) {
+                        Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -114,24 +119,24 @@ impl AppstreamCache {
                     }
                 } else if file_name.ends_with(".yml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_yaml(path, &mut gz) {
-                        Ok(collections) => Some(collections),
+                    match AppstreamCache::parse_yaml(path, &mut gz, locale) {
+                        Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
                         }
                     }
                 } else if file_name.ends_with(".xml") {
-                    match AppstreamCache::parse_xml(path, &mut file) {
-                        Ok(collections) => Some(collections),
+                    match AppstreamCache::parse_xml(path, &mut file, locale) {
+                        Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
                         }
                     }
                 } else if file_name.ends_with(".yml") {
-                    match AppstreamCache::parse_yaml(path, &mut file) {
-                        Ok(collections) => Some(collections),
+                    match AppstreamCache::parse_yaml(path, &mut file, locale) {
+                        Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -146,21 +151,19 @@ impl AppstreamCache {
 
         let mut appstream_cache = Self::default();
         appstream_cache.path_tags = path_tags;
-        for collections in path_results {
-            for (id, collection) in collections {
-                for component in collection.components.iter() {
-                    if let Some(pkgname) = &component.pkgname {
-                        appstream_cache
-                            .pkgnames
-                            .entry(pkgname.clone())
-                            .or_insert_with(|| HashSet::new())
-                            .insert(id.clone());
-                    }
+        for infos in path_results {
+            for (id, info) in infos {
+                if let Some(pkgname) = &info.pkgname {
+                    appstream_cache
+                        .pkgnames
+                        .entry(pkgname.clone())
+                        .or_insert_with(|| HashSet::new())
+                        .insert(id.clone());
                 }
-                match appstream_cache.collections.insert(id.clone(), collection) {
+                match appstream_cache.infos.insert(id.clone(), info) {
                     Some(_old) => {
                         //TODO: merge based on priority
-                        log::debug!("found duplicate collection {}", id);
+                        log::debug!("found duplicate info {}", id);
                     }
                     None => {}
                 }
@@ -170,7 +173,7 @@ impl AppstreamCache {
         appstream_cache
     }
 
-    pub fn system() -> Self {
+    pub fn system(locale: &str) -> Self {
         let mut paths = Vec::new();
         //TODO: get using xdg dirs?
         for prefix in PREFIXES {
@@ -218,7 +221,7 @@ impl AppstreamCache {
             }
         }
 
-        AppstreamCache::new(&paths)
+        AppstreamCache::new(&paths, locale)
     }
 
     pub fn icon_path(
@@ -265,12 +268,12 @@ impl AppstreamCache {
         None
     }
 
-    pub fn icon(origin_opt: Option<&str>, component: &Component) -> widget::icon::Handle {
+    pub fn icon(&self, info: &AppInfo) -> widget::icon::Handle {
         let mut icon_opt = None;
         let mut cached_size = 0;
-        for component_icon in component.icons.iter() {
+        for info_icon in info.icons.iter() {
             //TODO: support other types of icons
-            match component_icon {
+            match info_icon {
                 Icon::Cached {
                     path,
                     width,
@@ -282,9 +285,13 @@ impl AppstreamCache {
                         // Skip if size is less than cached size
                         continue;
                     }
-                    if let Some(icon_path) =
-                        AppstreamCache::icon_path(origin_opt, path, *width, *height, *scale)
-                    {
+                    if let Some(icon_path) = AppstreamCache::icon_path(
+                        info.origin_opt.as_deref(),
+                        path,
+                        *width,
+                        *height,
+                        *scale,
+                    ) {
                         icon_opt = Some(widget::icon::from_path(icon_path));
                         cached_size = size;
                     }
@@ -309,17 +316,16 @@ impl AppstreamCache {
     fn parse_xml<R: Read>(
         path: &Path,
         reader: R,
-    ) -> Result<Vec<(String, Arc<Collection>)>, Box<dyn Error>> {
-        let start = std::time::Instant::now();
+        locale: &str,
+    ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let e = xmltree::Element::parse(reader)?;
-        let duration = start.elapsed();
-        let version = e
+        let _version = e
             .attributes
             .get("version")
             .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
         let origin = e.attributes.get("origin");
-        let architecture = e.attributes.get("architecture");
-        let collections: Vec<_> = e
+        let _architecture = e.attributes.get("architecture");
+        let infos: Vec<_> = e
             .children
             .par_iter()
             .filter_map(|node| {
@@ -327,15 +333,20 @@ impl AppstreamCache {
                     if &*e.name == "component" {
                         match Component::try_from(e) {
                             Ok(component) => {
+                                if component.kind != ComponentKind::DesktopApplication {
+                                    // Skip anything that is not a desktop application
+                                    //TODO: should we allow more components?
+                                    return None;
+                                }
+
                                 let id = component.id.to_string();
                                 return Some((
                                     id,
-                                    Arc::new(Collection {
-                                        version: version.clone(),
-                                        origin: origin.cloned(),
-                                        components: vec![component],
-                                        architecture: architecture.cloned(),
-                                    }),
+                                    Arc::new(AppInfo::new(
+                                        origin.map(|x| x.clone()),
+                                        component,
+                                        locale,
+                                    )),
                                 ));
                             }
                             Err(err) => {
@@ -353,16 +364,17 @@ impl AppstreamCache {
                 None
             })
             .collect();
-        Ok(collections)
+        Ok(infos)
     }
 
     fn parse_yaml<R: Read>(
         path: &Path,
         reader: R,
-    ) -> Result<Vec<(String, Arc<Collection>)>, Box<dyn Error>> {
-        let mut version_opt = None;
+        locale: &str,
+    ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let mut origin_opt = None;
-        let mut collections = Vec::new();
+        let mut infos = Vec::new();
+        //TODO: par_iter
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
             let value = match serde_yaml::Value::deserialize(doc) {
                 Ok(ok) => ok,
@@ -372,11 +384,16 @@ impl AppstreamCache {
                 }
             };
             if doc_i == 0 {
-                version_opt = value["Version"].as_str().map(|x| x.to_string());
                 origin_opt = value["Origin"].as_str().map(|x| x.to_string());
             } else {
                 match Component::deserialize(&value) {
                     Ok(mut component) => {
+                        if component.kind != ComponentKind::DesktopApplication {
+                            // Skip anything that is not a desktop application
+                            //TODO: should we allow more components?
+                            continue;
+                        }
+
                         //TODO: move to appstream crate
                         if let Some(icons) = value["Icon"].as_mapping() {
                             for (key, icon) in icons.iter() {
@@ -456,16 +473,9 @@ impl AppstreamCache {
                         }
 
                         let id = component.id.to_string();
-                        collections.push((
+                        infos.push((
                             id,
-                            Arc::new(Collection {
-                                //TODO: default version
-                                version: version_opt.clone().unwrap_or_default(),
-                                origin: origin_opt.clone(),
-                                components: vec![component],
-                                //TODO: architecture
-                                architecture: None,
-                            }),
+                            Arc::new(AppInfo::new(origin_opt.clone(), component, locale)),
                         ));
                     }
                     Err(err) => {
@@ -474,6 +484,6 @@ impl AppstreamCache {
                 }
             }
         }
-        Ok(collections)
+        Ok(infos)
     }
 }

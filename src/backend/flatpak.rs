@@ -1,6 +1,4 @@
-use appstream::{xmltree, Collection, ParseError};
 use cosmic::widget;
-use flate2::read::GzDecoder;
 use libflatpak::{gio::Cancellable, prelude::*, Installation, RefKind};
 use std::{collections::HashMap, error::Error, sync::Arc};
 
@@ -13,7 +11,7 @@ pub struct Flatpak {
 }
 
 impl Flatpak {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
         let mut paths = Vec::new();
@@ -33,7 +31,7 @@ impl Flatpak {
 
         // We don't store the installation because it is not Send
         Ok(Self {
-            appstream_cache: Arc::new(AppstreamCache::new(&paths)),
+            appstream_cache: Arc::new(AppstreamCache::new(&paths, locale)),
         })
     }
 }
@@ -67,25 +65,7 @@ impl Backend for Flatpak {
         Ok(packages)
     }
 
-    fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>> {
-        //TODO: should we support system installations?
-        let inst = Installation::new_user(Cancellable::NONE)?;
-        let r = inst.installed_ref(
-            RefKind::App,
-            &package.id,
-            package.extra.get("arch").map(|x| x.as_str()),
-            package.extra.get("branch").map(|x| x.as_str()),
-            Cancellable::NONE,
-        )?;
-        let bytes = r.load_appdata(Cancellable::NONE)?;
-        let mut gz = GzDecoder::new(&*bytes);
-        let element = xmltree::Element::parse(&mut gz)?;
-        let collection = Collection::try_from(&element).map_err(ParseError::from)?;
-        //TODO: cache this collection
-        Ok(Arc::new(collection))
-    }
-
-    fn appstream_cache(&self) -> &Arc<AppstreamCache> {
+    fn info_cache(&self) -> &Arc<AppstreamCache> {
         &self.appstream_cache
     }
 }

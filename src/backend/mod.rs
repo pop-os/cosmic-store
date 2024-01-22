@@ -1,8 +1,7 @@
-use appstream::Collection;
 use cosmic::widget;
 use std::{collections::HashMap, error::Error, fmt, sync::Arc, time::Instant};
 
-use crate::AppstreamCache;
+use crate::{AppInfo, AppstreamCache};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -22,8 +21,15 @@ pub struct Package {
 
 pub trait Backend: fmt::Debug + Send + Sync {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
-    fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>>;
-    fn appstream_cache(&self) -> &Arc<AppstreamCache>;
+    //TODO: remove
+    fn info(&self, package: &Package) -> Result<Arc<AppInfo>, Box<dyn Error>> {
+        let info_cache = self.info_cache();
+        match info_cache.infos.get(&package.id) {
+            Some(info) => Ok(info.clone()),
+            None => Err(format!("failed to find info for {}", package.id).into()),
+        }
+    }
+    fn info_cache(&self) -> &Arc<AppstreamCache>;
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;
@@ -34,7 +40,7 @@ pub fn backends(locale: &str) -> Backends {
     #[cfg(feature = "flatpak")]
     {
         let start = Instant::now();
-        match flatpak::Flatpak::new() {
+        match flatpak::Flatpak::new(locale) {
             Ok(backend) => {
                 backends.insert("flatpak", Arc::new(backend));
                 let duration = start.elapsed();

@@ -1,4 +1,3 @@
-use appstream::{enums::ComponentKind, Collection};
 use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
@@ -6,7 +5,7 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{get_translatable, AppstreamCache};
+use crate::AppstreamCache;
 
 // https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnum
 #[repr(u64)]
@@ -18,7 +17,6 @@ enum FilterKind {
 pub struct Packagekit {
     connection: Connection,
     appstream_cache: Arc<AppstreamCache>,
-    locale: String,
 }
 
 impl Packagekit {
@@ -27,15 +25,14 @@ impl Packagekit {
         let connection = Connection::system()?;
         Ok(Self {
             connection,
-            appstream_cache: Arc::new(AppstreamCache::system()),
-            locale: locale.to_string(),
+            appstream_cache: Arc::new(AppstreamCache::system(locale)),
         })
     }
 
     fn transaction(&self) -> Result<TransactionProxyBlocking, Box<dyn Error>> {
         //TODO: use async?
         let pk = PackageKitProxyBlocking::new(&self.connection)?;
-        //TODO: set locale
+        //TODO: set locale?
         let tx_path = pk.create_transaction()?;
         let tx = TransactionProxyBlocking::builder(&self.connection)
             .destination("org.freedesktop.PackageKit")?
@@ -83,36 +80,19 @@ impl Packagekit {
             match self.appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
                     for id in ids.iter() {
-                        match self.appstream_cache.collections.get(id) {
-                            Some(collection) => {
-                                for component in collection.components.iter() {
-                                    if component.kind != ComponentKind::DesktopApplication {
-                                        // Skip anything that is not a desktop application
-                                        //TODO: should we allow more components?
-                                        continue;
-                                    }
-
-                                    packages.push(Package {
-                                        id: id.clone(),
-                                        icon: AppstreamCache::icon(
-                                            collection.origin.as_deref(),
-                                            component,
-                                        ),
-                                        name: get_translatable(&component.name, &self.locale)
-                                            .to_string(),
-                                        summary: component
-                                            .summary
-                                            .as_ref()
-                                            .map(|summary| get_translatable(summary, &self.locale))
-                                            .unwrap_or("")
-                                            .to_string(),
-                                        version: version_opt.unwrap_or("").to_string(),
-                                        extra: HashMap::new(),
-                                    });
-                                }
+                        match self.appstream_cache.infos.get(id) {
+                            Some(info) => {
+                                packages.push(Package {
+                                    id: id.clone(),
+                                    icon: self.appstream_cache.icon(info),
+                                    name: info.name.clone(),
+                                    summary: info.summary.clone(),
+                                    version: version_opt.unwrap_or("").to_string(),
+                                    extra: HashMap::new(),
+                                });
                             }
                             None => {
-                                log::warn!("failed to find component {}", id);
+                                log::warn!("failed to find info {}", id);
                             }
                         }
                     }
@@ -132,14 +112,7 @@ impl Backend for Packagekit {
         self.packages(FilterKind::Installed)
     }
 
-    fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>> {
-        match self.appstream_cache.collections.get(&package.id) {
-            Some(collection) => Ok(collection.clone()),
-            None => Err(format!("failed to find component {}", package.id).into()),
-        }
-    }
-
-    fn appstream_cache(&self) -> &Arc<AppstreamCache> {
+    fn info_cache(&self) -> &Arc<AppstreamCache> {
         &self.appstream_cache
     }
 }
