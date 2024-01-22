@@ -8,6 +8,12 @@ use std::{collections::HashMap, error::Error, sync::Arc};
 use super::{Backend, Package};
 use crate::{get_translatable, AppstreamCache};
 
+// https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnum
+#[repr(u64)]
+enum FilterKind {
+    Installed = 1 << 2,
+}
+
 #[derive(Debug)]
 pub struct Packagekit {
     connection: Connection,
@@ -16,15 +22,12 @@ pub struct Packagekit {
 }
 
 impl Packagekit {
-    pub fn new(
-        appstream_cache: &Arc<AppstreamCache>,
-        locale: &str,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
         //TODO: cache more zbus stuff?
         let connection = Connection::system()?;
         Ok(Self {
             connection,
-            appstream_cache: appstream_cache.clone(),
+            appstream_cache: Arc::new(AppstreamCache::system()),
             locale: locale.to_string(),
         })
     }
@@ -40,16 +43,12 @@ impl Packagekit {
             .build()?;
         Ok(tx)
     }
-}
 
-impl Backend for Packagekit {
-    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+    fn packages(&self, filter: FilterKind) -> Result<Vec<Package>, Box<dyn Error>> {
         let mut package_ids = Vec::new();
         {
             let tx = self.transaction()?;
-            let filter_installed = 1 << 2;
-            //let filter_application = 1 << 24;
-            tx.get_packages(filter_installed)?;
+            tx.get_packages(filter as u64)?;
             for signal in tx.receive_all_signals()? {
                 match signal.member() {
                     Some(member) => {
@@ -126,11 +125,21 @@ impl Backend for Packagekit {
         }
         Ok(packages)
     }
+}
+
+impl Backend for Packagekit {
+    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+        self.packages(FilterKind::Installed)
+    }
 
     fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>> {
         match self.appstream_cache.collections.get(&package.id) {
             Some(collection) => Ok(collection.clone()),
             None => Err(format!("failed to find component {}", package.id).into()),
         }
+    }
+
+    fn appstream_cache(&self) -> &Arc<AppstreamCache> {
+        &self.appstream_cache
     }
 }

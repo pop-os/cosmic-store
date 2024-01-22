@@ -5,14 +5,30 @@ use libflatpak::{gio::Cancellable, prelude::*, Installation, RefKind};
 use std::{collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
+use crate::AppstreamCache;
 
 #[derive(Debug)]
-pub struct Flatpak;
+pub struct Flatpak {
+    appstream_cache: Arc<AppstreamCache>,
+}
 
 impl Flatpak {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        //TODO: should we support system installations?
+        let inst = Installation::new_user(Cancellable::NONE)?;
+        let mut appstream_cache = AppstreamCache::default();
+        for remote in inst.list_remotes(Cancellable::NONE)? {
+            println!(
+                "{:?}: {:?}",
+                remote.name(),
+                remote.appstream_dir(None).and_then(|x| x.path())
+            );
+        }
+
         // We don't store the installation because it is not Send
-        Ok(Self)
+        Ok(Self {
+            appstream_cache: Arc::new(appstream_cache),
+        })
     }
 }
 
@@ -20,10 +36,9 @@ impl Backend for Flatpak {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        //TODO: show non-desktop items?
-        let installed = inst.list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)?;
         let mut packages = Vec::new();
-        for r in installed.iter() {
+        //TODO: show non-desktop items?
+        for r in inst.list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)? {
             if let Some(id) = r.name() {
                 let mut extra = HashMap::new();
                 if let Some(arch) = r.arch() {
@@ -62,5 +77,9 @@ impl Backend for Flatpak {
         let collection = Collection::try_from(&element).map_err(ParseError::from)?;
         //TODO: cache this collection
         Ok(Arc::new(collection))
+    }
+
+    fn appstream_cache(&self) -> &Arc<AppstreamCache> {
+        &self.appstream_cache
     }
 }

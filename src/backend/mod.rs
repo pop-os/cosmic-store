@@ -1,6 +1,6 @@
 use appstream::Collection;
 use cosmic::widget;
-use std::{collections::HashMap, error::Error, fmt, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt, sync::Arc, time::Instant};
 
 use crate::AppstreamCache;
 
@@ -23,18 +23,22 @@ pub struct Package {
 pub trait Backend: fmt::Debug + Send + Sync {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>>;
+    fn appstream_cache(&self) -> &Arc<AppstreamCache>;
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;
 
-pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Backends {
+pub fn backends(locale: &str) -> Backends {
     let mut backends = Backends::new();
 
     #[cfg(feature = "flatpak")]
     {
+        let start = Instant::now();
         match flatpak::Flatpak::new() {
             Ok(backend) => {
                 backends.insert("flatpak", Arc::new(backend));
+                let duration = start.elapsed();
+                log::info!("loaded flatpak backend in {:?}", duration);
             }
             Err(err) => {
                 log::error!("failed to load flatpak backend: {}", err);
@@ -44,9 +48,12 @@ pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Backends
 
     #[cfg(feature = "packagekit")]
     {
-        match packagekit::Packagekit::new(appstream_cache, locale) {
+        let start = Instant::now();
+        match packagekit::Packagekit::new(locale) {
             Ok(backend) => {
                 backends.insert("packagekit", Arc::new(backend));
+                let duration = start.elapsed();
+                log::info!("loaded packagekit backend in {:?}", duration);
             }
             Err(err) => {
                 log::error!("failed to load packagekit backend: {}", err);

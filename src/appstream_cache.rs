@@ -32,7 +32,7 @@ pub struct AppstreamCache {
 
 impl AppstreamCache {
     //TODO: make async?
-    pub fn new() -> Self {
+    pub fn system() -> Self {
         // Uses btreemap for stable sort order
         let mut paths = BTreeMap::new();
         //TODO: get using xdg dirs?

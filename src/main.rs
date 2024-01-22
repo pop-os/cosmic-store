@@ -165,7 +165,7 @@ impl ContextPage {
 }
 
 #[derive(Clone, Debug)]
-struct SearchResult {
+pub struct SearchResult {
     backend_name: &'static str,
     id: String,
     icon: widget::icon::Handle,
@@ -192,7 +192,6 @@ pub struct App {
     config: Config,
     locale: String,
     app_themes: Vec<String>,
-    appstream_cache: Arc<AppstreamCache>,
     backends: Backends,
     context_page: ContextPage,
     key_binds: HashMap<KeyBind, Action>,
@@ -206,68 +205,70 @@ pub struct App {
 
 impl App {
     fn search(&self, regex: regex::Regex) -> Command<Message> {
-        let appstream_cache = self.appstream_cache.clone();
+        let backends = self.backends.clone();
         let locale = self.locale.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let mut results = Vec::new();
-                    //TODO: search by backend instead
-                    for (id, collection) in appstream_cache.collections.iter() {
-                        for component in collection.components.iter() {
-                            //TODO: fuzzy match (nucleus-matcher?)
-                            let name = get_translatable(&component.name, &locale);
-                            let summary = component
-                                .summary
-                                .as_ref()
-                                .map_or("", |x| get_translatable(x, &locale));
-                            let weight_opt = match regex.find(name) {
-                                Some(mat) => {
-                                    if mat.range().start == 0 {
-                                        if mat.range().end == name.len() {
-                                            // Name equals search phrase
-                                            Some(0)
-                                        } else {
-                                            // Name starts with search phrase
-                                            Some(1)
-                                        }
-                                    } else {
-                                        // Name contains search phrase
-                                        Some(2)
-                                    }
-                                }
-                                None => match regex.find(summary) {
+                    let mut results = Vec::<SearchResult>::new();
+                    for (backend_name, backend) in backends.iter() {
+                        let appstream_cache = backend.appstream_cache();
+                        for (id, collection) in appstream_cache.collections.iter() {
+                            for component in collection.components.iter() {
+                                //TODO: fuzzy match (nucleus-matcher?)
+                                let name = get_translatable(&component.name, &locale);
+                                let summary = component
+                                    .summary
+                                    .as_ref()
+                                    .map_or("", |x| get_translatable(x, &locale));
+                                let weight_opt = match regex.find(name) {
                                     Some(mat) => {
                                         if mat.range().start == 0 {
                                             if mat.range().end == name.len() {
-                                                // Summary equals search phrase
-                                                Some(3)
+                                                // Name equals search phrase
+                                                Some(0)
                                             } else {
-                                                // Summary starts with search phrase
-                                                Some(4)
+                                                // Name starts with search phrase
+                                                Some(1)
                                             }
                                         } else {
-                                            // Summary contains search phrase
-                                            Some(5)
+                                            // Name contains search phrase
+                                            Some(2)
                                         }
                                     }
-                                    None => None,
-                                },
-                            };
-                            if let Some(weight) = weight_opt {
-                                results.push(SearchResult {
-                                    backend_name: "TODO",
-                                    id: id.clone(),
-                                    icon: AppstreamCache::icon(
-                                        collection.origin.as_deref(),
-                                        component,
-                                    ),
-                                    name: name.to_string(),
-                                    summary: summary.to_string(),
-                                    collection: collection.clone(),
-                                    weight,
-                                });
+                                    None => match regex.find(summary) {
+                                        Some(mat) => {
+                                            if mat.range().start == 0 {
+                                                if mat.range().end == name.len() {
+                                                    // Summary equals search phrase
+                                                    Some(3)
+                                                } else {
+                                                    // Summary starts with search phrase
+                                                    Some(4)
+                                                }
+                                            } else {
+                                                // Summary contains search phrase
+                                                Some(5)
+                                            }
+                                        }
+                                        None => None,
+                                    },
+                                };
+                                if let Some(weight) = weight_opt {
+                                    results.push(SearchResult {
+                                        backend_name,
+                                        id: id.clone(),
+                                        icon: AppstreamCache::icon(
+                                            collection.origin.as_deref(),
+                                            component,
+                                        ),
+                                        name: name.to_string(),
+                                        summary: summary.to_string(),
+                                        collection: collection.clone(),
+                                        weight,
+                                    });
+                                }
                             }
                         }
                     }
@@ -316,18 +317,13 @@ impl App {
         )
     }
 
-    fn update_config(&mut self) -> Command<Message> {
-        cosmic::app::command::set_theme(self.config.app_theme.theme())
-    }
-
     fn update_backends(&self) -> Command<Message> {
-        let appstream_cache = self.appstream_cache.clone();
         let locale = self.locale.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let backends = backend::backends(&appstream_cache, &locale);
+                    let backends = backend::backends(&locale);
                     let duration = start.elapsed();
                     log::info!("loaded backends in {:?}", duration);
                     message::app(Message::Backends(backends))
@@ -337,6 +333,10 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn update_config(&mut self) -> Command<Message> {
+        cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
 
     fn update_installed(&self) -> Command<Message> {
@@ -432,20 +432,12 @@ impl Application for App {
             String::from("en-US")
         });
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
-        let appstream_cache = {
-            let start = Instant::now();
-            let appstream_cache = AppstreamCache::new();
-            let duration = start.elapsed();
-            log::info!("loaded appstream cache in {:?}", duration);
-            Arc::new(appstream_cache)
-        };
         let mut app = App {
             core,
             config_handler: flags.config_handler,
             config: flags.config,
             locale,
             app_themes,
-            appstream_cache,
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             key_binds: key_binds(),
