@@ -9,6 +9,7 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
     time::SystemTime,
 };
 
@@ -25,7 +26,7 @@ pub struct AppstreamCacheTag {
 
 #[derive(Debug, Default)]
 pub struct AppstreamCache {
-    pub collections: HashMap<String, Collection>,
+    pub collections: HashMap<String, Arc<Collection>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
@@ -370,14 +371,14 @@ impl AppstreamCache {
                         }
                         match self.collections.insert(
                             id.clone(),
-                            Collection {
+                            Arc::new(Collection {
                                 //TODO: default version
                                 version: version_opt.clone().unwrap_or_default(),
                                 origin: origin_opt.clone(),
                                 components: vec![component],
                                 //TODO: architecture
                                 architecture: None,
-                            },
+                            }),
                         ) {
                             Some(_old) => {
                                 //TODO: merge based on priority

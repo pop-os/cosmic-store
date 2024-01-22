@@ -3,7 +3,7 @@
 
 use appstream::Collection;
 use cosmic::{
-    app::{Command, Core, Settings},
+    app::{message, Command, Core, Settings},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
@@ -19,7 +19,7 @@ use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time:
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
 
-use backend::{Backend, Package};
+use backend::{Backends, Package};
 mod backend;
 
 use config::{AppTheme, Config, CONFIG_VERSION};
@@ -132,7 +132,9 @@ pub struct Flags {
 pub enum Message {
     Todo,
     AppTheme(AppTheme),
+    Backends(Backends),
     Config(Config),
+    Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, KeyCode),
     SearchActivate,
     SearchClear,
@@ -140,6 +142,8 @@ pub enum Message {
     SearchSubmit,
     SelectInstalled(usize),
     SelectNone,
+    SelectSearchResult(usize),
+    Selected(Selected),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     WindowClose,
@@ -161,11 +165,23 @@ impl ContextPage {
 
 #[derive(Clone, Debug)]
 struct SearchResult {
+    backend_name: &'static str,
     id: String,
     icon: widget::icon::Handle,
     name: String,
     summary: String,
+    collection: Arc<Collection>,
     weight: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct Selected {
+    backend_name: &'static str,
+    id: String,
+    icon: widget::icon::Handle,
+    name: String,
+    summary: String,
+    collection: Arc<Collection>,
 }
 
 /// The [`App`] stores application-specific state.
@@ -176,20 +192,103 @@ pub struct App {
     locale: String,
     app_themes: Vec<String>,
     appstream_cache: Arc<AppstreamCache>,
-    backends: HashMap<&'static str, Arc<dyn Backend>>,
+    backends: Backends,
     context_page: ContextPage,
     key_binds: HashMap<KeyBind, Action>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
     installed: Vec<(&'static str, Package)>,
-    current_package: Option<(&'static str, Package, Collection)>,
     search_results: Option<Vec<SearchResult>>,
+    selected_opt: Option<Selected>,
 }
 
 impl App {
+    fn select_package(&self, backend_name: &'static str, package: Package) -> Command<Message> {
+        let backend = match self.backends.get(backend_name) {
+            Some(some) => some.clone(),
+            None => {
+                log::error!("failed to find backend {:?}", backend_name);
+                return Command::none();
+            }
+        };
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || match backend.appstream(&package) {
+                    Ok(collection) => message::app(Message::Selected(Selected {
+                        backend_name,
+                        id: package.id,
+                        icon: package.icon,
+                        name: package.name,
+                        summary: package.summary,
+                        collection,
+                    })),
+                    Err(err) => {
+                        log::error!("failed to get appstream data for {}: {}", package.id, err);
+                        message::none()
+                    }
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
     fn update_config(&mut self) -> Command<Message> {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
+    }
+
+    fn update_backends(&self) -> Command<Message> {
+        let appstream_cache = self.appstream_cache.clone();
+        let locale = self.locale.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let backends = backend::backends(&appstream_cache, &locale);
+                    let duration = start.elapsed();
+                    log::info!("loaded backends in {:?}", duration);
+                    message::app(Message::Backends(backends))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn update_installed(&self) -> Command<Message> {
+        let backends = self.backends.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut installed = Vec::new();
+                    //TODO: parellel iterator?
+                    for (backend_name, backend) in backends.iter() {
+                        let start = Instant::now();
+                        match backend.installed() {
+                            Ok(packages) => {
+                                for package in packages {
+                                    installed.push((*backend_name, package));
+                                }
+                            }
+                            Err(err) => {
+                                log::error!("failed to list installed: {}", err);
+                            }
+                        }
+                        let duration = start.elapsed();
+                        log::info!("loaded installed from {} in {:?}", backend_name, duration);
+                    }
+                    installed
+                        .sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
+                    message::app(Message::Installed(installed))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
     }
 
     fn update_title(&mut self) -> Command<Message> {
@@ -259,13 +358,6 @@ impl Application for App {
             log::info!("loaded appstream cache in {:?}", duration);
             Arc::new(appstream_cache)
         };
-        let backends = {
-            let start = Instant::now();
-            let backends = backend::backends(&appstream_cache, &locale);
-            let duration = start.elapsed();
-            log::info!("loaded backends in {:?}", duration);
-            backends
-        };
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -273,37 +365,18 @@ impl Application for App {
             locale,
             app_themes,
             appstream_cache,
-            backends,
+            backends: Backends::new(),
             context_page: ContextPage::Settings,
             key_binds: key_binds(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
             installed: Vec::new(),
-            current_package: None,
             search_results: None,
+            selected_opt: None,
         };
 
-        //TODO: move to command, ability to refresh
-        for (backend_name, backend) in app.backends.iter() {
-            let start = Instant::now();
-            match backend.installed() {
-                Ok(installed) => {
-                    for package in installed {
-                        app.installed.push((backend_name, package));
-                    }
-                }
-                Err(err) => {
-                    log::error!("failed to list installed: {}", err);
-                }
-            }
-            let duration = start.elapsed();
-            log::info!("loaded installed from {} in {:?}", backend_name, duration);
-        }
-        app.installed
-            .sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
-
-        let command = app.update_title();
+        let command = Command::batch([app.update_title(), app.update_backends()]);
         (app, command)
     }
 
@@ -356,6 +429,10 @@ impl Application for App {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
             }
+            Message::Backends(backends) => {
+                self.backends = backends;
+                return self.update_installed();
+            }
             Message::Config(config) => {
                 if config != self.config {
                     log::info!("update config");
@@ -363,6 +440,9 @@ impl Application for App {
                     self.config = config;
                     return self.update_config();
                 }
+            }
+            Message::Installed(installed) => {
+                self.installed = installed;
             }
             Message::Key(modifiers, key_code) => {
                 for (key_bind, action) in self.key_binds.iter() {
@@ -437,6 +517,7 @@ impl Application for App {
                                     };
                                     if let Some(weight) = weight_opt {
                                         results.push(SearchResult {
+                                            backend_name: "TODO",
                                             id: id.clone(),
                                             icon: AppstreamCache::icon(
                                                 collection.origin.as_deref(),
@@ -444,6 +525,7 @@ impl Application for App {
                                             ),
                                             name: name.to_string(),
                                             summary: summary.to_string(),
+                                            collection: collection.clone(),
                                             weight,
                                         });
                                     }
@@ -466,27 +548,46 @@ impl Application for App {
                 }
             }
             Message::SelectInstalled(installed_i) => {
-                if let Some((backend_name, package)) = self.installed.get(installed_i) {
-                    if let Some(backend) = self.backends.get(backend_name) {
-                        //TODO: do async
-                        match backend.appstream(&package) {
-                            Ok(appstream) => {
-                                self.current_package =
-                                    Some((backend_name, package.clone(), appstream));
-                            }
-                            Err(err) => {
-                                log::error!(
-                                    "failed to get appstream data for {}: {}",
-                                    package.id,
-                                    err
-                                );
-                            }
-                        }
+                match self
+                    .installed
+                    .get(installed_i)
+                    .map(|(backend_name, package)| (backend_name, package.clone()))
+                {
+                    Some((backend_name, package)) => {
+                        return self.select_package(backend_name, package);
+                    }
+                    None => {
+                        log::error!(
+                            "failed to find installed package with index {}",
+                            installed_i
+                        );
                     }
                 }
             }
             Message::SelectNone => {
-                self.current_package = None;
+                self.selected_opt = None;
+            }
+            Message::SelectSearchResult(result_i) => {
+                if let Some(results) = &self.search_results {
+                    match results.get(result_i) {
+                        Some(result) => {
+                            self.selected_opt = Some(Selected {
+                                backend_name: result.backend_name,
+                                id: result.id.clone(),
+                                icon: result.icon.clone(),
+                                name: result.name.clone(),
+                                summary: result.summary.clone(),
+                                collection: result.collection.clone(),
+                            })
+                        }
+                        None => {
+                            log::error!("failed to find search result with index {}", result_i);
+                        }
+                    }
+                }
+            }
+            Message::Selected(selected) => {
+                self.selected_opt = Some(selected);
             }
             Message::SystemThemeModeChange(_theme_mode) => {
                 return self.update_config();
@@ -552,64 +653,67 @@ impl Application for App {
             ..
         } = self.core().system_theme().cosmic().spacing;
 
-        let content: Element<_> = match &self.search_results {
-            Some(results) => {
-                let mut column = widget::column::with_capacity(results.len())
-                    // Hack to make room for scroll bar
-                    .padding([0, space_xs, 0, 0])
-                    .spacing(space_xxs)
-                    .width(Length::Fill);
-                //TODO: back button?
-                for result in results.iter() {
-                    column = column.push(
-                        widget::row::with_children(vec![
-                            widget::icon::icon(result.icon.clone()).size(32).into(),
-                            widget::text(&result.name).into(),
-                            widget::horizontal_space(Length::Fill).into(),
-                            widget::text(&result.summary).into(),
-                        ])
-                        .align_items(Alignment::Center)
-                        .spacing(space_xxs),
-                    );
-                }
-                widget::scrollable(column).into()
-            }
-            None => match &self.current_package {
-                Some((backend_name, package, appstream)) => {
-                    //TODO: capacity may go over due to summary
-                    let mut column = widget::column::with_capacity(appstream.components.len() + 2)
+        let content: Element<_> = match &self.selected_opt {
+            Some(selected) => {
+                //TODO: capacity may go over due to summary
+                let mut column =
+                    widget::column::with_capacity(selected.collection.components.len() + 2)
                         // Hack to make room for scroll bar
                         .padding([0, space_xs, 0, 0])
                         .spacing(space_xxs)
                         .width(Length::Fill);
-                    column = column.push(widget::button("Back").on_press(Message::SelectNone));
-                    column = column.push(
-                        widget::row::with_children(vec![
-                            widget::icon::icon(package.icon.clone()).size(128).into(),
-                            widget::text(&package.name).into(),
-                            widget::horizontal_space(Length::Fill).into(),
-                            widget::text(&package.version).into(),
-                        ])
-                        .align_items(Alignment::Center)
-                        .spacing(space_xxs),
-                    );
-                    for component in appstream.components.iter() {
-                        column = column.push(widget::text(get_translatable(
-                            &component.name,
+                column = column.push(widget::button("Back").on_press(Message::SelectNone));
+                column = column.push(
+                    widget::row::with_children(vec![
+                        widget::icon::icon(selected.icon.clone()).size(128).into(),
+                        widget::text(&selected.name).into(),
+                        widget::horizontal_space(Length::Fill).into(),
+                        widget::text(&selected.summary).into(),
+                    ])
+                    .align_items(Alignment::Center)
+                    .spacing(space_xxs),
+                );
+                for component in selected.collection.components.iter() {
+                    column = column.push(widget::text(get_translatable(
+                        &component.name,
+                        &self.locale,
+                    )));
+                    if let Some(summary) = &component.summary {
+                        column = column.push(widget::text(get_translatable(summary, &self.locale)));
+                    }
+                    /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
+                    if let Some(description) = &component.description {
+                        column = column.push(widget::text(get_markup_translatable(
+                            description,
                             &self.locale,
                         )));
-                        if let Some(summary) = &component.summary {
-                            column =
-                                column.push(widget::text(get_translatable(summary, &self.locale)));
-                        }
-                        /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
-                        if let Some(description) = &component.description {
-                            column = column.push(widget::text(get_markup_translatable(
-                                description,
-                                &self.locale,
-                            )));
-                        }
-                        */
+                    }
+                    */
+                }
+                widget::scrollable(column).into()
+            }
+            None => match &self.search_results {
+                Some(results) => {
+                    let mut column = widget::column::with_capacity(results.len())
+                        // Hack to make room for scroll bar
+                        .padding([0, space_xs, 0, 0])
+                        .spacing(space_xxs)
+                        .width(Length::Fill);
+                    //TODO: back button?
+                    for (result_i, result) in results.iter().enumerate() {
+                        column = column.push(
+                            widget::mouse_area(
+                                widget::row::with_children(vec![
+                                    widget::icon::icon(result.icon.clone()).size(32).into(),
+                                    widget::text(&result.name).into(),
+                                    widget::horizontal_space(Length::Fill).into(),
+                                    widget::text(&result.summary).into(),
+                                ])
+                                .align_items(Alignment::Center)
+                                .spacing(space_xxs),
+                            )
+                            .on_press(Message::SelectSearchResult(result_i)),
+                        );
                     }
                     widget::scrollable(column).into()
                 }

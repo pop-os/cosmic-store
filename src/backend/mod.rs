@@ -1,6 +1,6 @@
 use appstream::Collection;
 use cosmic::widget;
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt, sync::Arc};
 
 use crate::AppstreamCache;
 
@@ -15,20 +15,20 @@ pub struct Package {
     pub id: String,
     pub icon: widget::icon::Handle,
     pub name: String,
+    pub summary: String,
     pub version: String,
     pub extra: HashMap<String, String>,
 }
 
-pub trait Backend {
+pub trait Backend: fmt::Debug + Send + Sync {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
-    fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>>;
+    fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>>;
 }
 
-pub fn backends(
-    appstream_cache: &Arc<AppstreamCache>,
-    locale: &str,
-) -> HashMap<&'static str, Arc<dyn Backend>> {
-    let mut backends = HashMap::<&'static str, Arc<dyn Backend>>::new();
+pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;
+
+pub fn backends(appstream_cache: &Arc<AppstreamCache>, locale: &str) -> Backends {
+    let mut backends = Backends::new();
 
     #[cfg(feature = "flatpak")]
     {

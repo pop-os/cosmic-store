@@ -1,17 +1,14 @@
-use appstream::{
-    enums::{ComponentKind, Icon},
-    Collection,
-};
-use cosmic::widget;
+use appstream::{enums::ComponentKind, Collection};
 use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{cmp, collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
 use crate::{get_translatable, AppstreamCache};
 
+#[derive(Debug)]
 pub struct Packagekit {
     connection: Connection,
     appstream_cache: Arc<AppstreamCache>,
@@ -77,12 +74,12 @@ impl Backend for Packagekit {
             let mut parts = package_id.split(';');
             let package_name = parts.next().unwrap_or(&package_id);
             let version_opt = parts.next();
-            let architecture_opt = parts.next();
+            let _architecture_opt = parts.next();
 
             let data = parts.next().unwrap_or("");
             let mut data_parts = data.split(':');
-            let status_opt = data_parts.next();
-            let origin_opt = data_parts.next();
+            let _status_opt = data_parts.next();
+            let _origin_opt = data_parts.next();
 
             match self.appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
@@ -105,6 +102,12 @@ impl Backend for Packagekit {
                                         ),
                                         name: get_translatable(&component.name, &self.locale)
                                             .to_string(),
+                                        summary: component
+                                            .summary
+                                            .as_ref()
+                                            .map(|summary| get_translatable(summary, &self.locale))
+                                            .unwrap_or("")
+                                            .to_string(),
                                         version: version_opt.unwrap_or("").to_string(),
                                         extra: HashMap::new(),
                                     });
@@ -125,7 +128,7 @@ impl Backend for Packagekit {
         Ok(packages)
     }
 
-    fn appstream(&self, package: &Package) -> Result<Collection, Box<dyn Error>> {
+    fn appstream(&self, package: &Package) -> Result<Arc<Collection>, Box<dyn Error>> {
         match self.appstream_cache.collections.get(&package.id) {
             Some(collection) => Ok(collection.clone()),
             None => Err(format!("failed to find component {}", package.id).into()),
