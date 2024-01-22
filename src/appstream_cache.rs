@@ -1,6 +1,7 @@
 use appstream::{enums::Icon, xmltree, Collection, Component, ParseError};
 use cosmic::widget;
 use flate2::read::GzDecoder;
+use rayon::prelude::*;
 use serde::Deserialize;
 use std::{
     cmp,
@@ -76,70 +77,95 @@ impl AppstreamCache {
             path_tags.insert(canonical, AppstreamCacheTag { modified, size });
         }
 
-        let mut appstream_cache = Self::default();
-        for (path, _tag) in path_tags.iter() {
-            let file_name = match path.file_name() {
-                Some(file_name_os) => match file_name_os.to_str() {
-                    Some(some) => some,
+        let path_results: Vec<_> = path_tags
+            .par_iter()
+            .filter_map(|(path, _tag)| {
+                let file_name = match path.file_name() {
+                    Some(file_name_os) => match file_name_os.to_str() {
+                        Some(some) => some,
+                        None => {
+                            log::error!("failed to convert to UTF-8: {:?}", file_name_os);
+                            return None;
+                        }
+                    },
                     None => {
-                        log::error!("failed to convert to UTF-8: {:?}", file_name_os);
-                        continue;
+                        log::error!("path has no file name: {:?}", path);
+                        return None;
                     }
-                },
-                None => {
-                    log::error!("path has no file name: {:?}", path);
-                    continue;
-                }
-            };
+                };
 
-            let mut file = match fs::File::open(&path) {
-                Ok(ok) => ok,
-                Err(err) => {
-                    log::error!("failed to open {:?}: {}", path, err);
-                    continue;
-                }
-            };
+                //TODO: memory map?
+                let mut file = match fs::File::open(&path) {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        log::error!("failed to open {:?}: {}", path, err);
+                        return None;
+                    }
+                };
 
-            if file_name.ends_with(".xml.gz") {
-                log::info!("Compressed XML: {:?}", path);
-                let mut gz = GzDecoder::new(&mut file);
-                match appstream_cache.parse_xml(path, &mut gz) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
+                if file_name.ends_with(".xml.gz") {
+                    let mut gz = GzDecoder::new(&mut file);
+                    match AppstreamCache::parse_xml(path, &mut gz) {
+                        Ok(collections) => Some(collections),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
                     }
-                }
-            } else if file_name.ends_with(".yml.gz") {
-                log::info!("Compressed YAML: {:?}", path);
-                let mut gz = GzDecoder::new(&mut file);
-                match appstream_cache.parse_yml(path, &mut gz) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
+                } else if file_name.ends_with(".yml.gz") {
+                    let mut gz = GzDecoder::new(&mut file);
+                    match AppstreamCache::parse_yaml(path, &mut gz) {
+                        Ok(collections) => Some(collections),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
                     }
-                }
-            } else if file_name.ends_with(".xml") {
-                log::info!("XML: {:?}", path);
-                match appstream_cache.parse_xml(path, &mut file) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
+                } else if file_name.ends_with(".xml") {
+                    match AppstreamCache::parse_xml(path, &mut file) {
+                        Ok(collections) => Some(collections),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
                     }
-                }
-            } else if file_name.ends_with(".yml") {
-                log::info!("YAML: {:?}", path);
-                match appstream_cache.parse_yml(path, &mut file) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("failed to parse {:?}: {}", path, err);
+                } else if file_name.ends_with(".yml") {
+                    match AppstreamCache::parse_yaml(path, &mut file) {
+                        Ok(collections) => Some(collections),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
                     }
+                } else {
+                    log::error!("unknown appstream file type: {:?}", path);
+                    None
                 }
-            } else {
-                log::error!("unknown appstream file type: {:?}", path);
-                continue;
-            };
-        }
+            })
+            .collect();
+
+        let mut appstream_cache = Self::default();
         appstream_cache.path_tags = path_tags;
+        for collections in path_results {
+            for (id, collection) in collections {
+                for component in collection.components.iter() {
+                    if let Some(pkgname) = &component.pkgname {
+                        appstream_cache
+                            .pkgnames
+                            .entry(pkgname.clone())
+                            .or_insert_with(|| HashSet::new())
+                            .insert(id.clone());
+                    }
+                }
+                match appstream_cache.collections.insert(id.clone(), collection) {
+                    Some(_old) => {
+                        //TODO: merge based on priority
+                        log::debug!("found duplicate collection {}", id);
+                    }
+                    None => {}
+                }
+            }
+        }
 
         appstream_cache
     }
@@ -280,61 +306,63 @@ impl AppstreamCache {
         })
     }
 
-    fn parse_xml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+    fn parse_xml<R: Read>(
+        path: &Path,
+        reader: R,
+    ) -> Result<Vec<(String, Arc<Collection>)>, Box<dyn Error>> {
+        let start = std::time::Instant::now();
         let e = xmltree::Element::parse(reader)?;
+        let duration = start.elapsed();
         let version = e
             .attributes
             .get("version")
             .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
         let origin = e.attributes.get("origin");
         let architecture = e.attributes.get("architecture");
-        for node in &e.children {
-            if let xmltree::XMLNode::Element(ref e) = node {
-                if &*e.name == "component" {
-                    match Component::try_from(e) {
-                        Ok(component) => {
-                            let id = component.id.to_string();
-                            if let Some(pkgname) = &component.pkgname {
-                                self.pkgnames
-                                    .entry(pkgname.clone())
-                                    .or_insert_with(|| HashSet::new())
-                                    .insert(id.clone());
+        let collections: Vec<_> = e
+            .children
+            .par_iter()
+            .filter_map(|node| {
+                if let xmltree::XMLNode::Element(ref e) = node {
+                    if &*e.name == "component" {
+                        match Component::try_from(e) {
+                            Ok(component) => {
+                                let id = component.id.to_string();
+                                return Some((
+                                    id,
+                                    Arc::new(Collection {
+                                        version: version.clone(),
+                                        origin: origin.cloned(),
+                                        components: vec![component],
+                                        architecture: architecture.cloned(),
+                                    }),
+                                ));
                             }
-                            match self.collections.insert(
-                                id.clone(),
-                                Arc::new(Collection {
-                                    version: version.clone(),
-                                    origin: origin.cloned(),
-                                    components: vec![component],
-                                    architecture: architecture.cloned(),
-                                }),
-                            ) {
-                                Some(_old) => {
-                                    //TODO: merge based on priority
-                                    log::debug!("found duplicate collection {}", id);
-                                }
-                                None => {}
+                            Err(err) => {
+                                log::error!(
+                                    "failed to parse {:?} in {:?}: {}",
+                                    e.get_child("id")
+                                        .and_then(|x| appstream::AppId::try_from(x).ok()),
+                                    path,
+                                    err
+                                );
                             }
-                        }
-                        Err(err) => {
-                            log::error!(
-                                "failed to parse {:?} in {:?}: {}",
-                                e.get_child("id")
-                                    .and_then(|x| appstream::AppId::try_from(x).ok()),
-                                path,
-                                err
-                            );
                         }
                     }
                 }
-            }
-        }
-        Ok(())
+                None
+            })
+            .collect();
+        Ok(collections)
     }
 
-    fn parse_yml<R: Read>(&mut self, path: &Path, reader: R) -> Result<(), Box<dyn Error>> {
+    fn parse_yaml<R: Read>(
+        path: &Path,
+        reader: R,
+    ) -> Result<Vec<(String, Arc<Collection>)>, Box<dyn Error>> {
         let mut version_opt = None;
         let mut origin_opt = None;
+        let mut collections = Vec::new();
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
             let value = match serde_yaml::Value::deserialize(doc) {
                 Ok(ok) => ok,
@@ -428,14 +456,8 @@ impl AppstreamCache {
                         }
 
                         let id = component.id.to_string();
-                        if let Some(pkgname) = &component.pkgname {
-                            self.pkgnames
-                                .entry(pkgname.clone())
-                                .or_insert_with(|| HashSet::new())
-                                .insert(id.clone());
-                        }
-                        match self.collections.insert(
-                            id.clone(),
+                        collections.push((
+                            id,
                             Arc::new(Collection {
                                 //TODO: default version
                                 version: version_opt.clone().unwrap_or_default(),
@@ -444,13 +466,7 @@ impl AppstreamCache {
                                 //TODO: architecture
                                 architecture: None,
                             }),
-                        ) {
-                            Some(_old) => {
-                                //TODO: merge based on priority
-                                log::debug!("found duplicate collection {}", id);
-                            }
-                            None => {}
-                        }
+                        ));
                     }
                     Err(err) => {
                         log::error!("failed to parse {:?} in {:?}: {}", value["ID"], path, err);
@@ -458,6 +474,6 @@ impl AppstreamCache {
                 }
             }
         }
-        Ok(())
+        Ok(collections)
     }
 }
