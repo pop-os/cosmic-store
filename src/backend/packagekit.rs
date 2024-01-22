@@ -95,7 +95,6 @@ impl Backend for Packagekit {
 
                                     packages.push(Package {
                                         id: id.clone(),
-                                        //TODO: get icon from appstream data?
                                         icon: AppstreamCache::icon(
                                             collection.origin.as_deref(),
                                             component,

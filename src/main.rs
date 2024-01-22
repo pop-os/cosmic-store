@@ -139,6 +139,7 @@ pub enum Message {
     SearchActivate,
     SearchClear,
     SearchInput(String),
+    SearchResults(Vec<SearchResult>),
     SearchSubmit,
     SelectInstalled(usize),
     SelectNone,
@@ -204,6 +205,86 @@ pub struct App {
 }
 
 impl App {
+    fn search(&self, regex: regex::Regex) -> Command<Message> {
+        let appstream_cache = self.appstream_cache.clone();
+        let locale = self.locale.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let mut results = Vec::new();
+                    //TODO: search by backend instead
+                    for (id, collection) in appstream_cache.collections.iter() {
+                        for component in collection.components.iter() {
+                            //TODO: fuzzy match (nucleus-matcher?)
+                            let name = get_translatable(&component.name, &locale);
+                            let summary = component
+                                .summary
+                                .as_ref()
+                                .map_or("", |x| get_translatable(x, &locale));
+                            let weight_opt = match regex.find(name) {
+                                Some(mat) => {
+                                    if mat.range().start == 0 {
+                                        if mat.range().end == name.len() {
+                                            // Name equals search phrase
+                                            Some(0)
+                                        } else {
+                                            // Name starts with search phrase
+                                            Some(1)
+                                        }
+                                    } else {
+                                        // Name contains search phrase
+                                        Some(2)
+                                    }
+                                }
+                                None => match regex.find(summary) {
+                                    Some(mat) => {
+                                        if mat.range().start == 0 {
+                                            if mat.range().end == name.len() {
+                                                // Summary equals search phrase
+                                                Some(3)
+                                            } else {
+                                                // Summary starts with search phrase
+                                                Some(4)
+                                            }
+                                        } else {
+                                            // Summary contains search phrase
+                                            Some(5)
+                                        }
+                                    }
+                                    None => None,
+                                },
+                            };
+                            if let Some(weight) = weight_opt {
+                                results.push(SearchResult {
+                                    backend_name: "TODO",
+                                    id: id.clone(),
+                                    icon: AppstreamCache::icon(
+                                        collection.origin.as_deref(),
+                                        component,
+                                    ),
+                                    name: name.to_string(),
+                                    summary: summary.to_string(),
+                                    collection: collection.clone(),
+                                    weight,
+                                });
+                            }
+                        }
+                    }
+                    results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+                        cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(&a.name, &b.name),
+                        ordering => ordering,
+                    });
+                    let duration = start.elapsed();
+                    log::info!("searched in {:?}", duration);
+                    message::app(Message::SearchResults(results))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
     fn select_package(&self, backend_name: &'static str, package: Package) -> Command<Message> {
         let backend = match self.backends.get(backend_name) {
             Some(some) => some.clone(),
@@ -463,6 +544,9 @@ impl Application for App {
             Message::SearchInput(input) => {
                 self.search_input = input;
             }
+            Message::SearchResults(results) => {
+                self.search_results = Some(results);
+            }
             Message::SearchSubmit => {
                 if !self.search_input.is_empty() {
                     let pattern = regex::escape(&self.search_input);
@@ -471,75 +555,7 @@ impl Application for App {
                         .build()
                     {
                         Ok(regex) => {
-                            let start = Instant::now();
-                            let mut results = Vec::new();
-                            //TODO: search by backend instead
-                            for (id, collection) in self.appstream_cache.collections.iter() {
-                                for component in collection.components.iter() {
-                                    //TODO: fuzzy match (nucleus-matcher?)
-                                    let name = get_translatable(&component.name, &self.locale);
-                                    let summary = component
-                                        .summary
-                                        .as_ref()
-                                        .map_or("", |x| get_translatable(x, &self.locale));
-                                    let weight_opt = match regex.find(name) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == name.len() {
-                                                    // Name equals search phrase
-                                                    Some(0)
-                                                } else {
-                                                    // Name starts with search phrase
-                                                    Some(1)
-                                                }
-                                            } else {
-                                                // Name contains search phrase
-                                                Some(2)
-                                            }
-                                        }
-                                        None => match regex.find(summary) {
-                                            Some(mat) => {
-                                                if mat.range().start == 0 {
-                                                    if mat.range().end == name.len() {
-                                                        // Summary equals search phrase
-                                                        Some(3)
-                                                    } else {
-                                                        // Summary starts with search phrase
-                                                        Some(4)
-                                                    }
-                                                } else {
-                                                    // Summary contains search phrase
-                                                    Some(5)
-                                                }
-                                            }
-                                            None => None,
-                                        },
-                                    };
-                                    if let Some(weight) = weight_opt {
-                                        results.push(SearchResult {
-                                            backend_name: "TODO",
-                                            id: id.clone(),
-                                            icon: AppstreamCache::icon(
-                                                collection.origin.as_deref(),
-                                                component,
-                                            ),
-                                            name: name.to_string(),
-                                            summary: summary.to_string(),
-                                            collection: collection.clone(),
-                                            weight,
-                                        });
-                                    }
-                                }
-                            }
-                            results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                                cmp::Ordering::Equal => {
-                                    lexical_sort::natural_lexical_cmp(&a.name, &b.name)
-                                }
-                                ordering => ordering,
-                            });
-                            let duration = start.elapsed();
-                            log::info!("searched in {:?}", duration);
-                            self.search_results = Some(results);
+                            return self.search(regex);
                         }
                         Err(err) => {
                             log::warn!("failed to parse regex {:?}: {}", pattern, err);
