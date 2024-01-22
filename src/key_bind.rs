@@ -53,7 +53,7 @@ pub fn key_binds() -> HashMap<KeyBind, Action> {
         }};
     }
 
-    bind!([Ctrl], F, Search);
+    bind!([Ctrl], F, SearchActivate);
 
     key_binds
 }

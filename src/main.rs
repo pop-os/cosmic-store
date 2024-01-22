@@ -110,13 +110,13 @@ fn get_markup_translatable<'a>(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
-    Search,
+    SearchActivate,
 }
 
 impl Action {
     pub fn message(&self) -> Message {
         match self {
-            Self::Search => Message::Search(widget::search::Message::Activate),
+            Self::SearchActivate => Message::SearchActivate,
         }
     }
 }
@@ -134,7 +134,10 @@ pub enum Message {
     AppTheme(AppTheme),
     Config(Config),
     Key(Modifiers, KeyCode),
-    Search(widget::search::Message),
+    SearchActivate,
+    SearchClear,
+    SearchInput(String),
+    SearchSubmit,
     SelectInstalled(usize),
     SelectNone,
     SystemThemeModeChange(cosmic_theme::ThemeMode),
@@ -176,7 +179,9 @@ pub struct App {
     backends: HashMap<&'static str, Arc<dyn Backend>>,
     context_page: ContextPage,
     key_binds: HashMap<KeyBind, Action>,
-    search: widget::search::Model,
+    search_active: bool,
+    search_id: widget::Id,
+    search_input: String,
     installed: Vec<(&'static str, Package)>,
     current_package: Option<(&'static str, Package, Collection)>,
     search_results: Option<Vec<SearchResult>>,
@@ -271,7 +276,9 @@ impl Application for App {
             backends,
             context_page: ContextPage::Settings,
             key_binds: key_binds(),
-            search: widget::search::Model::default(),
+            search_active: false,
+            search_id: widget::Id::unique(),
+            search_input: String::new(),
             installed: Vec::new(),
             current_package: None,
             search_results: None,
@@ -304,9 +311,9 @@ impl Application for App {
         if self.core.window.show_context {
             // Close context drawer if open
             self.core.window.show_context = false;
-        } else if self.search.state == widget::search::State::Active {
+        } else if self.search_active {
             // Close search if open
-            self.search.state = widget::search::State::Inactive;
+            self.search_active = false;
             self.search_results = None;
         }
         Command::none()
@@ -364,101 +371,100 @@ impl Application for App {
                     }
                 }
             }
-            Message::Search(search_message) => match search_message {
-                widget::search::Message::Activate => {
-                    return self.search.focus();
-                }
-                widget::search::Message::Changed(phrase) => {
-                    self.search.phrase = phrase;
-                }
-                widget::search::Message::Clear => {
-                    self.search.phrase.clear();
-                    self.search.state = widget::search::State::Inactive;
-                    self.search_results = None;
-                }
-                widget::search::Message::Submit => {
-                    if !self.search.phrase.is_empty() {
-                        let pattern = regex::escape(&self.search.phrase);
-                        match regex::RegexBuilder::new(&pattern)
-                            .case_insensitive(true)
-                            .build()
-                        {
-                            Ok(regex) => {
-                                let start = Instant::now();
-                                let mut results = Vec::new();
-                                //TODO: search by backend instead
-                                for (id, collection) in self.appstream_cache.collections.iter() {
-                                    for component in collection.components.iter() {
-                                        //TODO: fuzzy match (nucleus-matcher?)
-                                        let name = get_translatable(&component.name, &self.locale);
-                                        let summary = component
-                                            .summary
-                                            .as_ref()
-                                            .map_or("", |x| get_translatable(x, &self.locale));
-                                        let weight_opt = match regex.find(name) {
+            Message::SearchActivate => {
+                self.search_active = true;
+                return widget::text_input::focus(self.search_id.clone());
+            }
+            Message::SearchClear => {
+                self.search_active = false;
+                self.search_input.clear();
+                self.search_results = None;
+            }
+            Message::SearchInput(input) => {
+                self.search_input = input;
+            }
+            Message::SearchSubmit => {
+                if !self.search_input.is_empty() {
+                    let pattern = regex::escape(&self.search_input);
+                    match regex::RegexBuilder::new(&pattern)
+                        .case_insensitive(true)
+                        .build()
+                    {
+                        Ok(regex) => {
+                            let start = Instant::now();
+                            let mut results = Vec::new();
+                            //TODO: search by backend instead
+                            for (id, collection) in self.appstream_cache.collections.iter() {
+                                for component in collection.components.iter() {
+                                    //TODO: fuzzy match (nucleus-matcher?)
+                                    let name = get_translatable(&component.name, &self.locale);
+                                    let summary = component
+                                        .summary
+                                        .as_ref()
+                                        .map_or("", |x| get_translatable(x, &self.locale));
+                                    let weight_opt = match regex.find(name) {
+                                        Some(mat) => {
+                                            if mat.range().start == 0 {
+                                                if mat.range().end == name.len() {
+                                                    // Name equals search phrase
+                                                    Some(0)
+                                                } else {
+                                                    // Name starts with search phrase
+                                                    Some(1)
+                                                }
+                                            } else {
+                                                // Name contains search phrase
+                                                Some(2)
+                                            }
+                                        }
+                                        None => match regex.find(summary) {
                                             Some(mat) => {
                                                 if mat.range().start == 0 {
                                                     if mat.range().end == name.len() {
-                                                        // Name equals search phrase
-                                                        Some(0)
+                                                        // Summary equals search phrase
+                                                        Some(3)
                                                     } else {
-                                                        // Name starts with search phrase
-                                                        Some(1)
+                                                        // Summary starts with search phrase
+                                                        Some(4)
                                                     }
                                                 } else {
-                                                    // Name contains search phrase
-                                                    Some(2)
+                                                    // Summary contains search phrase
+                                                    Some(5)
                                                 }
                                             }
-                                            None => match regex.find(summary) {
-                                                Some(mat) => {
-                                                    if mat.range().start == 0 {
-                                                        if mat.range().end == name.len() {
-                                                            // Summary equals search phrase
-                                                            Some(3)
-                                                        } else {
-                                                            // Summary starts with search phrase
-                                                            Some(4)
-                                                        }
-                                                    } else {
-                                                        // Summary contains search phrase
-                                                        Some(5)
-                                                    }
-                                                }
-                                                None => None,
-                                            },
-                                        };
-                                        if let Some(weight) = weight_opt {
-                                            results.push(SearchResult {
-                                                id: id.clone(),
-                                                icon: AppstreamCache::icon(
-                                                    collection.origin.as_deref(),
-                                                    component,
-                                                ),
-                                                name: name.to_string(),
-                                                summary: summary.to_string(),
-                                                weight,
-                                            });
-                                        }
+                                            None => None,
+                                        },
+                                    };
+                                    if let Some(weight) = weight_opt {
+                                        results.push(SearchResult {
+                                            id: id.clone(),
+                                            icon: AppstreamCache::icon(
+                                                collection.origin.as_deref(),
+                                                component,
+                                            ),
+                                            name: name.to_string(),
+                                            summary: summary.to_string(),
+                                            weight,
+                                        });
                                     }
                                 }
-                                results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                                    cmp::Ordering::Equal => {
-                                        lexical_sort::natural_lexical_cmp(&a.name, &b.name)
-                                    }
-                                    ordering => ordering,
-                                });
-                                let duration = start.elapsed();
-                                log::info!("searched in {:?}", duration);
-                                self.search_results = Some(results);
                             }
-                            Err(err) => {
-                                log::warn!("failed to parse regex {:?}: {}", pattern, err);
-                            }
+                            results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+                                cmp::Ordering::Equal => {
+                                    lexical_sort::natural_lexical_cmp(&a.name, &b.name)
+                                }
+                                ordering => ordering,
+                            });
+                            let duration = start.elapsed();
+                            log::info!("searched in {:?}", duration);
+                            self.search_results = Some(results);
+                        }
+                        Err(err) => {
+                            log::warn!("failed to parse regex {:?}: {}", pattern, err);
                         }
                     }
                 }
-            },
+            }
             Message::SelectInstalled(installed_i) => {
                 if let Some((backend_name, package)) = self.installed.get(installed_i) {
                     if let Some(backend) = self.backends.get(backend_name) {
@@ -525,7 +531,17 @@ impl Application for App {
     }
 
     fn header_start(&self) -> Vec<Element<Message>> {
-        vec![widget::search::search(&self.search, Message::Search).into()]
+        vec![if self.search_active {
+            widget::text_input::search_input("", &self.search_input)
+                .width(Length::Fixed(240.0))
+                .id(self.search_id.clone())
+                .on_clear(Message::SearchClear)
+                .on_input(Message::SearchInput)
+                .on_submit(Message::SearchSubmit)
+                .into()
+        } else {
+            widget::search::button(Message::SearchActivate).into()
+        }]
     }
 
     /// Creates a view after each update.
