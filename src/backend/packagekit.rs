@@ -89,6 +89,7 @@ impl Packagekit {
                                     icon: self.appstream_cache.icon(info),
                                     name: info.name.clone(),
                                     summary: info.summary.clone(),
+                                    origin_opt: info.origin_opt.clone(),
                                     version: version_opt.unwrap_or("").to_string(),
                                     extra: HashMap::new(),
                                 });

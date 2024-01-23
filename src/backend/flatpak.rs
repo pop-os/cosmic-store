@@ -71,6 +71,7 @@ impl Backend for Flatpak {
                     name: r.appdata_name().unwrap_or(id).to_string(),
                     summary: r.appdata_summary().map_or(String::new(), |x| x.to_string()),
                     version: r.appdata_version().unwrap_or_default().to_string(),
+                    origin_opt: r.origin().map(|x| x.to_string()),
                     extra,
                 })
             }

@@ -16,6 +16,7 @@ pub struct Package {
     pub icon: widget::icon::Handle,
     pub name: String,
     pub summary: String,
+    pub origin_opt: Option<String>,
     pub version: String,
     pub extra: HashMap<String, String>,
 }

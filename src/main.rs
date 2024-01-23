@@ -658,6 +658,7 @@ impl Application for App {
                         ])
                         .into(),
                         widget::horizontal_space(Length::Fill).into(),
+                        widget::text(selected.info.origin_opt.as_deref().unwrap_or("")).into(),
                         //TODO: buttons for status
                     ])
                     .align_items(Alignment::Center)
@@ -690,9 +691,14 @@ impl Application for App {
                                     widget::icon::icon(result.icon.clone())
                                         .size(ICON_SIZE_LIST)
                                         .into(),
-                                    widget::text(&result.info.name).into(),
+                                    widget::column::with_children(vec![
+                                        widget::text(&result.info.name).into(),
+                                        widget::text(&result.info.summary).into(),
+                                    ])
+                                    .into(),
                                     widget::horizontal_space(Length::Fill).into(),
-                                    widget::text(&result.info.summary).into(),
+                                    widget::text(result.info.origin_opt.as_deref().unwrap_or(""))
+                                        .into(),
                                 ])
                                 .align_items(Alignment::Center)
                                 .spacing(space_xxs),
@@ -726,7 +732,15 @@ impl Application for App {
                                         ])
                                         .into(),
                                         widget::horizontal_space(Length::Fill).into(),
-                                        widget::text(&package.version).into(),
+                                        widget::column::with_children(vec![
+                                            widget::text(
+                                                package.origin_opt.as_deref().unwrap_or(""),
+                                            )
+                                            .into(),
+                                            widget::text(&package.version).into(),
+                                        ])
+                                        .align_items(Alignment::End)
+                                        .into(),
                                     ])
                                     .align_items(Alignment::Center)
                                     .spacing(space_xxs),
