@@ -68,8 +68,13 @@ pub fn backends(locale: &str) -> Backends {
     }
 
     //TODO: Workaround for xml-rs memory leak when loading appstream data
-    unsafe {
-        libc::malloc_trim(0);
+    {
+        let start = Instant::now();
+        unsafe {
+            libc::malloc_trim(0);
+        }
+        let duration = start.elapsed();
+        log::info!("trimmed allocations in {:?}", duration);
     }
 
     backends
