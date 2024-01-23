@@ -20,6 +20,7 @@ rust-embed = "6"
 # appstream (should this be a feature?)
 appstream = { version = "0.2", path = "appstream" }
 flate2 = "1"
+libc = "0.2"
 sys-locale = "0.3"
 serde_yaml = "0.9"
 # flatpak feature

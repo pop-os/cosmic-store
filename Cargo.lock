@@ -925,6 +925,7 @@ dependencies = [
  "i18n-embed-fl",
  "lazy_static",
  "lexical-sort",
+ "libc",
  "libcosmic",
  "libflatpak",
  "log",
