@@ -1,4 +1,7 @@
-use appstream::{enums::Icon, Component};
+use appstream::{
+    enums::{Icon, Launchable},
+    Component,
+};
 
 fn get_translatable<'a>(translatable: &'a appstream::TranslatableString, locale: &str) -> &'a str {
     match translatable.get_for_locale(locale) {
@@ -32,6 +35,7 @@ pub struct AppInfo {
     pub summary: String,
     pub pkgname: Option<String>,
     pub icons: Vec<Icon>,
+    pub launchables: Vec<Launchable>,
 }
 
 impl AppInfo {
@@ -55,6 +59,7 @@ impl AppInfo {
             summary: summary.to_string(),
             pkgname: component.pkgname,
             icons: component.icons,
+            launchables: component.launchables,
         }
     }
 }

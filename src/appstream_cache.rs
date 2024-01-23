@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{ComponentKind, Icon},
+    enums::{ComponentKind, Icon, Launchable},
     xmltree, Component, ParseError,
 };
 use cosmic::widget;
@@ -461,6 +461,52 @@ impl AppstreamCache {
                                     _ => {
                                         log::warn!(
                                             "unsupported icon kind {:?} for {:?} in {:?}",
+                                            key,
+                                            component.id,
+                                            path
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(launchables) = value["Launchable"].as_mapping() {
+                            for (key, launchable) in launchables.iter() {
+                                match key.as_str() {
+                                    Some("desktop-id") => match launchable.as_sequence() {
+                                        Some(sequence) => {
+                                            for desktop_id in sequence {
+                                                match desktop_id.as_str() {
+                                                    Some(desktop_id) => {
+                                                        component.launchables.push(
+                                                            Launchable::DesktopId(
+                                                                desktop_id.to_string(),
+                                                            ),
+                                                        );
+                                                    }
+                                                    None => {
+                                                        log::warn!(
+                                                        "unsupported desktop-id launchable {:?} for {:?} in {:?}",
+                                                        desktop_id,
+                                                        component.id,
+                                                        path
+                                                    );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            log::warn!(
+                                                "unsupported desktop-id launchables {:?} for {:?} in {:?}",
+                                                launchable,
+                                                component.id,
+                                                path
+                                            );
+                                        }
+                                    },
+                                    _ => {
+                                        log::warn!(
+                                            "unsupported launchable kind {:?} for {:?} in {:?}",
                                             key,
                                             component.id,
                                             path
