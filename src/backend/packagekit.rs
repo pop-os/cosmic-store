@@ -2,7 +2,7 @@ use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error};
 
 use super::{Backend, Package};
 use crate::AppstreamCache;
@@ -16,7 +16,7 @@ enum FilterKind {
 #[derive(Debug)]
 pub struct Packagekit {
     connection: Connection,
-    appstream_cache: Arc<AppstreamCache>,
+    appstream_cache: AppstreamCache,
 }
 
 impl Packagekit {
@@ -25,7 +25,7 @@ impl Packagekit {
         let connection = Connection::system()?;
         Ok(Self {
             connection,
-            appstream_cache: Arc::new(AppstreamCache::system(locale)),
+            appstream_cache: AppstreamCache::system(locale),
         })
     }
 
@@ -110,9 +110,7 @@ impl Packagekit {
 
 impl Backend for Packagekit {
     fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
-        let appstream_cache =
-            Arc::get_mut(&mut self.appstream_cache).ok_or("failed to mutate appstream cache")?;
-        appstream_cache.reload("packagekit");
+        self.appstream_cache.reload("packagekit");
         Ok(())
     }
 
@@ -120,7 +118,7 @@ impl Backend for Packagekit {
         self.packages(FilterKind::Installed)
     }
 
-    fn info_cache(&self) -> &Arc<AppstreamCache> {
+    fn info_cache(&self) -> &AppstreamCache {
         &self.appstream_cache
     }
 }

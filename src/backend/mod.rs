@@ -32,7 +32,7 @@ pub trait Backend: fmt::Debug + Send + Sync {
             None => Err(format!("failed to find info for {}", package.id).into()),
         }
     }
-    fn info_cache(&self) -> &Arc<AppstreamCache>;
+    fn info_cache(&self) -> &AppstreamCache;
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;

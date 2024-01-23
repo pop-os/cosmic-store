@@ -1,13 +1,13 @@
 use cosmic::widget;
 use libflatpak::{gio::Cancellable, prelude::*, Installation, RefKind};
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error};
 
 use super::{Backend, Package};
 use crate::AppstreamCache;
 
 #[derive(Debug)]
 pub struct Flatpak {
-    appstream_cache: Arc<AppstreamCache>,
+    appstream_cache: AppstreamCache,
 }
 
 impl Flatpak {
@@ -37,16 +37,14 @@ impl Flatpak {
 
         // We don't store the installation because it is not Send
         Ok(Self {
-            appstream_cache: Arc::new(AppstreamCache::new(paths, icons_paths, locale)),
+            appstream_cache: AppstreamCache::new(paths, icons_paths, locale),
         })
     }
 }
 
 impl Backend for Flatpak {
     fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
-        let appstream_cache =
-            Arc::get_mut(&mut self.appstream_cache).ok_or("failed to mutate appstream cache")?;
-        appstream_cache.reload("flatpak");
+        self.appstream_cache.reload("flatpak");
         Ok(())
     }
 
@@ -79,7 +77,7 @@ impl Backend for Flatpak {
         Ok(packages)
     }
 
-    fn info_cache(&self) -> &Arc<AppstreamCache> {
+    fn info_cache(&self) -> &AppstreamCache {
         &self.appstream_cache
     }
 }
