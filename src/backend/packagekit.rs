@@ -17,7 +17,6 @@ enum FilterKind {
 pub struct Packagekit {
     connection: Connection,
     appstream_cache: Arc<AppstreamCache>,
-    locale: String,
 }
 
 impl Packagekit {
@@ -26,8 +25,7 @@ impl Packagekit {
         let connection = Connection::system()?;
         Ok(Self {
             connection,
-            appstream_cache: Arc::new(AppstreamCache::default()),
-            locale: locale.to_string(),
+            appstream_cache: Arc::new(AppstreamCache::system(locale)),
         })
     }
 
@@ -112,7 +110,9 @@ impl Packagekit {
 
 impl Backend for Packagekit {
     fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
-        self.appstream_cache = Arc::new(AppstreamCache::system(&self.locale));
+        let appstream_cache =
+            Arc::get_mut(&mut self.appstream_cache).ok_or("failed to mutate appstream cache")?;
+        appstream_cache.reload("packagekit");
         Ok(())
     }
 

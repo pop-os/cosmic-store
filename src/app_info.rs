@@ -28,14 +28,21 @@ fn get_markup_translatable<'a>(
 }
 */
 
-#[derive(Debug)]
+// Replaced Icon due to skip_field not supported in bitcode
+#[derive(Debug, bitcode::Decode, bitcode::Encode)]
+pub enum AppIcon {
+    Cached(String, Option<u32>, Option<u32>, Option<u32>),
+    Stock(String),
+}
+
+#[derive(Debug, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub origin_opt: Option<String>,
     pub name: String,
     pub summary: String,
     pub pkgname: Option<String>,
-    pub icons: Vec<Icon>,
-    pub launchables: Vec<Launchable>,
+    pub icons: Vec<AppIcon>,
+    pub desktop_ids: Vec<String>,
 }
 
 impl AppInfo {
@@ -53,13 +60,40 @@ impl AppInfo {
             )));
         }
         */
+        let icons = component
+            .icons
+            .into_iter()
+            .filter_map(|icon| match icon {
+                Icon::Cached {
+                    path,
+                    width,
+                    height,
+                    scale,
+                } => Some(AppIcon::Cached(
+                    path.to_str()?.to_string(),
+                    width,
+                    height,
+                    scale,
+                )),
+                Icon::Stock(path) => Some(AppIcon::Stock(path)),
+                _ => None,
+            })
+            .collect();
+        let desktop_ids = component
+            .launchables
+            .into_iter()
+            .filter_map(|launchable| match launchable {
+                Launchable::DesktopId(desktop_id) => Some(desktop_id),
+                _ => None,
+            })
+            .collect();
         Self {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
             pkgname: component.pkgname,
-            icons: component.icons,
-            launchables: component.launchables,
+            icons,
+            desktop_ids,
         }
     }
 }

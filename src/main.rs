@@ -16,7 +16,7 @@ use cosmic::{
 use rayon::prelude::*;
 use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
 
-use app_info::AppInfo;
+use app_info::{AppIcon, AppInfo};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -103,12 +103,12 @@ pub struct Flags {
 /// Messages that are used specifically by our [`App`].
 #[derive(Clone, Debug)]
 pub enum Message {
-    Todo,
     AppTheme(AppTheme),
     Backends(Backends),
     Config(Config),
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, KeyCode),
+    OpenDesktopId(String),
     SearchActivate,
     SearchClear,
     SearchInput(String),
@@ -173,6 +173,52 @@ pub struct App {
 }
 
 impl App {
+    fn open_desktop_id(&self, mut desktop_id: String) -> Command<Message> {
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    if !desktop_id.ends_with(".desktop") {
+                        desktop_id.push_str(".desktop");
+                    }
+                    let xdg_dirs = match xdg::BaseDirectories::with_prefix("applications") {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            log::warn!("failed to find applications xdg directories: {}", err);
+                            return message::none();
+                        }
+                    };
+                    let path = match xdg_dirs.find_data_file(&desktop_id) {
+                        Some(some) => some,
+                        None => {
+                            log::warn!("failed to find desktop file for {:?}", desktop_id);
+                            return message::none();
+                        }
+                    };
+                    let entry = match freedesktop_entry_parser::parse_entry(&path) {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            log::warn!("failed to read desktop file {:?}: {}", path, err);
+                            return message::none();
+                        }
+                    };
+                    //TODO: handlne Terminal=true
+                    let exec = match entry.section("Desktop Entry").attr("Exec") {
+                        Some(some) => some,
+                        None => {
+                            log::warn!("no exec section in {:?}", path);
+                            return message::none();
+                        }
+                    };
+                    //TODO: use libcosmic handling for exec string
+                    message::none()
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
     fn search(&self) -> Command<Message> {
         let input = self.search_input.clone();
         let pattern = regex::escape(&input);
@@ -471,9 +517,6 @@ impl Application for App {
         }
 
         match message {
-            Message::Todo => {
-                log::warn!("TODO");
-            }
             Message::AppTheme(app_theme) => {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
@@ -499,6 +542,9 @@ impl Application for App {
                         return self.update(action.message());
                     }
                 }
+            }
+            Message::OpenDesktopId(desktop_id) => {
+                return self.open_desktop_id(desktop_id);
             }
             Message::SearchActivate => {
                 self.search_active = true;
@@ -655,6 +701,7 @@ impl Application for App {
                         widget::column::with_children(vec![
                             widget::text(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
+                            widget::text(&selected.id).into(),
                         ])
                         .into(),
                         widget::horizontal_space(Length::Fill).into(),
@@ -664,6 +711,12 @@ impl Application for App {
                     .align_items(Alignment::Center)
                     .spacing(space_xxs),
                 );
+                for desktop_id in &selected.info.desktop_ids {
+                    column = column.push(
+                        widget::button(desktop_id.as_str())
+                            .on_press(Message::OpenDesktopId(desktop_id.clone())),
+                    );
+                }
                 //TODO: screenshots, description, releases, etc.
                 widget::scrollable(column).into()
             }

@@ -11,18 +11,28 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     error::Error,
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::Arc,
     time::{Instant, SystemTime},
 };
 
-use crate::AppInfo;
+use crate::{AppIcon, AppInfo};
 
 const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    bitcode::Decode,
+    bitcode::Encode,
+    serde::Deserialize,
+    serde::Serialize,
+)]
 pub struct AppstreamCacheTag {
     /// When the file was last modified in seconds from the unix epoch
     pub modified: u64,
@@ -30,23 +40,30 @@ pub struct AppstreamCacheTag {
     pub size: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, bitcode::Decode, bitcode::Encode)]
 pub struct AppstreamCache {
     // Uses btreemap for stable sort order
+    #[bitcode(with_serde)] //TODO: do not use serde
     pub path_tags: BTreeMap<PathBuf, AppstreamCacheTag>,
+    #[bitcode(with_serde)] //TODO: do not use serde
     pub icons_paths: Vec<PathBuf>,
+    pub locale: String,
     pub infos: HashMap<String, Arc<AppInfo>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
 }
 
 impl AppstreamCache {
-    pub fn new<P: AsRef<Path>>(paths: &[P], icons_paths: Vec<PathBuf>, locale: &str) -> Self {
-        let mut path_tags = BTreeMap::new();
+    /// Get cache for specified appstream data sources
+    pub fn new(paths: Vec<PathBuf>, icons_paths: Vec<PathBuf>, locale: &str) -> Self {
+        let mut cache = Self::default();
+        cache.icons_paths = icons_paths;
+        cache.locale = locale.to_string();
+
         for path in paths.iter() {
             let canonical = match fs::canonicalize(path) {
                 Ok(ok) => ok,
                 Err(err) => {
-                    log::error!("failed to canonicalize {:?}: {}", path.as_ref(), err);
+                    log::error!("failed to canonicalize {:?}: {}", path, err);
                     continue;
                 }
             };
@@ -79,101 +96,15 @@ impl AppstreamCache {
 
             let size = metadata.len();
 
-            path_tags.insert(canonical, AppstreamCacheTag { modified, size });
+            cache
+                .path_tags
+                .insert(canonical, AppstreamCacheTag { modified, size });
         }
 
-        let path_results: Vec<_> = path_tags
-            .par_iter()
-            .filter_map(|(path, _tag)| {
-                let file_name = match path.file_name() {
-                    Some(file_name_os) => match file_name_os.to_str() {
-                        Some(some) => some,
-                        None => {
-                            log::error!("failed to convert to UTF-8: {:?}", file_name_os);
-                            return None;
-                        }
-                    },
-                    None => {
-                        log::error!("path has no file name: {:?}", path);
-                        return None;
-                    }
-                };
-
-                //TODO: memory map?
-                let mut file = match fs::File::open(&path) {
-                    Ok(ok) => ok,
-                    Err(err) => {
-                        log::error!("failed to open {:?}: {}", path, err);
-                        return None;
-                    }
-                };
-
-                if file_name.ends_with(".xml.gz") {
-                    let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_xml(path, &mut gz, locale) {
-                        Ok(infos) => Some(infos),
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                            None
-                        }
-                    }
-                } else if file_name.ends_with(".yml.gz") {
-                    let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_yaml(path, &mut gz, locale) {
-                        Ok(infos) => Some(infos),
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                            None
-                        }
-                    }
-                } else if file_name.ends_with(".xml") {
-                    match AppstreamCache::parse_xml(path, &mut file, locale) {
-                        Ok(infos) => Some(infos),
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                            None
-                        }
-                    }
-                } else if file_name.ends_with(".yml") {
-                    match AppstreamCache::parse_yaml(path, &mut file, locale) {
-                        Ok(infos) => Some(infos),
-                        Err(err) => {
-                            log::error!("failed to parse {:?}: {}", path, err);
-                            None
-                        }
-                    }
-                } else {
-                    log::error!("unknown appstream file type: {:?}", path);
-                    None
-                }
-            })
-            .collect();
-
-        let mut appstream_cache = Self::default();
-        appstream_cache.path_tags = path_tags;
-        appstream_cache.icons_paths = icons_paths;
-        for infos in path_results {
-            for (id, info) in infos {
-                if let Some(pkgname) = &info.pkgname {
-                    appstream_cache
-                        .pkgnames
-                        .entry(pkgname.clone())
-                        .or_insert_with(|| HashSet::new())
-                        .insert(id.clone());
-                }
-                match appstream_cache.infos.insert(id.clone(), info) {
-                    Some(_old) => {
-                        //TODO: merge based on priority
-                        log::debug!("found duplicate info {}", id);
-                    }
-                    None => {}
-                }
-            }
-        }
-
-        appstream_cache
+        cache
     }
 
+    /// Get cache for system appstream data sources
     pub fn system(locale: &str) -> Self {
         let mut paths = Vec::new();
         let mut icons_paths = Vec::new();
@@ -228,13 +159,283 @@ impl AppstreamCache {
             }
         }
 
-        AppstreamCache::new(&paths, icons_paths, locale)
+        AppstreamCache::new(paths, icons_paths, locale)
+    }
+
+    /// Directory where cache should be stored
+    fn cache_dir(&self, cache_name: &str) -> Option<PathBuf> {
+        dirs::cache_dir().map(|x| x.join("cosmic-store").join(cache_name))
+    }
+
+    /// Versioned filename of cache
+    fn cache_filename() -> &'static str {
+        "appstream_cache-v0-1.bitcode-v0-5"
+    }
+
+    /// Remove all files from cache not matching filename
+    pub fn clean_cache(&self, cache_name: &str) {
+        let start = Instant::now();
+
+        let cache_dir = match self.cache_dir(cache_name) {
+            Some(some) => some,
+            None => {
+                log::warn!("failed to find cache directory");
+                return;
+            }
+        };
+
+        if !cache_dir.is_dir() {
+            match fs::create_dir_all(&cache_dir) {
+                Ok(()) => {}
+                Err(err) => {
+                    log::warn!("failed to create cache directory {:?}: {}", cache_dir, err);
+                    return;
+                }
+            }
+        }
+
+        let read_dir = match fs::read_dir(&cache_dir) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to read cache directory {:?}: {}", cache_dir, err);
+                return;
+            }
+        };
+
+        for entry_res in read_dir {
+            let entry = match entry_res {
+                Ok(ok) => ok,
+                Err(err) => {
+                    log::warn!(
+                        "failed to read entry in cache directory {:?}: {}",
+                        cache_dir,
+                        err
+                    );
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+            if path.is_dir() {
+                log::warn!("unexpected directory in cache: {:?}", path);
+                continue;
+            }
+
+            if entry.file_name() != Self::cache_filename() {
+                match fs::remove_file(&path) {
+                    Ok(()) => {
+                        log::info!("removed outdated cache file {:?}", entry.path());
+                    }
+                    Err(err) => {
+                        log::info!(
+                            "failed to remove outdated cache file {:?}: {}",
+                            entry.path(),
+                            err
+                        );
+                    }
+                }
+            }
+        }
+
+        let duration = start.elapsed();
+        log::info!("cleaned cache {:?} in {:?}", cache_name, duration);
+    }
+
+    /// Reload from cache, returns true if loaded and false if out of date
+    //TODO: return errors instead of handling them internally?
+    pub fn load_cache(&mut self, cache_name: &str) -> bool {
+        let start = Instant::now();
+
+        let cache_dir = match self.cache_dir(cache_name) {
+            Some(some) => some,
+            None => {
+                log::warn!("failed to find cache directory");
+                return false;
+            }
+        };
+        let cache_path = cache_dir.join(Self::cache_filename());
+
+        let data = match fs::read(&cache_path) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to read cache {:?}: {}", cache_path, err);
+                return false;
+            }
+        };
+
+        let cache = match bitcode::decode::<Self>(&data) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to decode cache {:?}: {}", cache_name, err);
+                return false;
+            }
+        };
+
+        if cache.path_tags != self.path_tags {
+            log::info!("cache {:?} path tags mismatch, needs refresh", cache_name);
+            return false;
+        }
+
+        //TODO: icons_paths intentionally ignored, should it be?
+
+        if cache.locale != self.locale {
+            log::info!("cache {:?} locale mismatch, needs refresh", cache_name);
+            return false;
+        }
+
+        // Everything matches, copy infos and pkgnames
+        self.infos = cache.infos;
+        self.pkgnames = cache.pkgnames;
+
+        let duration = start.elapsed();
+        log::info!("loaded cache {:?} in {:?}", cache_name, duration);
+        true
+    }
+
+    /// Save to cache
+    //TODO: return errors instead of handling them internally?
+    pub fn save_cache(&self, cache_name: &str) {
+        let start = Instant::now();
+
+        let bitcode = match bitcode::encode::<Self>(self) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to encode cache {:?}: {}", cache_name, err);
+                return;
+            }
+        };
+
+        let cache_dir = match self.cache_dir(cache_name) {
+            Some(some) => some,
+            None => {
+                log::warn!("failed to find user cache directory");
+                return;
+            }
+        };
+        let cache_path = cache_dir.join(Self::cache_filename());
+
+        match atomicwrites::AtomicFile::new(
+            &cache_path,
+            atomicwrites::OverwriteBehavior::AllowOverwrite,
+        )
+        .write(|file| file.write_all(&bitcode))
+        {
+            Ok(()) => {}
+            Err(err) => {
+                log::warn!("failed to write cache {:?}: {}", cache_path, err);
+                return;
+            }
+        }
+
+        let duration = start.elapsed();
+        log::info!("saved cache {:?} in {:?}", cache_name, duration);
+    }
+
+    /// Reload from original package sources
+    pub fn load_original(&mut self) {
+        self.infos.clear();
+        self.pkgnames.clear();
+
+        let path_results: Vec<_> = self
+            .path_tags
+            .par_iter()
+            .filter_map(|(path, _tag)| {
+                let file_name = match path.file_name() {
+                    Some(file_name_os) => match file_name_os.to_str() {
+                        Some(some) => some,
+                        None => {
+                            log::error!("failed to convert to UTF-8: {:?}", file_name_os);
+                            return None;
+                        }
+                    },
+                    None => {
+                        log::error!("path has no file name: {:?}", path);
+                        return None;
+                    }
+                };
+
+                //TODO: memory map?
+                let mut file = match fs::File::open(&path) {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        log::error!("failed to open {:?}: {}", path, err);
+                        return None;
+                    }
+                };
+
+                if file_name.ends_with(".xml.gz") {
+                    let mut gz = GzDecoder::new(&mut file);
+                    match AppstreamCache::parse_xml(path, &mut gz, &self.locale) {
+                        Ok(infos) => Some(infos),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
+                    }
+                } else if file_name.ends_with(".yml.gz") {
+                    let mut gz = GzDecoder::new(&mut file);
+                    match AppstreamCache::parse_yaml(path, &mut gz, &self.locale) {
+                        Ok(infos) => Some(infos),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
+                    }
+                } else if file_name.ends_with(".xml") {
+                    match AppstreamCache::parse_xml(path, &mut file, &self.locale) {
+                        Ok(infos) => Some(infos),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
+                    }
+                } else if file_name.ends_with(".yml") {
+                    match AppstreamCache::parse_yaml(path, &mut file, &self.locale) {
+                        Ok(infos) => Some(infos),
+                        Err(err) => {
+                            log::error!("failed to parse {:?}: {}", path, err);
+                            None
+                        }
+                    }
+                } else {
+                    log::error!("unknown appstream file type: {:?}", path);
+                    None
+                }
+            })
+            .collect();
+
+        for infos in path_results {
+            for (id, info) in infos {
+                if let Some(pkgname) = &info.pkgname {
+                    self.pkgnames
+                        .entry(pkgname.clone())
+                        .or_insert_with(|| HashSet::new())
+                        .insert(id.clone());
+                }
+                match self.infos.insert(id.clone(), info) {
+                    Some(_old) => {
+                        //TODO: merge based on priority
+                        log::debug!("found duplicate info {}", id);
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
+
+    /// Either load from cache or load from originals. Cache is cleaned before loading and saved after.
+    pub fn reload(&mut self, cache_name: &str) {
+        self.clean_cache(cache_name);
+        if !self.load_cache(cache_name) {
+            self.load_original();
+            self.save_cache(cache_name);
+        }
     }
 
     pub fn icon_path(
         &self,
         origin_opt: Option<&str>,
-        name: &Path,
+        name: &str,
         width_opt: Option<u32>,
         height_opt: Option<u32>,
         scale_opt: Option<u32>,
@@ -266,32 +467,26 @@ impl AppstreamCache {
         for info_icon in info.icons.iter() {
             //TODO: support other types of icons
             match info_icon {
-                Icon::Cached {
-                    path,
-                    width,
-                    height,
-                    scale,
-                } => {
+                AppIcon::Cached(name, width, height, scale) => {
                     let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
                     if size < cached_size {
                         // Skip if size is less than cached size
                         continue;
                     }
                     if let Some(icon_path) =
-                        self.icon_path(info.origin_opt.as_deref(), path, *width, *height, *scale)
+                        self.icon_path(info.origin_opt.as_deref(), name, *width, *height, *scale)
                     {
                         icon_opt = Some(widget::icon::from_path(icon_path));
                         cached_size = size;
                     }
                 }
-                Icon::Stock(stock) => {
+                AppIcon::Stock(stock) => {
                     if cached_size != 0 {
                         // Skip if a cached icon was found
                         continue;
                     }
                     icon_opt = Some(widget::icon::from_name(stock.clone()).size(128).handle());
                 }
-                _ => {}
             }
         }
         icon_opt.unwrap_or_else(|| {
