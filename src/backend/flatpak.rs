@@ -8,10 +8,21 @@ use crate::AppstreamCache;
 #[derive(Debug)]
 pub struct Flatpak {
     appstream_cache: Arc<AppstreamCache>,
+    locale: String,
 }
 
 impl Flatpak {
     pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
+        // We don't store the installation because it is not Send
+        Ok(Self {
+            appstream_cache: Arc::new(AppstreamCache::default()),
+            locale: locale.to_string(),
+        })
+    }
+}
+
+impl Backend for Flatpak {
+    fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
         let mut paths = Vec::new();
@@ -35,14 +46,10 @@ impl Flatpak {
             }
         }
 
-        // We don't store the installation because it is not Send
-        Ok(Self {
-            appstream_cache: Arc::new(AppstreamCache::new(&paths, icons_paths, locale)),
-        })
+        self.appstream_cache = Arc::new(AppstreamCache::new(&paths, icons_paths, &self.locale));
+        Ok(())
     }
-}
 
-impl Backend for Flatpak {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;

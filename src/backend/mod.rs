@@ -1,4 +1,5 @@
 use cosmic::widget;
+use rayon::prelude::*;
 use std::{collections::HashMap, error::Error, fmt, sync::Arc, time::Instant};
 
 use crate::{AppInfo, AppstreamCache};
@@ -20,6 +21,7 @@ pub struct Package {
 }
 
 pub trait Backend: fmt::Debug + Send + Sync {
+    fn load_cache(&mut self) -> Result<(), Box<dyn Error>>;
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     //TODO: remove
     fn info(&self, package: &Package) -> Result<Arc<AppInfo>, Box<dyn Error>> {
@@ -44,7 +46,7 @@ pub fn backends(locale: &str) -> Backends {
             Ok(backend) => {
                 backends.insert("flatpak", Arc::new(backend));
                 let duration = start.elapsed();
-                log::info!("loaded flatpak backend in {:?}", duration);
+                log::info!("initialized flatpak backend in {:?}", duration);
             }
             Err(err) => {
                 log::error!("failed to load flatpak backend: {}", err);
@@ -59,13 +61,26 @@ pub fn backends(locale: &str) -> Backends {
             Ok(backend) => {
                 backends.insert("packagekit", Arc::new(backend));
                 let duration = start.elapsed();
-                log::info!("loaded packagekit backend in {:?}", duration);
+                log::info!("initialized packagekit backend in {:?}", duration);
             }
             Err(err) => {
                 log::error!("failed to load packagekit backend: {}", err);
             }
         }
     }
+
+    backends.par_iter_mut().for_each(|(backend_name, backend)| {
+        let start = Instant::now();
+        match Arc::get_mut(backend).unwrap().load_cache() {
+            Ok(()) => {
+                let duration = start.elapsed();
+                log::info!("loaded {} backend cache in {:?}", backend_name, duration);
+            }
+            Err(err) => {
+                log::error!("failed to load {} backend cache: {}", backend_name, err);
+            }
+        }
+    });
 
     //TODO: Workaround for xml-rs memory leak when loading appstream data
     {
