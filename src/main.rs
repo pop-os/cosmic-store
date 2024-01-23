@@ -13,6 +13,7 @@ use cosmic::{
     },
     widget, Application, ApplicationExt, Element,
 };
+use rayon::prelude::*;
 use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
 
 use app_info::AppInfo;
@@ -191,53 +192,61 @@ impl App {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let mut results = Vec::<SearchResult>::new();
+                    //TODO: par_iter?
                     for (backend_name, backend) in backends.iter() {
                         let appstream_cache = backend.info_cache();
-                        for (id, info) in appstream_cache.infos.iter() {
-                            //TODO: fuzzy match (nucleus-matcher?)
-                            let weight_opt = match regex.find(&info.name) {
-                                Some(mat) => {
-                                    if mat.range().start == 0 {
-                                        if mat.range().end == info.name.len() {
-                                            // Name equals search phrase
-                                            Some(0)
-                                        } else {
-                                            // Name starts with search phrase
-                                            Some(1)
-                                        }
-                                    } else {
-                                        // Name contains search phrase
-                                        Some(2)
-                                    }
-                                }
-                                None => match regex.find(&info.summary) {
+                        let mut backend_results = appstream_cache
+                            .infos
+                            .par_iter()
+                            .filter_map(|(id, info)| {
+                                //TODO: fuzzy match (nucleus-matcher?)
+                                let weight_opt = match regex.find(&info.name) {
                                     Some(mat) => {
                                         if mat.range().start == 0 {
-                                            if mat.range().end == info.summary.len() {
-                                                // Summary equals search phrase
-                                                Some(3)
+                                            if mat.range().end == info.name.len() {
+                                                // Name equals search phrase
+                                                Some(0)
                                             } else {
-                                                // Summary starts with search phrase
-                                                Some(4)
+                                                // Name starts with search phrase
+                                                Some(1)
                                             }
                                         } else {
-                                            // Summary contains search phrase
-                                            Some(5)
+                                            // Name contains search phrase
+                                            Some(2)
                                         }
                                     }
-                                    None => None,
-                                },
-                            };
-                            if let Some(weight) = weight_opt {
-                                results.push(SearchResult {
-                                    backend_name,
-                                    id: id.clone(),
-                                    icon: appstream_cache.icon(info),
-                                    info: info.clone(),
-                                    weight,
-                                });
-                            }
-                        }
+                                    None => match regex.find(&info.summary) {
+                                        Some(mat) => {
+                                            if mat.range().start == 0 {
+                                                if mat.range().end == info.summary.len() {
+                                                    // Summary equals search phrase
+                                                    Some(3)
+                                                } else {
+                                                    // Summary starts with search phrase
+                                                    Some(4)
+                                                }
+                                            } else {
+                                                // Summary contains search phrase
+                                                Some(5)
+                                            }
+                                        }
+                                        None => None,
+                                    },
+                                };
+                                if let Some(weight) = weight_opt {
+                                    Some(SearchResult {
+                                        backend_name,
+                                        id: id.clone(),
+                                        icon: appstream_cache.icon(info),
+                                        info: info.clone(),
+                                        weight,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        results.append(&mut backend_results);
                     }
                     results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
                         cmp::Ordering::Equal => {
@@ -312,7 +321,7 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let mut installed = Vec::new();
-                    //TODO: parellel iterator?
+                    //TODO: par_iter?
                     for (backend_name, backend) in backends.iter() {
                         let start = Instant::now();
                         match backend.installed() {
