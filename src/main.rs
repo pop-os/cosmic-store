@@ -673,7 +673,9 @@ impl Application for App {
                 .on_submit(Message::SearchSubmit)
                 .into()
         } else {
-            widget::search::button(Message::SearchActivate).into()
+            widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                .on_press(Message::SearchActivate)
+                .into()
         }]
     }
 
