@@ -6,6 +6,6 @@ settings = 設定
 ### Appearance
 appearance = 外観
 theme = テーマ
-match-desktop = デスクトップに合わさせる
-dark = 暗い
-light = 明かり
+match-desktop = システム設定に従う
+dark = ダーク
+light = ライト
