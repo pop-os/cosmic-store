@@ -38,7 +38,7 @@ packagekit-zbus = { version = "0.1", optional = true }
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
-features = ["tokio", "winit"]
+features = ["desktop", "tokio", "winit"]
 #path = "../libcosmic"
 
 [features]

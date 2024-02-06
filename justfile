@@ -50,6 +50,10 @@ check-json: (check '--message-format=json')
 heaptrack:
     cargo heaptrack --profile release-with-debug
 
+dev *args:
+    cargo fmt
+    just run {{args}}
+
 # Run with debug logs
 run *args:
     env RUST_LOG=cosmic_store=info RUST_BACKTRACE=full cargo run --release {{args}}

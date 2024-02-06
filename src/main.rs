@@ -209,7 +209,8 @@ impl App {
                             return message::none();
                         }
                     };
-                    //TODO: use libcosmic handling for exec string
+                    //TODO: use libcosmic for loading desktop data
+                    cosmic::desktop::spawn_desktop_exec(exec, Vec::<(&str, &str)>::new());
                     message::none()
                 })
                 .await
