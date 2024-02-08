@@ -7,7 +7,7 @@ use cosmic::{
     cosmic_theme, executor,
     iced::{
         event::{self, Event},
-        keyboard::{Event as KeyEvent, KeyCode, Modifiers},
+        keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::Subscription,
         window, Alignment, Length,
     },
@@ -107,7 +107,7 @@ pub enum Message {
     Backends(Backends),
     Config(Config),
     Installed(Vec<(&'static str, Package)>),
-    Key(Modifiers, KeyCode),
+    Key(Modifiers, Key),
     OpenDesktopId(String),
     SearchActivate,
     SearchClear,
@@ -537,9 +537,9 @@ impl Application for App {
             Message::Installed(installed) => {
                 self.installed = Some(installed);
             }
-            Message::Key(modifiers, key_code) => {
+            Message::Key(modifiers, key) => {
                 for (key_bind, action) in self.key_binds.iter() {
-                    if key_bind.matches(modifiers, key_code) {
+                    if key_bind.matches(modifiers, &key) {
                         return self.update(action.message());
                     }
                 }
@@ -830,10 +830,9 @@ impl Application for App {
 
         Subscription::batch([
             event::listen_with(|event, _status| match event {
-                Event::Keyboard(KeyEvent::KeyPressed {
-                    key_code,
-                    modifiers,
-                }) => Some(Message::Key(modifiers, key_code)),
+                Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => {
+                    Some(Message::Key(modifiers, key))
+                }
                 _ => None,
             }),
             cosmic_config::config_subscription(
