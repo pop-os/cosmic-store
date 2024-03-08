@@ -683,43 +683,60 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
         let cosmic_theme::Spacing {
-            space_xs,
+            space_xl,
+            space_m,
+            space_s,
             space_xxs,
             ..
         } = self.core().system_theme().cosmic().spacing;
 
         let content: Element<_> = match &self.selected_opt {
             Some(selected) => {
+                //TODO: more efficient check
+                let mut is_installed = false;
+                if let Some(installed) = &self.installed {
+                    for (backend_name, package) in installed {
+                        if backend_name == &selected.backend_name && package.id == selected.id {
+                            is_installed = true;
+                            break;
+                        }
+                    }
+                }
+
                 let mut column = widget::column::with_capacity(2)
-                    // Hack to make room for scroll bar
-                    .padding([0, space_xs, 0, 0])
-                    .spacing(space_xxs)
+                    .padding([0, space_xl])
+                    .spacing(space_m)
                     .width(Length::Fill);
-                column = column.push(widget::button("Back").on_press(Message::SelectNone));
+                column = column
+                    .push(widget::button::standard(fl!("back")).on_press(Message::SelectNone));
                 column = column.push(
                     widget::row::with_children(vec![
                         widget::icon::icon(selected.icon.clone())
                             .size(ICON_SIZE_DETAILS)
                             .into(),
                         widget::column::with_children(vec![
-                            widget::text(&selected.info.name).into(),
+                            widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
-                            widget::text(&selected.id).into(),
+                            widget::vertical_space(Length::Fixed(space_s.into())).into(),
+                            if is_installed {
+                                //TODO: what if there are multiple desktop IDs?
+                                match selected.info.desktop_ids.first() {
+                                    Some(desktop_id) => widget::button::suggested(fl!("open"))
+                                        .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                        .into(),
+                                    None => widget::horizontal_space(Length::Shrink).into(),
+                                }
+                            } else {
+                                widget::button::suggested(fl!("install"))
+                                    //TODO .on_press(Message::Install)
+                                    .into()
+                            },
                         ])
                         .into(),
-                        widget::horizontal_space(Length::Fill).into(),
-                        widget::text(selected.info.origin_opt.as_deref().unwrap_or("")).into(),
-                        //TODO: buttons for status
                     ])
                     .align_items(Alignment::Center)
-                    .spacing(space_xxs),
+                    .spacing(space_m),
                 );
-                for desktop_id in &selected.info.desktop_ids {
-                    column = column.push(
-                        widget::button(desktop_id.as_str())
-                            .on_press(Message::OpenDesktopId(desktop_id.clone())),
-                    );
-                }
                 //TODO: screenshots, description, releases, etc.
                 widget::scrollable(column).into()
             }
@@ -729,8 +746,7 @@ impl Application for App {
                     let results_len = cmp::min(results.len(), 256);
 
                     let mut column = widget::column::with_capacity(results_len + 1)
-                        // Hack to make room for scroll bar
-                        .padding([0, space_xs, 0, 0])
+                        .padding([0, space_xl])
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
@@ -767,7 +783,7 @@ impl Application for App {
                 None => match &self.installed {
                     Some(installed) => {
                         let mut column = widget::column::with_capacity(installed.len() + 1)
-                            .padding([0, space_xs, 0, 0])
+                            .padding([0, space_xl])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         //TODO: translate
@@ -808,7 +824,7 @@ impl Application for App {
                     }
                     None => {
                         let mut column = widget::column::with_capacity(1)
-                            .padding([0, space_xs, 0, 0])
+                            .padding([0, space_xl])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         //TODO: translate

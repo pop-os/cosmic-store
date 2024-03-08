@@ -1,3 +1,7 @@
+back = Back
+install = Install
+open = Open
+
 # Context Pages
 
 ## Settings
