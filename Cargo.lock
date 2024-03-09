@@ -208,6 +208,7 @@ dependencies = [
 [[package]]
 name = "appstream"
 version = "0.2.2"
+source = "git+https://github.com/jackpot51/appstream.git#d174d1df122ce1828660be2648dc2a3add8b7bd3"
 dependencies = [
  "chrono",
  "serde",

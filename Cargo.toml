@@ -21,7 +21,7 @@ i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester
 i18n-embed-fl = "0.6"
 rust-embed = "6"
 # appstream
-appstream = { version = "0.2", path = "appstream" }
+appstream = { git = "https://github.com/jackpot51/appstream.git" }
 flate2 = "1"
 libc = "0.2"
 sys-locale = "0.3"

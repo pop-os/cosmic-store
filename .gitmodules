@@ -1,4 +1,0 @@
-[submodule "appstream"]
-	path = appstream
-	url = https://github.com/jackpot51/appstream.git
-	branch = master
