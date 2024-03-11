@@ -2,7 +2,7 @@ use cosmic::widget;
 use rayon::prelude::*;
 use std::{collections::HashMap, error::Error, fmt, sync::Arc, time::Instant};
 
-use crate::{AppInfo, AppstreamCache};
+use crate::{AppInfo, AppstreamCache, OperationKind};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -34,6 +34,14 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn info_cache(&self) -> &AppstreamCache;
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
+    fn operation(
+        &self,
+        kind: OperationKind,
+        _package_id: &str,
+        _f: Box<dyn FnMut(f32)>,
+    ) -> Result<(), Box<dyn Error>> {
+        Err(format!("{kind:?} not implemented for backend").into())
+    }
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;

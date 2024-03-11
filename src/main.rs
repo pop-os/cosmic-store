@@ -7,7 +7,7 @@ use cosmic::{
     cosmic_theme, executor,
     iced::{
         event::{self, Event},
-        futures::SinkExt,
+        futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
         window, Alignment, Length,
@@ -19,9 +19,7 @@ use std::{
     any::TypeId,
     cmp,
     collections::{BTreeMap, HashMap},
-    env,
-    error::Error,
-    process,
+    env, process,
     sync::Arc,
     time::{self, Instant},
 };
@@ -32,7 +30,7 @@ mod app_info;
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
 
-use backend::{Backend, Backends, Package};
+use backend::{Backends, Package};
 mod backend;
 
 use config::{AppTheme, Config, CONFIG_VERSION};
@@ -806,11 +804,11 @@ impl Application for App {
                 return self.update_installed();
             }
             Message::PendingError(id, err) => {
+                log::warn!("operation {id} failed: {err}");
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
                     //TODO: self.failed_operations.insert(id, (op, err));
                     //TODO: self.dialog_pages.push_back(DialogPage::FailedOperation(id));
                 }
-                return self.update_installed();
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
@@ -1290,31 +1288,56 @@ impl Application for App {
             }),
         ];
 
-        for (id, (pending_operation, _)) in self.pending_operations.iter() {
+        for (id, (op, _)) in self.pending_operations.iter() {
             //TODO: use recipe?
             let id = *id;
-            let pending_operation = pending_operation.clone();
-            let backends = self.backends.clone();
-            subscriptions.push(subscription::channel(
-                id,
-                16,
-                move |mut msg_tx| async move {
-                    match pending_operation.perform(id, backends, &mut msg_tx).await {
-                        Ok(()) => {
-                            let _ = msg_tx.send(Message::PendingComplete(id)).await;
-                        }
-                        Err(err) => {
-                            let _ = msg_tx
-                                .send(Message::PendingError(id, err.to_string()))
-                                .await;
-                        }
+            let backend_opt = self.backends.get(op.backend_name).map(|x| x.clone());
+            let op = op.clone();
+            subscriptions.push(subscription::channel(id, 16, move |msg_tx| async move {
+                let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
+                let res = match backend_opt {
+                    Some(backend) => {
+                        let msg_tx = msg_tx.clone();
+                        tokio::task::spawn_blocking(move || {
+                            backend
+                                .operation(
+                                    op.kind,
+                                    &op.package_id,
+                                    Box::new(move |progress| -> () {
+                                        let _ = futures::executor::block_on(async {
+                                            msg_tx
+                                                .lock()
+                                                .await
+                                                .send(Message::PendingProgress(id, progress))
+                                                .await
+                                        });
+                                    }),
+                                )
+                                .map_err(|err| err.to_string())
+                        })
+                        .await
+                        .unwrap()
                     }
+                    None => Err(format!("backend {:?} not found", op.backend_name)),
+                };
 
-                    loop {
-                        tokio::time::sleep(time::Duration::new(1, 0)).await;
+                match res {
+                    Ok(()) => {
+                        let _ = msg_tx.lock().await.send(Message::PendingComplete(id)).await;
                     }
-                },
-            ));
+                    Err(err) => {
+                        let _ = msg_tx
+                            .lock()
+                            .await
+                            .send(Message::PendingError(id, err.to_string()))
+                            .await;
+                    }
+                }
+
+                loop {
+                    tokio::time::sleep(time::Duration::new(1, 0)).await;
+                }
+            }));
         }
 
         Subscription::batch(subscriptions)
