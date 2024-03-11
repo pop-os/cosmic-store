@@ -105,6 +105,7 @@ pub struct Flags {
 pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
+    CategoryResults(&'static str, Vec<SearchResult>),
     Config(Config),
     Install(&'static str, String),
     Installed(Vec<(&'static str, Package)>),
@@ -117,6 +118,7 @@ pub enum Message {
     SearchSubmit,
     SelectInstalled(usize),
     SelectNone,
+    SelectCategoryResult(usize),
     SelectSearchResult(usize),
     Selected(Selected),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
@@ -141,15 +143,66 @@ impl ContextPage {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NavPage {
+    Create,
+    Work,
+    Develop,
+    Learn,
+    Game,
+    Relax,
+    Socialize,
+    Utilities,
     Installed,
     Updates,
 }
 
 impl NavPage {
+    fn all() -> &'static [Self] {
+        &[
+            Self::Create,
+            Self::Work,
+            Self::Develop,
+            Self::Learn,
+            Self::Game,
+            Self::Relax,
+            Self::Socialize,
+            Self::Utilities,
+            Self::Installed,
+            Self::Updates,
+        ]
+    }
+
     fn title(&self) -> String {
         match self {
+            Self::Create => fl!("create"),
+            Self::Work => fl!("work"),
+            Self::Develop => fl!("develop"),
+            Self::Learn => fl!("learn"),
+            Self::Game => fl!("game"),
+            Self::Relax => fl!("relax"),
+            Self::Socialize => fl!("socialize"),
+            Self::Utilities => fl!("utilities"),
             Self::Installed => fl!("installed-apps"),
             Self::Updates => fl!("updates"),
+        }
+    }
+
+    // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
+    fn category(&self) -> Option<&'static str> {
+        match self {
+            /*TODO: Categories:
+            Science
+            Settings
+            System
+            */
+            Self::Create => Some("Graphics"),
+            Self::Work => Some("Office"),
+            Self::Develop => Some("Development"),
+            Self::Learn => Some("Education"),
+            Self::Game => Some("Game"),
+            Self::Relax => Some("AudioVideo"),
+            Self::Socialize => Some("Network"),
+            Self::Utilities => Some("Utility"),
+            _ => None,
         }
     }
 }
@@ -185,9 +238,10 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
-    stats: Vec<(String, u64)>,
+    stats: Arc<Vec<(String, u64)>>,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
+    category_results: Option<(&'static str, Vec<SearchResult>)>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
@@ -232,6 +286,59 @@ impl App {
                     //TODO: use libcosmic for loading desktop data
                     cosmic::desktop::spawn_desktop_exec(exec, Vec::<(&str, &str)>::new());
                     message::none()
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn category(&self, category: &'static str) -> Command<Message> {
+        let backends = self.backends.clone();
+        let stats = self.stats.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let mut results = Vec::<SearchResult>::new();
+                    //TODO: par_iter?
+                    for (backend_name, backend) in backends.iter() {
+                        let appstream_cache = backend.info_cache();
+                        let mut backend_results = appstream_cache
+                            .infos
+                            .par_iter()
+                            .filter_map(|(id, info)| {
+                                //TODO: contains doesn't work due to type mismatch
+                                if info.categories.iter().any(|x| x == category) {
+                                    let weight = stats
+                                        .iter()
+                                        .position(|(stats_id, _downloads)| stats_id == id)
+                                        .unwrap_or(stats.len());
+                                    println!("{} weight {}", id, weight);
+                                    Some(SearchResult {
+                                        backend_name,
+                                        id: id.clone(),
+                                        icon: appstream_cache.icon(info),
+                                        info: info.clone(),
+                                        weight,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        results.append(&mut backend_results);
+                    }
+                    results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+                        cmp::Ordering::Equal => {
+                            lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name)
+                        }
+                        ordering => ordering,
+                    });
+                    let duration = start.elapsed();
+                    log::info!("searched for category {:?} in {:?}", category, duration);
+                    message::app(Message::CategoryResults(category, results))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -511,13 +618,18 @@ impl Application for App {
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
 
         let mut nav_model = widget::nav_bar::Model::default();
-        for &nav_page in &[NavPage::Installed, NavPage::Updates] {
-            nav_model
+        for &nav_page in NavPage::all() {
+            let id = nav_model
                 .insert()
                 .text(nav_page.title())
-                .data::<NavPage>(nav_page);
+                .data::<NavPage>(nav_page)
+                .id();
+            if nav_page == NavPage::Installed {
+                // Activate installed page by default
+                //TODO: different default page, save last page?
+                nav_model.activate(id);
+            }
         }
-        nav_model.activate_position(0);
 
         let stats = {
             let start = Instant::now();
@@ -527,11 +639,11 @@ impl Application for App {
                 Ok(ok) => {
                     let elapsed = start.elapsed();
                     log::info!("loaded flathub statistics in {:?}", elapsed);
-                    ok
+                    Arc::new(ok)
                 }
                 Err(err) => {
                     log::warn!("failed to load flathub statistics: {}", err);
-                    Vec::new()
+                    Arc::new(Vec::new())
                 }
             }
         };
@@ -552,6 +664,7 @@ impl Application for App {
             stats,
             installed: None,
             updates: None,
+            category_results: None,
             search_results: None,
             selected_opt: None,
         };
@@ -578,6 +691,14 @@ impl Application for App {
 
     fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Command<Message> {
         self.nav_model.activate(id);
+        self.category_results = None;
+        if let Some(category) = self
+            .nav_model
+            .active_data::<NavPage>()
+            .and_then(|nav_page| nav_page.category())
+        {
+            return self.category(category);
+        }
         Command::none()
     }
 
@@ -618,6 +739,9 @@ impl Application for App {
             Message::Backends(backends) => {
                 self.backends = backends;
                 return Command::batch([self.update_installed(), self.update_updates()]);
+            }
+            Message::CategoryResults(category, results) => {
+                self.category_results = Some((category, results));
             }
             Message::Config(config) => {
                 if config != self.config {
@@ -706,6 +830,23 @@ impl Application for App {
             }
             Message::SelectNone => {
                 self.selected_opt = None;
+            }
+            Message::SelectCategoryResult(result_i) => {
+                if let Some((_category, results)) = &self.category_results {
+                    match results.get(result_i) {
+                        Some(result) => {
+                            self.selected_opt = Some(Selected {
+                                backend_name: result.backend_name,
+                                id: result.id.clone(),
+                                icon: result.icon.clone(),
+                                info: result.info.clone(),
+                            })
+                        }
+                        None => {
+                            log::error!("failed to find category result with index {}", result_i);
+                        }
+                    }
+                }
             }
             Message::SelectSearchResult(result_i) => {
                 if let Some((_input, results)) = &self.search_results {
@@ -949,6 +1090,7 @@ impl Application for App {
                             widget::scrollable(column).into()
                         }
                     },
+                    //TODO: reduce duplication
                     NavPage::Updates => match &self.updates {
                         Some(updates) => {
                             let mut column = widget::column::with_capacity(updates.len() + 1)
@@ -985,6 +1127,59 @@ impl Application for App {
                                     .align_items(Alignment::Center)
                                     .spacing(space_xxs),
                                 ));
+                            }
+                            widget::scrollable(column).into()
+                        }
+                        None => {
+                            let mut column = widget::column::with_capacity(1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: translate
+                            column = column.push(widget::text("Loading"));
+                            widget::scrollable(column).into()
+                        }
+                    },
+                    //TODO: reduce duplication
+                    _ => match &self.category_results {
+                        Some((category, results)) => {
+                            //TODO: paging or dynamic load
+                            let results_len = cmp::min(results.len(), 256);
+
+                            let mut column = widget::column::with_capacity(results_len + 1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: back button?
+                            //TODO: translate
+                            column = column.push(widget::text(format!(
+                                "{} results in category {:?}",
+                                results.len(),
+                                category
+                            )));
+                            for (result_i, result) in results.iter().take(results_len).enumerate() {
+                                column = column.push(
+                                    widget::mouse_area(
+                                        widget::row::with_children(vec![
+                                            widget::icon::icon(result.icon.clone())
+                                                .size(ICON_SIZE_LIST)
+                                                .into(),
+                                            widget::column::with_children(vec![
+                                                widget::text(&result.info.name).into(),
+                                                widget::text(&result.info.summary).into(),
+                                            ])
+                                            .into(),
+                                            widget::horizontal_space(Length::Fill).into(),
+                                            widget::text(
+                                                result.info.origin_opt.as_deref().unwrap_or(""),
+                                            )
+                                            .into(),
+                                        ])
+                                        .align_items(Alignment::Center)
+                                        .spacing(space_xxs),
+                                    )
+                                    .on_press(Message::SelectCategoryResult(result_i)),
+                                );
                             }
                             widget::scrollable(column).into()
                         }

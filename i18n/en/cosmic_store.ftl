@@ -1,7 +1,17 @@
 back = Back
 install = Install
-installed-apps = Installed apps
 open = Open
+
+# Nav Pages
+create = Create
+work = Work
+develop = Develop
+learn = Learn
+game = Game
+relax = Relax
+socialize = Socialize
+utilities = Utilities
+installed-apps = Installed apps
 updates = Updates
 
 # Context Pages

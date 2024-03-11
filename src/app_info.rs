@@ -41,8 +41,9 @@ pub struct AppInfo {
     pub name: String,
     pub summary: String,
     pub pkgname: Option<String>,
-    pub icons: Vec<AppIcon>,
+    pub categories: Vec<String>,
     pub desktop_ids: Vec<String>,
+    pub icons: Vec<AppIcon>,
 }
 
 impl AppInfo {
@@ -60,6 +61,19 @@ impl AppInfo {
             )));
         }
         */
+        let categories = component
+            .categories
+            .into_iter()
+            .map(|category| category.to_string())
+            .collect();
+        let desktop_ids = component
+            .launchables
+            .into_iter()
+            .filter_map(|launchable| match launchable {
+                Launchable::DesktopId(desktop_id) => Some(desktop_id),
+                _ => None,
+            })
+            .collect();
         let icons = component
             .icons
             .into_iter()
@@ -79,21 +93,14 @@ impl AppInfo {
                 _ => None,
             })
             .collect();
-        let desktop_ids = component
-            .launchables
-            .into_iter()
-            .filter_map(|launchable| match launchable {
-                Launchable::DesktopId(desktop_id) => Some(desktop_id),
-                _ => None,
-            })
-            .collect();
         Self {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
             pkgname: component.pkgname,
-            icons,
+            categories,
             desktop_ids,
+            icons,
         }
     }
 }
