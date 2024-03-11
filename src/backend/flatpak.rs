@@ -40,6 +40,29 @@ impl Flatpak {
             appstream_cache: AppstreamCache::new(paths, icons_paths, locale),
         })
     }
+
+    fn ref_to_package<R: InstalledRefExt + RefExt>(r: R) -> Option<Package> {
+        let id = r.name()?;
+
+        let mut extra = HashMap::new();
+        if let Some(arch) = r.arch() {
+            extra.insert("arch".to_string(), arch.to_string());
+        }
+        if let Some(branch) = r.branch() {
+            extra.insert("branch".to_string(), branch.to_string());
+        }
+
+        Some(Package {
+            id: id.to_string(),
+            //TODO: get icon from appstream data?
+            icon: widget::icon::from_name(id.to_string()).size(128).handle(),
+            name: r.appdata_name().unwrap_or(id).to_string(),
+            summary: r.appdata_summary().map_or(String::new(), |x| x.to_string()),
+            version: r.appdata_version().unwrap_or_default().to_string(),
+            origin_opt: r.origin().map(|x| x.to_string()),
+            extra,
+        })
+    }
 }
 
 impl Backend for Flatpak {
@@ -48,36 +71,32 @@ impl Backend for Flatpak {
         Ok(())
     }
 
+    fn info_cache(&self) -> &AppstreamCache {
+        &self.appstream_cache
+    }
+
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
         let mut packages = Vec::new();
         //TODO: show non-desktop items?
         for r in inst.list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)? {
-            if let Some(id) = r.name() {
-                let mut extra = HashMap::new();
-                if let Some(arch) = r.arch() {
-                    extra.insert("arch".to_string(), arch.to_string());
-                }
-                if let Some(branch) = r.branch() {
-                    extra.insert("branch".to_string(), branch.to_string());
-                }
-                packages.push(Package {
-                    id: id.to_string(),
-                    //TODO: get icon from appstream data?
-                    icon: widget::icon::from_name(id.to_string()).size(128).handle(),
-                    name: r.appdata_name().unwrap_or(id).to_string(),
-                    summary: r.appdata_summary().map_or(String::new(), |x| x.to_string()),
-                    version: r.appdata_version().unwrap_or_default().to_string(),
-                    origin_opt: r.origin().map(|x| x.to_string()),
-                    extra,
-                })
+            if let Some(package) = Self::ref_to_package(r) {
+                packages.push(package);
             }
         }
         Ok(packages)
     }
 
-    fn info_cache(&self) -> &AppstreamCache {
-        &self.appstream_cache
+    fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+        //TODO: should we support system installations?
+        let inst = Installation::new_user(Cancellable::NONE)?;
+        let mut packages = Vec::new();
+        for r in inst.list_installed_refs_for_update(Cancellable::NONE)? {
+            if let Some(package) = Self::ref_to_package(r) {
+                packages.push(package);
+            }
+        }
+        Ok(packages)
     }
 }

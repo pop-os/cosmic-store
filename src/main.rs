@@ -106,6 +106,7 @@ pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
     Config(Config),
+    Install(&'static str, String),
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
@@ -120,6 +121,7 @@ pub enum Message {
     Selected(Selected),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
+    Updates(Vec<(&'static str, Package)>),
     WindowClose,
     WindowNew,
 }
@@ -133,6 +135,21 @@ impl ContextPage {
     fn title(&self) -> String {
         match self {
             Self::Settings => fl!("settings"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NavPage {
+    Installed,
+    Updates,
+}
+
+impl NavPage {
+    fn title(&self) -> String {
+        match self {
+            Self::Installed => fl!("installed-apps"),
+            Self::Updates => fl!("updates"),
         }
     }
 }
@@ -164,10 +181,12 @@ pub struct App {
     backends: Backends,
     context_page: ContextPage,
     key_binds: HashMap<KeyBind, Action>,
+    nav_model: widget::nav_bar::Model,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
     installed: Option<Vec<(&'static str, Package)>>,
+    updates: Option<Vec<(&'static str, Package)>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
@@ -395,6 +414,39 @@ impl App {
         )
     }
 
+    fn update_updates(&self) -> Command<Message> {
+        let backends = self.backends.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut updates = Vec::new();
+                    //TODO: par_iter?
+                    for (backend_name, backend) in backends.iter() {
+                        let start = Instant::now();
+                        match backend.updates() {
+                            Ok(packages) => {
+                                for package in packages {
+                                    println!("{}: {}", backend_name, package.name);
+                                    updates.push((*backend_name, package));
+                                }
+                            }
+                            Err(err) => {
+                                log::error!("failed to list updates: {}", err);
+                            }
+                        }
+                        let duration = start.elapsed();
+                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                    }
+                    updates.sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
+                    message::app(Message::Updates(updates))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
     fn update_title(&mut self) -> Command<Message> {
         let title = "COSMIC App Store";
         self.set_header_title(title.to_string());
@@ -455,6 +507,14 @@ impl Application for App {
             String::from("en-US")
         });
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
+        let mut nav_model = widget::nav_bar::Model::default();
+        for &nav_page in &[NavPage::Installed, NavPage::Updates] {
+            nav_model
+                .insert()
+                .text(nav_page.title())
+                .data::<NavPage>(nav_page);
+        }
+        nav_model.activate_position(0);
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -464,16 +524,22 @@ impl Application for App {
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             key_binds: key_binds(),
+            nav_model,
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
             installed: None,
             search_results: None,
             selected_opt: None,
+            updates: None,
         };
 
         let command = Command::batch([app.update_title(), app.update_backends()]);
         (app, command)
+    }
+
+    fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
+        Some(&self.nav_model)
     }
 
     fn on_escape(&mut self) -> Command<Message> {
@@ -488,8 +554,13 @@ impl Application for App {
         Command::none()
     }
 
+    fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Command<Message> {
+        self.nav_model.activate(id);
+        Command::none()
+    }
+
     /// Handle application events here.
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+    fn update(&mut self, message: Self::Message) -> Command<Message> {
         // Helper for updating config values efficiently
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
@@ -524,7 +595,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                return self.update_installed();
+                return Command::batch([self.update_installed(), self.update_updates()]);
             }
             Message::Config(config) => {
                 if config != self.config {
@@ -534,6 +605,18 @@ impl Application for App {
                     return self.update_config();
                 }
             }
+            Message::Install(backend_name, id) => match self.backends.get(backend_name) {
+                Some(backend) => {
+                    log::warn!("TODO: install {} from {}", id, backend_name);
+                }
+                None => {
+                    log::warn!(
+                        "failed to find install {} from {}: backend not found",
+                        id,
+                        backend_name
+                    );
+                }
+            },
             Message::Installed(installed) => {
                 self.installed = Some(installed);
             }
@@ -635,6 +718,9 @@ impl Application for App {
                 }
                 self.set_context_title(context_page.title());
             }
+            Message::Updates(updates) => {
+                self.updates = Some(updates);
+            }
             Message::WindowClose => {
                 return window::close(window::Id::MAIN);
             }
@@ -728,7 +814,10 @@ impl Application for App {
                                 }
                             } else {
                                 widget::button::suggested(fl!("install"))
-                                    //TODO .on_press(Message::Install)
+                                    .on_press(Message::Install(
+                                        selected.backend_name,
+                                        selected.id.clone(),
+                                    ))
                                     .into()
                             },
                         ])
@@ -780,20 +869,77 @@ impl Application for App {
                     }
                     widget::scrollable(column).into()
                 }
-                None => match &self.installed {
-                    Some(installed) => {
-                        let mut column = widget::column::with_capacity(installed.len() + 1)
-                            .padding([0, space_xl])
-                            .spacing(space_xxs)
-                            .width(Length::Fill);
-                        //TODO: translate
-                        column = column.push(widget::text(format!(
-                            "{} installed applications",
-                            installed.len(),
-                        )));
-                        for (installed_i, (_backend_i, package)) in installed.iter().enumerate() {
-                            column = column.push(
-                                widget::mouse_area(
+                None => match self
+                    .nav_model
+                    .active_data::<NavPage>()
+                    .map_or(NavPage::Installed, |nav_page| *nav_page)
+                {
+                    NavPage::Installed => match &self.installed {
+                        Some(installed) => {
+                            let mut column = widget::column::with_capacity(installed.len() + 1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: translate
+                            column = column.push(widget::text(format!(
+                                "{} installed applications",
+                                installed.len(),
+                            )));
+                            for (installed_i, (_backend_i, package)) in installed.iter().enumerate()
+                            {
+                                column = column.push(
+                                    widget::mouse_area(
+                                        widget::row::with_children(vec![
+                                            widget::icon::icon(package.icon.clone())
+                                                .size(ICON_SIZE_LIST)
+                                                .into(),
+                                            widget::column::with_children(vec![
+                                                widget::text(&package.name).into(),
+                                                widget::text(&package.summary).into(),
+                                            ])
+                                            .into(),
+                                            widget::horizontal_space(Length::Fill).into(),
+                                            widget::column::with_children(vec![
+                                                widget::text(
+                                                    package.origin_opt.as_deref().unwrap_or(""),
+                                                )
+                                                .into(),
+                                                widget::text(&package.version).into(),
+                                            ])
+                                            .align_items(Alignment::End)
+                                            .into(),
+                                        ])
+                                        .align_items(Alignment::Center)
+                                        .spacing(space_xxs),
+                                    )
+                                    .on_press(Message::SelectInstalled(installed_i)),
+                                );
+                            }
+                            widget::scrollable(column).into()
+                        }
+                        None => {
+                            let mut column = widget::column::with_capacity(1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: translate
+                            column = column.push(widget::text("Loading"));
+                            widget::scrollable(column).into()
+                        }
+                    },
+                    NavPage::Updates => match &self.updates {
+                        Some(updates) => {
+                            let mut column = widget::column::with_capacity(updates.len() + 1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: translate
+                            column = column.push(widget::text(format!(
+                                "{} applications with updates",
+                                updates.len(),
+                            )));
+                            for (updates_i, (_backend_i, package)) in updates.iter().enumerate() {
+                                column = column.push(widget::mouse_area(
                                     widget::row::with_children(vec![
                                         widget::icon::icon(package.icon.clone())
                                             .size(ICON_SIZE_LIST)
@@ -816,21 +962,20 @@ impl Application for App {
                                     ])
                                     .align_items(Alignment::Center)
                                     .spacing(space_xxs),
-                                )
-                                .on_press(Message::SelectInstalled(installed_i)),
-                            );
+                                ));
+                            }
+                            widget::scrollable(column).into()
                         }
-                        widget::scrollable(column).into()
-                    }
-                    None => {
-                        let mut column = widget::column::with_capacity(1)
-                            .padding([0, space_xl])
-                            .spacing(space_xxs)
-                            .width(Length::Fill);
-                        //TODO: translate
-                        column = column.push(widget::text("Loading"));
-                        widget::scrollable(column).into()
-                    }
+                        None => {
+                            let mut column = widget::column::with_capacity(1)
+                                .padding([0, space_xl])
+                                .spacing(space_xxs)
+                                .width(Length::Fill);
+                            //TODO: translate
+                            column = column.push(widget::text("Loading"));
+                            widget::scrollable(column).into()
+                        }
+                    },
                 },
             },
         };

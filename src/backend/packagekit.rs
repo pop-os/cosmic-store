@@ -7,9 +7,10 @@ use std::{collections::HashMap, error::Error};
 use super::{Backend, Package};
 use crate::AppstreamCache;
 
-// https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnum
+// https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnm
 #[repr(u64)]
 enum FilterKind {
+    None = 1 << 1,
     Installed = 1 << 2,
 }
 
@@ -41,29 +42,29 @@ impl Packagekit {
         Ok(tx)
     }
 
-    fn packages(&self, filter: FilterKind) -> Result<Vec<Package>, Box<dyn Error>> {
+    fn package_transaction(
+        &self,
+        tx: TransactionProxyBlocking,
+    ) -> Result<Vec<Package>, Box<dyn Error>> {
         let mut package_ids = Vec::new();
-        {
-            let tx = self.transaction()?;
-            tx.get_packages(filter as u64)?;
-            for signal in tx.receive_all_signals()? {
-                match signal.member() {
-                    Some(member) => {
-                        if member == "Package" {
-                            // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Package
-                            let (_info, package_id, _summary) =
-                                signal.body::<(u32, String, String)>()?;
-                            package_ids.push(package_id);
-                        } else if member == "Finished" {
-                            break;
-                        } else {
-                            log::warn!("unknown signal {}", member);
-                        }
+        for signal in tx.receive_all_signals()? {
+            match signal.member() {
+                Some(member) => {
+                    if member == "Package" {
+                        // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Package
+                        let (_info, package_id, _summary) =
+                            signal.body::<(u32, String, String)>()?;
+                        package_ids.push(package_id);
+                    } else if member == "Finished" {
+                        break;
+                    } else {
+                        log::warn!("unknown signal {}", member);
                     }
-                    None => {}
                 }
+                None => {}
             }
         }
+        drop(tx);
 
         let mut packages = Vec::new();
         for package_id in package_ids {
@@ -114,11 +115,19 @@ impl Backend for Packagekit {
         Ok(())
     }
 
-    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        self.packages(FilterKind::Installed)
-    }
-
     fn info_cache(&self) -> &AppstreamCache {
         &self.appstream_cache
+    }
+
+    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+        let tx = self.transaction()?;
+        tx.get_packages(FilterKind::Installed as u64)?;
+        self.package_transaction(tx)
+    }
+
+    fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
+        let tx = self.transaction()?;
+        tx.get_updates(FilterKind::None as u64)?;
+        self.package_transaction(tx)
     }
 }

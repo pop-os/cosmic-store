@@ -1,6 +1,8 @@
 back = Back
 install = Install
+installed-apps = Installed apps
 open = Open
+updates = Updates
 
 # Context Pages
 

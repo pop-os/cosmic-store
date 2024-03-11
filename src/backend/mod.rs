@@ -23,7 +23,6 @@ pub struct Package {
 
 pub trait Backend: fmt::Debug + Send + Sync {
     fn load_cache(&mut self) -> Result<(), Box<dyn Error>>;
-    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     //TODO: remove
     fn info(&self, package: &Package) -> Result<Arc<AppInfo>, Box<dyn Error>> {
         let info_cache = self.info_cache();
@@ -33,6 +32,8 @@ pub trait Backend: fmt::Debug + Send + Sync {
         }
     }
     fn info_cache(&self) -> &AppstreamCache;
+    fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
+    fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;
