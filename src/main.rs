@@ -7,14 +7,24 @@ use cosmic::{
     cosmic_theme, executor,
     iced::{
         event::{self, Event},
+        futures::SinkExt,
         keyboard::{Event as KeyEvent, Key, Modifiers},
-        subscription::Subscription,
+        subscription::{self, Subscription},
         window, Alignment, Length,
     },
     widget, Application, ApplicationExt, Element,
 };
 use rayon::prelude::*;
-use std::{any::TypeId, cmp, collections::HashMap, env, process, sync::Arc, time::Instant};
+use std::{
+    any::TypeId,
+    cmp,
+    collections::{BTreeMap, HashMap},
+    env,
+    error::Error,
+    process,
+    sync::Arc,
+    time::{self, Instant},
+};
 
 use app_info::{AppIcon, AppInfo};
 mod app_info;
@@ -22,7 +32,7 @@ mod app_info;
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
 
-use backend::{Backends, Package};
+use backend::{Backend, Backends, Package};
 mod backend;
 
 use config::{AppTheme, Config, CONFIG_VERSION};
@@ -32,6 +42,9 @@ use key_bind::{key_binds, KeyBind};
 mod key_bind;
 
 mod localize;
+
+use operation::Operation;
+mod operation;
 
 const ICON_SIZE_LIST: u16 = 48;
 const ICON_SIZE_DETAILS: u16 = 128;
@@ -111,6 +124,9 @@ pub enum Message {
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
+    PendingComplete(u64),
+    PendingError(u64, String),
+    PendingProgress(u64, f32),
     SearchActivate,
     SearchClear,
     SearchInput(String),
@@ -235,6 +251,8 @@ pub struct App {
     context_page: ContextPage,
     key_binds: HashMap<KeyBind, Action>,
     nav_model: widget::nav_bar::Model,
+    pending_operation_id: u64,
+    pending_operations: BTreeMap<u64, (Operation, f32)>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
@@ -292,6 +310,12 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn operation(&mut self, operation: Operation) {
+        let id = self.pending_operation_id;
+        self.pending_operation_id += 1;
+        self.pending_operations.insert(id, (operation, 0.0));
     }
 
     fn category(&self, category: &'static str) -> Command<Message> {
@@ -657,6 +681,8 @@ impl Application for App {
             context_page: ContextPage::Settings,
             key_binds: key_binds(),
             nav_model,
+            pending_operation_id: 0,
+            pending_operations: BTreeMap::new(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
@@ -753,18 +779,12 @@ impl Application for App {
                     return self.update_config();
                 }
             }
-            Message::Install(backend_name, id) => match self.backends.get(backend_name) {
-                Some(backend) => {
-                    log::warn!("TODO: install {} from {}", id, backend_name);
-                }
-                None => {
-                    log::warn!(
-                        "failed to find install {} from {}: backend not found",
-                        id,
-                        backend_name
-                    );
-                }
-            },
+            Message::Install(backend_name, package_id) => {
+                self.operation(Operation::Install {
+                    backend_name,
+                    package_id,
+                });
+            }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
             }
@@ -777,6 +797,22 @@ impl Application for App {
             }
             Message::OpenDesktopId(desktop_id) => {
                 return self.open_desktop_id(desktop_id);
+            }
+            Message::PendingComplete(id) => {
+                if let Some((op, _)) = self.pending_operations.remove(&id) {
+                    //TODO: self.complete_operations.insert(id, op);
+                }
+            }
+            Message::PendingError(id, err) => {
+                if let Some((op, _)) = self.pending_operations.remove(&id) {
+                    //TODO: self.failed_operations.insert(id, (op, err));
+                    //TODO: self.dialog_pages.push_back(DialogPage::FailedOperation(id));
+                }
+            }
+            Message::PendingProgress(id, new_progress) => {
+                if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
+                    *progress = new_progress;
+                }
             }
             Message::SearchActivate => {
                 self.search_active = true;
@@ -953,6 +989,21 @@ impl Application for App {
                         }
                     }
                 }
+                let mut progress_opt = None;
+                for (_id, (op, progress)) in self.pending_operations.iter() {
+                    match op {
+                        Operation::Install {
+                            backend_name,
+                            package_id,
+                        } => {
+                            if backend_name == &selected.backend_name && package_id == &selected.id
+                            {
+                                progress_opt = Some(*progress);
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 let mut column = widget::column::with_capacity(2)
                     .padding([0, space_xl])
@@ -969,7 +1020,12 @@ impl Application for App {
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
                             widget::vertical_space(Length::Fixed(space_s.into())).into(),
-                            if is_installed {
+                            if let Some(progress) = progress_opt {
+                                //TODO: get height from theme?
+                                widget::progress_bar(0.0..=100.0, progress)
+                                    .height(Length::Fixed(4.0))
+                                    .into()
+                            } else if is_installed {
                                 //TODO: what if there are multiple desktop IDs?
                                 match selected.info.desktop_ids.first() {
                                     Some(desktop_id) => widget::button::suggested(fl!("open"))
@@ -1208,7 +1264,7 @@ impl Application for App {
         struct ConfigSubscription;
         struct ThemeSubscription;
 
-        Subscription::batch([
+        let mut subscriptions = vec![
             event::listen_with(|event, _status| match event {
                 Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => {
                     Some(Message::Key(modifiers, key))
@@ -1237,6 +1293,35 @@ impl Application for App {
                 }
                 Message::SystemThemeModeChange(update.config)
             }),
-        ])
+        ];
+
+        for (id, (pending_operation, _)) in self.pending_operations.iter() {
+            //TODO: use recipe?
+            let id = *id;
+            let pending_operation = pending_operation.clone();
+            let backends = self.backends.clone();
+            subscriptions.push(subscription::channel(
+                id,
+                16,
+                move |mut msg_tx| async move {
+                    match pending_operation.perform(id, backends, &mut msg_tx).await {
+                        Ok(()) => {
+                            let _ = msg_tx.send(Message::PendingComplete(id)).await;
+                        }
+                        Err(err) => {
+                            let _ = msg_tx
+                                .send(Message::PendingError(id, err.to_string()))
+                                .await;
+                        }
+                    }
+
+                    loop {
+                        tokio::time::sleep(time::Duration::new(1, 0)).await;
+                    }
+                },
+            ));
+        }
+
+        Subscription::batch(subscriptions)
     }
 }
