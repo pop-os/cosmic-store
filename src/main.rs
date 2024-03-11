@@ -185,6 +185,7 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
+    stats: Vec<(String, u64)>,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
     search_results: Option<(String, Vec<SearchResult>)>,
@@ -506,7 +507,9 @@ impl Application for App {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
         });
+
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
+
         let mut nav_model = widget::nav_bar::Model::default();
         for &nav_page in &[NavPage::Installed, NavPage::Updates] {
             nav_model
@@ -515,6 +518,24 @@ impl Application for App {
                 .data::<NavPage>(nav_page);
         }
         nav_model.activate_position(0);
+
+        let stats = {
+            let start = Instant::now();
+            match bitcode::decode::<Vec<(String, u64)>>(include_bytes!(
+                "../res/flathub-stats-2024-02.bitcode-v0-5"
+            )) {
+                Ok(ok) => {
+                    let elapsed = start.elapsed();
+                    log::info!("loaded flathub statistics in {:?}", elapsed);
+                    ok
+                }
+                Err(err) => {
+                    log::warn!("failed to load flathub statistics: {}", err);
+                    Vec::new()
+                }
+            }
+        };
+
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -528,10 +549,11 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
+            stats,
             installed: None,
+            updates: None,
             search_results: None,
             selected_opt: None,
-            updates: None,
         };
 
         let command = Command::batch([app.update_title(), app.update_backends()]);

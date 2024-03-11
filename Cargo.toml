@@ -54,3 +54,6 @@ wgpu = ["libcosmic/wgpu"]
 [profile.release-with-debug]
 inherits = "release"
 debug = true
+
+[workspace]
+members = ["flathub-stats"]
