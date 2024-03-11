@@ -315,7 +315,6 @@ impl App {
                                         .iter()
                                         .position(|(stats_id, _downloads)| stats_id == id)
                                         .unwrap_or(stats.len());
-                                    println!("{} weight {}", id, weight);
                                     Some(SearchResult {
                                         backend_name,
                                         id: id.clone(),
