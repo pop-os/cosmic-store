@@ -43,7 +43,7 @@ mod key_bind;
 
 mod localize;
 
-use operation::Operation;
+use operation::{Operation, OperationKind};
 mod operation;
 
 const ICON_SIZE_LIST: u16 = 48;
@@ -780,7 +780,8 @@ impl Application for App {
                 }
             }
             Message::Install(backend_name, package_id) => {
-                self.operation(Operation::Install {
+                self.operation(Operation {
+                    kind: OperationKind::Install,
                     backend_name,
                     package_id,
                 });
@@ -802,12 +803,14 @@ impl Application for App {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
                     //TODO: self.complete_operations.insert(id, op);
                 }
+                return self.update_installed();
             }
             Message::PendingError(id, err) => {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
                     //TODO: self.failed_operations.insert(id, (op, err));
                     //TODO: self.dialog_pages.push_back(DialogPage::FailedOperation(id));
                 }
+                return self.update_installed();
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
@@ -991,17 +994,9 @@ impl Application for App {
                 }
                 let mut progress_opt = None;
                 for (_id, (op, progress)) in self.pending_operations.iter() {
-                    match op {
-                        Operation::Install {
-                            backend_name,
-                            package_id,
-                        } => {
-                            if backend_name == &selected.backend_name && package_id == &selected.id
-                            {
-                                progress_opt = Some(*progress);
-                                break;
-                            }
-                        }
+                    if op.backend_name == selected.backend_name && op.package_id == selected.id {
+                        progress_opt = Some(*progress);
+                        break;
                     }
                 }
 
