@@ -689,8 +689,11 @@ impl Application for App {
     }
 
     fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Command<Message> {
-        self.nav_model.activate(id);
         self.category_results = None;
+        self.search_active = false;
+        self.search_results = None;
+        self.selected_opt = None;
+        self.nav_model.activate(id);
         if let Some(category) = self
             .nav_model
             .active_data::<NavPage>()
