@@ -12,13 +12,13 @@ use cosmic::{
         subscription::{self, Subscription},
         window, Alignment, Length,
     },
-    widget, Application, ApplicationExt, Element,
+    theme, widget, Application, ApplicationExt, Element,
 };
 use rayon::prelude::*;
 use std::{
     any::TypeId,
     cmp,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, VecDeque},
     env, process,
     sync::Arc,
     time::{self, Instant},
@@ -118,10 +118,11 @@ pub enum Message {
     Backends(Backends),
     CategoryResults(&'static str, Vec<SearchResult>),
     Config(Config),
-    Install(&'static str, String, Arc<AppInfo>),
+    DialogCancel,
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
+    Operation(OperationKind, &'static str, String, Arc<AppInfo>),
     PendingComplete(u64),
     PendingError(u64, String),
     PendingProgress(u64, f32),
@@ -153,6 +154,11 @@ impl ContextPage {
             Self::Settings => fl!("settings"),
         }
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DialogPage {
+    FailedOperation(u64),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -247,10 +253,12 @@ pub struct App {
     app_themes: Vec<String>,
     backends: Backends,
     context_page: ContextPage,
+    dialog_pages: VecDeque<DialogPage>,
     key_binds: HashMap<KeyBind, Action>,
     nav_model: widget::nav_bar::Model,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, f32)>,
+    failed_operations: BTreeMap<u64, (Operation, String)>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
@@ -676,10 +684,12 @@ impl Application for App {
             app_themes,
             backends: Backends::new(),
             context_page: ContextPage::Settings,
+            dialog_pages: VecDeque::new(),
             key_binds: key_binds(),
             nav_model,
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
+            failed_operations: BTreeMap::new(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
@@ -776,13 +786,8 @@ impl Application for App {
                     return self.update_config();
                 }
             }
-            Message::Install(backend_name, package_id, info) => {
-                self.operation(Operation {
-                    kind: OperationKind::Install,
-                    backend_name,
-                    package_id,
-                    info,
-                });
+            Message::DialogCancel => {
+                self.dialog_pages.pop_front();
             }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
@@ -797,6 +802,14 @@ impl Application for App {
             Message::OpenDesktopId(desktop_id) => {
                 return self.open_desktop_id(desktop_id);
             }
+            Message::Operation(kind, backend_name, package_id, info) => {
+                self.operation(Operation {
+                    kind,
+                    backend_name,
+                    package_id,
+                    info,
+                });
+            }
             Message::PendingComplete(id) => {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
                     //TODO: self.complete_operations.insert(id, op);
@@ -806,8 +819,8 @@ impl Application for App {
             Message::PendingError(id, err) => {
                 log::warn!("operation {id} failed: {err}");
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
-                    //TODO: self.failed_operations.insert(id, (op, err));
-                    //TODO: self.dialog_pages.push_back(DialogPage::FailedOperation(id));
+                    self.failed_operations.insert(id, (op, err));
+                    self.dialog_pages.push_back(DialogPage::FailedOperation(id));
                 }
             }
             Message::PendingProgress(id, new_progress) => {
@@ -952,6 +965,33 @@ impl Application for App {
         })
     }
 
+    fn dialog(&self) -> Option<Element<Message>> {
+        let dialog_page = match self.dialog_pages.front() {
+            Some(some) => some,
+            None => return None,
+        };
+
+        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
+
+        let dialog = match dialog_page {
+            DialogPage::FailedOperation(id) => {
+                //TODO: try next dialog page (making sure index is used by Dialog messages)?
+                let (operation, err) = self.failed_operations.get(id)?;
+
+                let (title, body) = operation.failed_dialog(&err);
+                widget::dialog(title)
+                    .body(body)
+                    .icon(widget::icon::from_name("dialog-error").size(64))
+                    //TODO: retry action
+                    .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
+        };
+
+        Some(dialog.into())
+    }
+
     fn header_start(&self) -> Vec<Element<Message>> {
         vec![if self.search_active {
             widget::text_input::search_input("", &self.search_input)
@@ -974,9 +1014,10 @@ impl Application for App {
             space_xl,
             space_m,
             space_s,
+            space_xs,
             space_xxs,
             ..
-        } = self.core().system_theme().cosmic().spacing;
+        } = theme::active().cosmic().spacing;
 
         let content: Element<_> = match &self.selected_opt {
             Some(selected) => {
@@ -1004,6 +1045,45 @@ impl Application for App {
                     .width(Length::Fill);
                 column = column
                     .push(widget::button::standard(fl!("back")).on_press(Message::SelectNone));
+                let mut buttons = Vec::with_capacity(2);
+                if let Some(progress) = progress_opt {
+                    //TODO: get height from theme?
+                    buttons.push(
+                        widget::progress_bar(0.0..=100.0, progress)
+                            .height(Length::Fixed(4.0))
+                            .into(),
+                    )
+                } else if is_installed {
+                    //TODO: what if there are multiple desktop IDs?
+                    if let Some(desktop_id) = selected.info.desktop_ids.first() {
+                        buttons.push(
+                            widget::button::suggested(fl!("open"))
+                                .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                .into(),
+                        );
+                    }
+                    buttons.push(
+                        widget::button::destructive(fl!("uninstall"))
+                            .on_press(Message::Operation(
+                                OperationKind::Uninstall,
+                                selected.backend_name,
+                                selected.id.clone(),
+                                selected.info.clone(),
+                            ))
+                            .into(),
+                    );
+                } else {
+                    buttons.push(
+                        widget::button::suggested(fl!("install"))
+                            .on_press(Message::Operation(
+                                OperationKind::Install,
+                                selected.backend_name,
+                                selected.id.clone(),
+                                selected.info.clone(),
+                            ))
+                            .into(),
+                    )
+                }
                 column = column.push(
                     widget::row::with_children(vec![
                         widget::icon::icon(selected.icon.clone())
@@ -1013,28 +1093,7 @@ impl Application for App {
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
                             widget::vertical_space(Length::Fixed(space_s.into())).into(),
-                            if let Some(progress) = progress_opt {
-                                //TODO: get height from theme?
-                                widget::progress_bar(0.0..=100.0, progress)
-                                    .height(Length::Fixed(4.0))
-                                    .into()
-                            } else if is_installed {
-                                //TODO: what if there are multiple desktop IDs?
-                                match selected.info.desktop_ids.first() {
-                                    Some(desktop_id) => widget::button::suggested(fl!("open"))
-                                        .on_press(Message::OpenDesktopId(desktop_id.clone()))
-                                        .into(),
-                                    None => widget::horizontal_space(Length::Shrink).into(),
-                                }
-                            } else {
-                                widget::button::suggested(fl!("install"))
-                                    .on_press(Message::Install(
-                                        selected.backend_name,
-                                        selected.id.clone(),
-                                        selected.info.clone(),
-                                    ))
-                                    .into()
-                            },
+                            widget::row::with_children(buttons).spacing(space_xs).into(),
                         ])
                         .into(),
                     ])

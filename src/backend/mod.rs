@@ -37,12 +37,10 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn operation(
         &self,
         kind: OperationKind,
-        _package_id: &str,
-        _info: &AppInfo,
-        _f: Box<dyn FnMut(f32) + 'static>,
-    ) -> Result<(), Box<dyn Error>> {
-        Err(format!("{kind:?} not implemented for backend").into())
-    }
+        package_id: &str,
+        info: &AppInfo,
+        f: Box<dyn FnMut(f32) + 'static>,
+    ) -> Result<(), Box<dyn Error>>;
 }
 
 pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;

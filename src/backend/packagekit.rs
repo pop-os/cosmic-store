@@ -5,7 +5,7 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error};
 
 use super::{Backend, Package};
-use crate::AppstreamCache;
+use crate::{AppInfo, AppstreamCache, OperationKind};
 
 // https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnm
 #[repr(u64)]
@@ -129,5 +129,15 @@ impl Backend for Packagekit {
         let tx = self.transaction()?;
         tx.get_updates(FilterKind::None as u64)?;
         self.package_transaction(tx)
+    }
+
+    fn operation(
+        &self,
+        kind: OperationKind,
+        _package_id: &str,
+        _info: &AppInfo,
+        _f: Box<dyn FnMut(f32) + 'static>,
+    ) -> Result<(), Box<dyn Error>> {
+        Err(format!("{kind:?} not implemented for packagekit backend").into())
     }
 }

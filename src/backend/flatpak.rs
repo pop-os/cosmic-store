@@ -130,7 +130,7 @@ impl Backend for Flatpak {
                         let Some(remote_name) = remote.name() else {
                             continue;
                         };
-                        let remote_r = match inst.fetch_remote_ref_sync(
+                        match inst.fetch_remote_ref_sync(
                             &remote_name,
                             r.kind(),
                             &r.name().unwrap_or_default(),
@@ -138,7 +138,7 @@ impl Backend for Flatpak {
                             r.branch().as_deref(),
                             Cancellable::NONE,
                         ) {
-                            Ok(ok) => ok,
+                            Ok(_) => {}
                             Err(err) => {
                                 log::info!("failed to find {} in {}: {}", id, remote_name, err);
                                 continue;
@@ -188,6 +188,7 @@ impl Backend for Flatpak {
                 }
                 Err(format!("package {id} not found").into())
             }
+            _ => Err(format!("{kind:?} not implemented for flatpak backend").into()),
         }
     }
 }

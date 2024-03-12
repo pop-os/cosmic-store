@@ -1,6 +1,8 @@
 back = Back
+cancel = Cancel
 install = Install
 open = Open
+uninstall = Uninstall
 
 # Nav Pages
 create = Create

@@ -1,7 +1,4 @@
-use cosmic::{
-    iced::keyboard::{Key, Modifiers},
-    iced_core::keyboard::key::Named,
-};
+use cosmic::iced::keyboard::{Key, Modifiers};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt};
 
