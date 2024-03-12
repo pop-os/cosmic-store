@@ -256,6 +256,32 @@ pub struct SearchResult {
     weight: usize,
 }
 
+impl SearchResult {
+    fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
+        widget::container(
+            widget::row::with_children(vec![
+                widget::icon::icon(self.icon.clone())
+                    .size(ICON_SIZE_LIST)
+                    .into(),
+                widget::column::with_children(vec![
+                    widget::text::body(&self.info.name).into(),
+                    widget::text::caption(&self.info.summary).into(),
+                    //TODO: Combine origins
+                    widget::text::caption(self.info.origin_opt.as_deref().unwrap_or("")).into(),
+                ])
+                .into(),
+            ])
+            .align_items(Alignment::Center)
+            .spacing(spacing.space_s),
+        )
+        .width(Length::Fixed(320.0 + (spacing.space_s as f32) * 2.0))
+        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .padding([spacing.space_xxs, spacing.space_s])
+        .style(theme::Container::Card)
+        .into()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Selected {
     backend_name: &'static str,
@@ -752,6 +778,7 @@ impl Application for App {
         self.search_results = None;
         self.selected_opt = None;
         self.nav_model.activate(id);
+        //TODO: do not preserve scroll on page change
         if let Some(category) = self
             .nav_model
             .active_data::<NavPage>()
@@ -872,7 +899,9 @@ impl Application for App {
                 }
             }
             Message::SearchResults(input, results) => {
-                if input != self.search_input {
+                if input == self.search_input {
+                    self.search_results = Some((input, results));
+                } else {
                     log::warn!(
                         "received {} results for {:?} after search changed to {:?}",
                         results.len(),
@@ -880,7 +909,6 @@ impl Application for App {
                         self.search_input
                     );
                 }
-                self.search_results = Some((input, results));
             }
             Message::SearchSubmit => {
                 if !self.search_input.is_empty() {
@@ -1016,8 +1044,6 @@ impl Application for App {
             None => return None,
         };
 
-        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
-
         let dialog = match dialog_page {
             DialogPage::FailedOperation(id) => {
                 //TODO: try next dialog page (making sure index is used by Dialog messages)?
@@ -1055,6 +1081,7 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
+        let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
             space_xl,
             space_m,
@@ -1062,7 +1089,7 @@ impl Application for App {
             space_xs,
             space_xxs,
             ..
-        } = theme::active().cosmic().spacing;
+        } = spacing;
 
         let content: Element<_> = match &self.selected_opt {
             Some(selected) => {
@@ -1193,7 +1220,7 @@ impl Application for App {
                     //TODO: paging or dynamic load
                     let results_len = cmp::min(results.len(), 256);
 
-                    let mut column = widget::column::with_capacity(results_len + 1)
+                    let mut column = widget::column::with_capacity(2)
                         .padding([0, space_xl])
                         .spacing(space_xxs)
                         .width(Length::Fill);
@@ -1204,28 +1231,19 @@ impl Application for App {
                         results.len(),
                         input
                     )));
+                    let mut flex_row = Vec::with_capacity(results_len);
                     for (result_i, result) in results.iter().take(results_len).enumerate() {
-                        column = column.push(
-                            widget::mouse_area(
-                                widget::row::with_children(vec![
-                                    widget::icon::icon(result.icon.clone())
-                                        .size(ICON_SIZE_LIST)
-                                        .into(),
-                                    widget::column::with_children(vec![
-                                        widget::text(&result.info.name).into(),
-                                        widget::text(&result.info.summary).into(),
-                                    ])
-                                    .into(),
-                                    widget::horizontal_space(Length::Fill).into(),
-                                    widget::text(result.info.origin_opt.as_deref().unwrap_or(""))
-                                        .into(),
-                                ])
-                                .align_items(Alignment::Center)
-                                .spacing(space_xxs),
-                            )
-                            .on_press(Message::SelectSearchResult(result_i)),
+                        flex_row.push(
+                            widget::mouse_area(result.card_view(&spacing))
+                                .on_press(Message::SelectSearchResult(result_i))
+                                .into(),
                         );
                     }
+                    column = column.push(
+                        widget::flex_row(flex_row)
+                            .column_spacing(space_xxs)
+                            .row_spacing(space_xxs),
+                    );
                     widget::scrollable(column).into()
                 }
                 None => match self
@@ -1342,7 +1360,7 @@ impl Application for App {
                             //TODO: paging or dynamic load
                             let results_len = cmp::min(results.len(), 256);
 
-                            let mut column = widget::column::with_capacity(results_len + 1)
+                            let mut column = widget::column::with_capacity(2)
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
@@ -1353,30 +1371,19 @@ impl Application for App {
                                 results.len(),
                                 category
                             )));
+                            let mut flex_row = Vec::with_capacity(results_len);
                             for (result_i, result) in results.iter().take(results_len).enumerate() {
-                                column = column.push(
-                                    widget::mouse_area(
-                                        widget::row::with_children(vec![
-                                            widget::icon::icon(result.icon.clone())
-                                                .size(ICON_SIZE_LIST)
-                                                .into(),
-                                            widget::column::with_children(vec![
-                                                widget::text(&result.info.name).into(),
-                                                widget::text(&result.info.summary).into(),
-                                            ])
-                                            .into(),
-                                            widget::horizontal_space(Length::Fill).into(),
-                                            widget::text(
-                                                result.info.origin_opt.as_deref().unwrap_or(""),
-                                            )
-                                            .into(),
-                                        ])
-                                        .align_items(Alignment::Center)
-                                        .spacing(space_xxs),
-                                    )
-                                    .on_press(Message::SelectCategoryResult(result_i)),
+                                flex_row.push(
+                                    widget::mouse_area(result.card_view(&spacing))
+                                        .on_press(Message::SelectCategoryResult(result_i))
+                                        .into(),
                                 );
                             }
+                            column = column.push(
+                                widget::flex_row(flex_row)
+                                    .column_spacing(space_xxs)
+                                    .row_spacing(space_xxs),
+                            );
                             widget::scrollable(column).into()
                         }
                         None => {

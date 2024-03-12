@@ -61,6 +61,7 @@ impl Flatpak {
             id: id.to_string(),
             //TODO: get icon from appstream data?
             icon: widget::icon::from_name(id.to_string()).size(128).handle(),
+            //TODO: this sometimes gets junk data, like the developer name instead of the app name
             name: r.appdata_name().unwrap_or(id).to_string(),
             summary: r.appdata_summary().map_or(String::new(), |x| x.to_string()),
             version: r.appdata_version().unwrap_or_default().to_string(),
