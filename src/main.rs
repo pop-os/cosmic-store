@@ -272,7 +272,7 @@ impl Package {
             .spacing(spacing.space_s),
         )
         .center_y()
-        .width(Length::Fixed(320.0 + (spacing.space_s as f32) * 2.0))
+        .width(Length::Fixed(360.0 + (spacing.space_s as f32) * 2.0))
         .height(Length::Fixed(88.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
