@@ -1250,6 +1250,9 @@ impl Application for App {
                     column = column.push(row);
                     //TODO: add caption column = column.push(widget::text(&screenshot.caption));
                 }
+                //TODO: parse markup in description
+                column =
+                    column.push(widget::text::body(&selected.info.description).width(Length::Fill));
                 //TODO: description, releases, etc.
                 widget::scrollable(column).into()
             }

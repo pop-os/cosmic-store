@@ -1,7 +1,8 @@
 use appstream::{
     enums::{Bundle, Icon, ImageKind, Launchable},
-    Component,
+    xmltree, Component,
 };
+use std::{error::Error, fmt::Write};
 
 fn get_translatable<'a>(translatable: &'a appstream::TranslatableString, locale: &str) -> &'a str {
     match translatable.get_for_locale(locale) {
@@ -13,7 +14,7 @@ fn get_translatable<'a>(translatable: &'a appstream::TranslatableString, locale:
     }
 }
 
-/*TODO: handle p tags with xml:lang
+//TODO: handle p tags with xml:lang
 fn get_markup_translatable<'a>(
     translatable: &'a appstream::MarkupTranslatableString,
     locale: &str,
@@ -26,7 +27,72 @@ fn get_markup_translatable<'a>(
         },
     }
 }
-*/
+
+fn write_node(
+    s: &mut String,
+    node: &xmltree::XMLNode,
+    recursion: usize,
+) -> Result<(), Box<dyn Error>> {
+    if recursion >= 4 {
+        return Err(format!("maximum recursion level reached").into());
+    }
+    match node {
+        xmltree::XMLNode::Element(element) => match element.name.as_str() {
+            //TODO: actually style these
+            "b" | "em" => {
+                for child in element.children.iter() {
+                    write_node(s, child, recursion + 1)?;
+                }
+            }
+            "code" | "pre" => {
+                for child in element.children.iter() {
+                    write_node(s, child, recursion + 1)?;
+                }
+            }
+            "li" => {
+                for child in element.children.iter() {
+                    write_node(s, child, recursion + 1)?;
+                }
+            }
+            "ol" | "p" | "ul" => {
+                if !s.is_empty() {
+                    writeln!(s)?;
+                }
+                for (i, child) in element.children.iter().enumerate() {
+                    if element.name == "ol" {
+                        write!(s, "{:2}. ", i + 1)?;
+                    } else if element.name == "ul" {
+                        write!(s, " * ")?;
+                    }
+                    write_node(s, child, recursion + 1)?;
+                }
+                if !s.ends_with("\n") {
+                    writeln!(s)?;
+                }
+            }
+            _ => {
+                return Err(format!("unknown element {:?}", element.name).into());
+            }
+        },
+        xmltree::XMLNode::Text(text) => {
+            for line in text.trim().lines() {
+                writeln!(s, "{}", line.trim())?;
+            }
+        }
+        _ => {
+            return Err(format!("unknown node {:?}", node).into());
+        }
+    }
+    Ok(())
+}
+
+fn convert_markup(markup: &str) -> Result<String, Box<dyn Error>> {
+    let mut s = String::new();
+    for node in xmltree::Element::parse_all(markup.as_bytes())? {
+        write_node(&mut s, &node, 0)?;
+    }
+    Ok(s)
+}
 
 // Replaced Icon due to skip_field not supported in bitcode
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
@@ -47,6 +113,7 @@ pub struct AppInfo {
     pub origin_opt: Option<String>,
     pub name: String,
     pub summary: String,
+    pub description: String,
     pub pkgname: Option<String>,
     pub categories: Vec<String>,
     pub desktop_ids: Vec<String>,
@@ -62,14 +129,22 @@ impl AppInfo {
             .summary
             .as_ref()
             .map_or("", |x| get_translatable(x, locale));
-        /*TODO: MarkupTranslatableString doesn't properly filter p tag with xml:lang
-        if let Some(description) = &component.description {
-            column = column.push(widget::text(get_markup_translatable(
-                description,
-                &self.locale,
-            )));
-        }
-        */
+        let description_markup = component
+            .description
+            .as_ref()
+            .map_or("", |x| get_markup_translatable(x, locale));
+        let description = match convert_markup(description_markup) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!(
+                    "failed to parse description of {:?} from {:?}: {}",
+                    component.id,
+                    origin_opt,
+                    err
+                );
+                String::new()
+            }
+        };
         let categories = component
             .categories
             .into_iter()
@@ -132,6 +207,7 @@ impl AppInfo {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
+            description,
             pkgname: component.pkgname,
             categories,
             desktop_ids,
