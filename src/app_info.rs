@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{Icon, Launchable},
+    enums::{Bundle, Icon, Launchable},
     Component,
 };
 
@@ -29,13 +29,13 @@ fn get_markup_translatable<'a>(
 */
 
 // Replaced Icon due to skip_field not supported in bitcode
-#[derive(Debug, bitcode::Decode, bitcode::Encode)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum AppIcon {
     Cached(String, Option<u32>, Option<u32>, Option<u32>),
     Stock(String),
 }
 
-#[derive(Debug, bitcode::Decode, bitcode::Encode)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub origin_opt: Option<String>,
     pub name: String,
@@ -43,6 +43,7 @@ pub struct AppInfo {
     pub pkgname: Option<String>,
     pub categories: Vec<String>,
     pub desktop_ids: Vec<String>,
+    pub flatpak_refs: Vec<String>,
     pub icons: Vec<AppIcon>,
 }
 
@@ -74,6 +75,14 @@ impl AppInfo {
                 _ => None,
             })
             .collect();
+        let flatpak_refs = component
+            .bundles
+            .into_iter()
+            .filter_map(|bundle| match bundle {
+                Bundle::Flatpak { reference, .. } => Some(reference),
+                _ => None,
+            })
+            .collect();
         let icons = component
             .icons
             .into_iter()
@@ -100,6 +109,7 @@ impl AppInfo {
             pkgname: component.pkgname,
             categories,
             desktop_ids,
+            flatpak_refs,
             icons,
         }
     }

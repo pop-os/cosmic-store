@@ -38,7 +38,8 @@ pub trait Backend: fmt::Debug + Send + Sync {
         &self,
         kind: OperationKind,
         _package_id: &str,
-        _f: Box<dyn FnMut(f32)>,
+        _info: &AppInfo,
+        _f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         Err(format!("{kind:?} not implemented for backend").into())
     }

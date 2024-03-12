@@ -118,7 +118,7 @@ pub enum Message {
     Backends(Backends),
     CategoryResults(&'static str, Vec<SearchResult>),
     Config(Config),
-    Install(&'static str, String),
+    Install(&'static str, String, Arc<AppInfo>),
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
@@ -555,7 +555,6 @@ impl App {
                         match backend.updates() {
                             Ok(packages) => {
                                 for package in packages {
-                                    println!("{}: {}", backend_name, package.name);
                                     updates.push((*backend_name, package));
                                 }
                             }
@@ -777,11 +776,12 @@ impl Application for App {
                     return self.update_config();
                 }
             }
-            Message::Install(backend_name, package_id) => {
+            Message::Install(backend_name, package_id, info) => {
                 self.operation(Operation {
                     kind: OperationKind::Install,
                     backend_name,
                     package_id,
+                    info,
                 });
             }
             Message::Installed(installed) => {
@@ -1031,6 +1031,7 @@ impl Application for App {
                                     .on_press(Message::Install(
                                         selected.backend_name,
                                         selected.id.clone(),
+                                        selected.info.clone(),
                                     ))
                                     .into()
                             },
@@ -1303,6 +1304,7 @@ impl Application for App {
                                 .operation(
                                     op.kind,
                                     &op.package_id,
+                                    &op.info,
                                     Box::new(move |progress| -> () {
                                         let _ = futures::executor::block_on(async {
                                             msg_tx

@@ -52,7 +52,7 @@ heaptrack:
 
 dev *args:
     cargo fmt
-    env RUST_LOG=cosmic_store=debug RUST_BACKTRACE=full cargo run --release {{args}}
+    just run {{args}}
 
 # Run with debug logs
 run *args:

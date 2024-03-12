@@ -1,9 +1,13 @@
 use cosmic::widget;
-use libflatpak::{gio::Cancellable, prelude::*, Installation, RefKind};
-use std::{collections::HashMap, error::Error};
+use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, RefKind, Transaction};
+use std::{
+    collections::HashMap,
+    error::Error,
+    sync::{Arc, Mutex},
+};
 
 use super::{Backend, Package};
-use crate::AppstreamCache;
+use crate::{AppInfo, AppstreamCache, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
@@ -98,5 +102,70 @@ impl Backend for Flatpak {
             }
         }
         Ok(packages)
+    }
+
+    fn operation(
+        &self,
+        kind: OperationKind,
+        id: &str,
+        info: &AppInfo,
+        callback: Box<dyn FnMut(f32) + 'static>,
+    ) -> Result<(), Box<dyn Error>> {
+        let callback = Arc::new(Mutex::new(callback));
+        //TODO: should we support system installations?
+        let inst = Installation::new_user(Cancellable::NONE)?;
+        match kind {
+            OperationKind::Install => {
+                println!("{:#?}", info);
+                for r_str in info.flatpak_refs.iter() {
+                    let r = match Ref::parse(r_str) {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
+                            continue;
+                        }
+                    };
+                    for remote in inst.list_remotes(Cancellable::NONE)? {
+                        let Some(remote_name) = remote.name() else {
+                            continue;
+                        };
+                        let remote_r = match inst.fetch_remote_ref_sync(
+                            &remote_name,
+                            r.kind(),
+                            &r.name().unwrap_or_default(),
+                            r.arch().as_deref(),
+                            r.branch().as_deref(),
+                            Cancellable::NONE,
+                        ) {
+                            Ok(ok) => ok,
+                            Err(err) => {
+                                log::info!("failed to find {} in {}: {}", id, remote_name, err);
+                                continue;
+                            }
+                        };
+
+                        log::info!("installing flatpak {} from remote {}", r_str, remote_name);
+                        let tx = Transaction::for_installation(&inst, Cancellable::NONE)?;
+                        tx.connect_new_operation(move |_, op, progress| {
+                            log::info!("Operation: {} {:?}", op.operation_type(), op.get_ref());
+                            let callback = callback.clone();
+                            progress.connect_changed(move |progress| {
+                                log::info!(
+                                    "{}: {}%",
+                                    progress.status().unwrap_or_default(),
+                                    progress.progress()
+                                );
+                                let mut callback = callback.lock().unwrap();
+                                callback(progress.progress() as f32)
+                            });
+                        });
+                        tx.add_install(&remote_name, &r_str, &[])?;
+                        tx.run(Cancellable::NONE)?;
+                        return Ok(());
+                    }
+                }
+                Err(format!("package {id} not found").into())
+            }
+        }
     }
 }
