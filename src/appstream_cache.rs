@@ -1,6 +1,7 @@
 use appstream::{
-    enums::{ComponentKind, Icon, Launchable},
-    xmltree, Component, ParseError,
+    enums::{ComponentKind, Icon, ImageKind, Launchable},
+    url::Url,
+    xmltree, Component, Image, ParseError, Screenshot,
 };
 use cosmic::widget;
 use flate2::read::GzDecoder;
@@ -707,6 +708,40 @@ impl AppstreamCache {
                                             path
                                         );
                                     }
+                                }
+                            }
+                        }
+
+                        if let Some(screenshots) = value["Screenshots"].as_sequence() {
+                            for screenshot_value in screenshots {
+                                if let Some(screenshot) = screenshot_value.as_mapping() {
+                                    let mut images = Vec::new();
+                                    if let Some(source_image) =
+                                        screenshot.get("source-image").and_then(|x| x.as_mapping())
+                                    {
+                                        if let Some(url_str) = source_image["url"].as_str() {
+                                            if let Ok(url) = Url::parse(url_str) {
+                                                images.push(Image {
+                                                    kind: ImageKind::Source,
+                                                    width: None,
+                                                    height: None,
+                                                    url,
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    //TODO: thumbnails
+
+                                    component.screenshots.push(Screenshot {
+                                        //TODO: set is_default
+                                        is_default: false,
+                                        //TODO: caption
+                                        caption: None,
+                                        images,
+                                        //TODO: videos?
+                                        videos: Vec::new(),
+                                    });
                                 }
                             }
                         }
