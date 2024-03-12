@@ -1226,16 +1226,23 @@ impl Application for App {
                         }
                         row = row.push(button);
                     }
-                    if let Some(image) = selected.screenshot_images.get(&selected.screenshot_shown)
+                    let image_element = if let Some(image) =
+                        selected.screenshot_images.get(&selected.screenshot_shown)
                     {
-                        row = row.push(
-                            widget::image(image.clone())
-                                .width(Length::Fill)
-                                .height(image_height),
-                        );
+                        widget::image(image.clone())
+                            .width(Length::Fill)
+                            .height(image_height)
+                            .into()
                     } else {
-                        row = row.push(widget::Space::new(Length::Fill, image_height));
-                    }
+                        widget::Space::new(Length::Fill, image_height).into()
+                    };
+                    row = row.push(
+                        widget::column::with_children(vec![
+                            image_element,
+                            widget::text::caption(&screenshot.caption).into(),
+                        ])
+                        .align_items(Alignment::Center),
+                    );
                     {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-next-symbolic").size(16),
@@ -1248,7 +1255,6 @@ impl Application for App {
                         row = row.push(button);
                     }
                     column = column.push(row);
-                    //TODO: add caption column = column.push(widget::text(&screenshot.caption));
                 }
                 //TODO: parse markup in description
                 column =
