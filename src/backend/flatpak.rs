@@ -1,6 +1,7 @@
 use cosmic::widget;
 use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, RefKind, Transaction};
 use std::{
+    cell::Cell,
     collections::HashMap,
     error::Error,
     sync::{Arc, Mutex},
@@ -145,9 +146,27 @@ impl Backend for Flatpak {
                         };
 
                         log::info!("installing flatpak {} from remote {}", r_str, remote_name);
+                        let total_ops = Arc::new(Cell::new(0));
                         let tx = Transaction::for_installation(&inst, Cancellable::NONE)?;
+                        {
+                            let total_ops = total_ops.clone();
+                            tx.connect_ready(move |tx| {
+                                total_ops.set(tx.operations().len());
+                                true
+                            });
+                        }
+                        let started_ops = Arc::new(Cell::new(0));
                         tx.connect_new_operation(move |_, op, progress| {
-                            log::info!("Operation: {} {:?}", op.operation_type(), op.get_ref());
+                            let current_op = started_ops.get();
+                            started_ops.set(current_op + 1);
+                            let progress_per_op =
+                                100.0 / (total_ops.get().max(started_ops.get()) as f32);
+                            log::info!(
+                                "Operation {}: {} {:?}",
+                                current_op,
+                                op.operation_type(),
+                                op.get_ref()
+                            );
                             let callback = callback.clone();
                             progress.connect_changed(move |progress| {
                                 log::info!(
@@ -155,8 +174,11 @@ impl Backend for Flatpak {
                                     progress.status().unwrap_or_default(),
                                     progress.progress()
                                 );
+                                let op_progress = (progress.progress() as f32) / 100.0;
+                                let total_progress =
+                                    ((current_op as f32) + op_progress) * progress_per_op;
                                 let mut callback = callback.lock().unwrap();
-                                callback(progress.progress() as f32)
+                                callback(total_progress)
                             });
                         });
                         tx.add_install(&remote_name, &r_str, &[])?;
