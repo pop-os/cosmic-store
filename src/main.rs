@@ -36,6 +36,9 @@ mod backend;
 use config::{AppTheme, Config, CONFIG_VERSION};
 mod config;
 
+use icon_cache::icon_cache_get;
+mod icon_cache;
+
 use key_bind::{key_binds, KeyBind};
 mod key_bind;
 
@@ -225,6 +228,21 @@ impl NavPage {
             Self::Socialize => Some("Network"),
             Self::Utilities => Some("Utility"),
             _ => None,
+        }
+    }
+
+    fn icon(&self) -> widget::icon::Icon {
+        match self {
+            Self::Create => icon_cache_get("store-create-symbolic", 16),
+            Self::Work => icon_cache_get("store-work-symbolic", 16),
+            Self::Develop => icon_cache_get("store-develop-symbolic", 16),
+            Self::Learn => icon_cache_get("store-learn-symbolic", 16),
+            Self::Game => icon_cache_get("store-game-symbolic", 16),
+            Self::Relax => icon_cache_get("store-relax-symbolic", 16),
+            Self::Socialize => icon_cache_get("store-socialize-symbolic", 16),
+            Self::Utilities => icon_cache_get("store-utilities-symbolic", 16),
+            Self::Installed => icon_cache_get("store-installed-symbolic", 16),
+            Self::Updates => icon_cache_get("store-updates-symbolic", 16),
         }
     }
 }
@@ -655,6 +673,7 @@ impl Application for App {
         for &nav_page in NavPage::all() {
             let id = nav_model
                 .insert()
+                .icon(nav_page.icon())
                 .text(nav_page.title())
                 .data::<NavPage>(nav_page)
                 .id();
