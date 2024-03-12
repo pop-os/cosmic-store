@@ -136,6 +136,8 @@ pub enum Message {
     SelectCategoryResult(usize),
     SelectSearchResult(usize),
     Selected(Selected),
+    SelectedScreenshot(usize, String, Vec<u8>),
+    SelectedScreenshotShown(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     Updates(Vec<(&'static str, Package)>),
@@ -242,6 +244,8 @@ pub struct Selected {
     id: String,
     icon: widget::icon::Handle,
     info: Arc<AppInfo>,
+    screenshot_images: HashMap<usize, widget::image::Handle>,
+    screenshot_shown: usize,
 }
 
 /// The [`App`] stores application-specific state.
@@ -483,6 +487,8 @@ impl App {
                         id: package.id,
                         icon: package.icon,
                         info,
+                        screenshot_images: HashMap::new(),
+                        screenshot_shown: 0,
                     })),
                     Err(err) => {
                         log::error!("failed to get appstream data for {}: {}", package.id, err);
@@ -892,6 +898,8 @@ impl Application for App {
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
                                 info: result.info.clone(),
+                                screenshot_images: HashMap::new(),
+                                screenshot_shown: 0,
                             })
                         }
                         None => {
@@ -909,6 +917,8 @@ impl Application for App {
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
                                 info: result.info.clone(),
+                                screenshot_images: HashMap::new(),
+                                screenshot_shown: 0,
                             })
                         }
                         None => {
@@ -919,6 +929,22 @@ impl Application for App {
             }
             Message::Selected(selected) => {
                 self.selected_opt = Some(selected);
+            }
+            Message::SelectedScreenshot(i, url, data) => {
+                if let Some(selected) = &mut self.selected_opt {
+                    if let Some(screenshot) = selected.info.screenshots.get(i) {
+                        if screenshot.url == url {
+                            selected
+                                .screenshot_images
+                                .insert(i, widget::image::Handle::from_memory(data));
+                        }
+                    }
+                }
+            }
+            Message::SelectedScreenshotShown(i) => {
+                if let Some(selected) = &mut self.selected_opt {
+                    selected.screenshot_shown = i;
+                }
             }
             Message::SystemThemeModeChange(_theme_mode) => {
                 return self.update_config();
@@ -1100,7 +1126,47 @@ impl Application for App {
                     .align_items(Alignment::Center)
                     .spacing(space_m),
                 );
-                //TODO: screenshots, description, releases, etc.
+                //TODO: proper image scroller
+                if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
+                    //TODO: get proper image dimensions
+                    let image_height = Length::Fixed(480.0);
+                    let mut row = widget::row::with_capacity(3).align_items(Alignment::Center);
+                    {
+                        let mut button = widget::button::icon(
+                            widget::icon::from_name("go-previous-symbolic").size(16),
+                        );
+                        if selected.screenshot_shown > 0 {
+                            button = button.on_press(Message::SelectedScreenshotShown(
+                                selected.screenshot_shown - 1,
+                            ));
+                        }
+                        row = row.push(button);
+                    }
+                    if let Some(image) = selected.screenshot_images.get(&selected.screenshot_shown)
+                    {
+                        row = row.push(
+                            widget::image(image.clone())
+                                .width(Length::Fill)
+                                .height(image_height),
+                        );
+                    } else {
+                        row = row.push(widget::Space::new(Length::Fill, image_height));
+                    }
+                    {
+                        let mut button = widget::button::icon(
+                            widget::icon::from_name("go-next-symbolic").size(16),
+                        );
+                        if selected.screenshot_shown + 1 < selected.info.screenshots.len() {
+                            button = button.on_press(Message::SelectedScreenshotShown(
+                                selected.screenshot_shown + 1,
+                            ));
+                        }
+                        row = row.push(button);
+                    }
+                    column = column.push(row);
+                    //TODO: add caption column = column.push(widget::text(&screenshot.caption));
+                }
+                //TODO: description, releases, etc.
                 widget::scrollable(column).into()
             }
             None => match &self.search_results {
@@ -1399,6 +1465,46 @@ impl Application for App {
                     tokio::time::sleep(time::Duration::new(1, 0)).await;
                 }
             }));
+        }
+
+        if let Some(selected) = &self.selected_opt {
+            for (screenshot_i, screenshot) in selected.info.screenshots.iter().enumerate() {
+                let url = screenshot.url.clone();
+                subscriptions.push(subscription::channel(
+                    url.clone(),
+                    16,
+                    move |mut msg_tx| async move {
+                        log::info!("fetch screenshot {}", url);
+                        match reqwest::get(&url).await {
+                            Ok(response) => match response.bytes().await {
+                                Ok(bytes) => {
+                                    log::info!(
+                                        "fetched screenshot from {}: {} bytes",
+                                        url,
+                                        bytes.len()
+                                    );
+                                    let _ = msg_tx
+                                        .send(Message::SelectedScreenshot(
+                                            screenshot_i,
+                                            url,
+                                            bytes.to_vec(),
+                                        ))
+                                        .await;
+                                }
+                                Err(err) => {
+                                    log::warn!("failed to read screenshot from {}: {}", url, err);
+                                }
+                            },
+                            Err(err) => {
+                                log::warn!("failed to request screenshot from {}: {}", url, err);
+                            }
+                        }
+                        loop {
+                            tokio::time::sleep(time::Duration::new(1, 0)).await;
+                        }
+                    },
+                ));
+            }
         }
 
         Subscription::batch(subscriptions)

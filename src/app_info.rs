@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{Bundle, Icon, Launchable},
+    enums::{Bundle, Icon, ImageKind, Launchable},
     Component,
 };
 
@@ -35,6 +35,13 @@ pub enum AppIcon {
     Stock(String),
 }
 
+// Replaced Screenshot due to skip_field not supported in bitcode
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub struct AppScreenshot {
+    pub caption: String,
+    pub url: String,
+}
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub origin_opt: Option<String>,
@@ -45,6 +52,7 @@ pub struct AppInfo {
     pub desktop_ids: Vec<String>,
     pub flatpak_refs: Vec<String>,
     pub icons: Vec<AppIcon>,
+    pub screenshots: Vec<AppScreenshot>,
 }
 
 impl AppInfo {
@@ -102,6 +110,24 @@ impl AppInfo {
                 _ => None,
             })
             .collect();
+        let mut screenshots = Vec::new();
+        for screenshot in component.screenshots.into_iter() {
+            //TODO: better handle multiple images per screenshot
+            for image in screenshot.images.into_iter() {
+                if matches!(image.kind, ImageKind::Source) {
+                    screenshots.push(AppScreenshot {
+                        caption: screenshot
+                            .caption
+                            .as_ref()
+                            .map_or("", |x| get_translatable(x, locale))
+                            .to_string(),
+                        url: image.url.to_string(),
+                    });
+                    break;
+                }
+            }
+        }
+
         Self {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
@@ -111,6 +137,7 @@ impl AppInfo {
             desktop_ids,
             flatpak_refs,
             icons,
+            screenshots,
         }
     }
 }
