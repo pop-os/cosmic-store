@@ -47,7 +47,8 @@ mod localize;
 use operation::{Operation, OperationKind};
 mod operation;
 
-const ICON_SIZE_LIST: u16 = 48;
+const ICON_SIZE_SEARCH: u16 = 48;
+const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
 
 /// Runs application with these settings
@@ -247,6 +248,38 @@ impl NavPage {
     }
 }
 
+impl Package {
+    pub fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
+        widget::container(
+            widget::row::with_children(vec![
+                widget::icon::icon(self.icon.clone())
+                    .size(ICON_SIZE_PACKAGE)
+                    .into(),
+                widget::column::with_children(vec![
+                    widget::text::body(&self.name)
+                        .height(Length::Fixed(20.0))
+                        .into(),
+                    widget::text::caption(&self.summary)
+                        .height(Length::Fixed(28.0))
+                        .into(),
+                    //TODO: combine origins
+                    widget::text::caption(self.origin_opt.as_deref().unwrap_or("")).into(),
+                    widget::text::caption(&self.version).into(),
+                ])
+                .into(),
+            ])
+            .align_items(Alignment::Center)
+            .spacing(spacing.space_s),
+        )
+        .center_y()
+        .width(Length::Fixed(320.0 + (spacing.space_s as f32) * 2.0))
+        .height(Length::Fixed(88.0 + (spacing.space_xxs as f32) * 2.0))
+        .padding([spacing.space_xxs, spacing.space_s])
+        .style(theme::Container::Card)
+        .into()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SearchResult {
     backend_name: &'static str,
@@ -257,15 +290,19 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
-    fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
+    pub fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
         widget::container(
             widget::row::with_children(vec![
                 widget::icon::icon(self.icon.clone())
-                    .size(ICON_SIZE_LIST)
+                    .size(ICON_SIZE_SEARCH)
                     .into(),
                 widget::column::with_children(vec![
-                    widget::text::body(&self.info.name).into(),
-                    widget::text::caption(&self.info.summary).into(),
+                    widget::text::body(&self.info.name)
+                        .height(Length::Fixed(20.0))
+                        .into(),
+                    widget::text::caption(&self.info.summary)
+                        .height(Length::Fixed(28.0))
+                        .into(),
                     //TODO: Combine origins
                     widget::text::caption(self.info.origin_opt.as_deref().unwrap_or("")).into(),
                 ])
@@ -274,8 +311,9 @@ impl SearchResult {
             .align_items(Alignment::Center)
             .spacing(spacing.space_s),
         )
-        .width(Length::Fixed(320.0 + (spacing.space_s as f32) * 2.0))
-        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .center_y()
+        .width(Length::Fixed(240.0 + (spacing.space_s as f32) * 2.0))
+        .height(Length::Fixed(62.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
         .into()
@@ -1253,7 +1291,7 @@ impl Application for App {
                 {
                     NavPage::Installed => match &self.installed {
                         Some(installed) => {
-                            let mut column = widget::column::with_capacity(installed.len() + 1)
+                            let mut column = widget::column::with_capacity(2)
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
@@ -1262,36 +1300,20 @@ impl Application for App {
                                 "{} installed applications",
                                 installed.len(),
                             )));
+                            let mut flex_row = Vec::with_capacity(installed.len());
                             for (installed_i, (_backend_i, package)) in installed.iter().enumerate()
                             {
-                                column = column.push(
-                                    widget::mouse_area(
-                                        widget::row::with_children(vec![
-                                            widget::icon::icon(package.icon.clone())
-                                                .size(ICON_SIZE_LIST)
-                                                .into(),
-                                            widget::column::with_children(vec![
-                                                widget::text(&package.name).into(),
-                                                widget::text(&package.summary).into(),
-                                            ])
-                                            .into(),
-                                            widget::horizontal_space(Length::Fill).into(),
-                                            widget::column::with_children(vec![
-                                                widget::text(
-                                                    package.origin_opt.as_deref().unwrap_or(""),
-                                                )
-                                                .into(),
-                                                widget::text(&package.version).into(),
-                                            ])
-                                            .align_items(Alignment::End)
-                                            .into(),
-                                        ])
-                                        .align_items(Alignment::Center)
-                                        .spacing(space_xxs),
-                                    )
-                                    .on_press(Message::SelectInstalled(installed_i)),
+                                flex_row.push(
+                                    widget::mouse_area(package.card_view(&spacing))
+                                        .on_press(Message::SelectInstalled(installed_i))
+                                        .into(),
                                 );
                             }
+                            column = column.push(
+                                widget::flex_row(flex_row)
+                                    .column_spacing(space_xxs)
+                                    .row_spacing(space_xxs),
+                            );
                             widget::scrollable(column).into()
                         }
                         None => {
@@ -1307,7 +1329,7 @@ impl Application for App {
                     //TODO: reduce duplication
                     NavPage::Updates => match &self.updates {
                         Some(updates) => {
-                            let mut column = widget::column::with_capacity(updates.len() + 1)
+                            let mut column = widget::column::with_capacity(2)
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
@@ -1316,32 +1338,16 @@ impl Application for App {
                                 "{} applications with updates",
                                 updates.len(),
                             )));
+                            let mut flex_row = Vec::with_capacity(updates.len());
                             for (updates_i, (_backend_i, package)) in updates.iter().enumerate() {
-                                column = column.push(widget::mouse_area(
-                                    widget::row::with_children(vec![
-                                        widget::icon::icon(package.icon.clone())
-                                            .size(ICON_SIZE_LIST)
-                                            .into(),
-                                        widget::column::with_children(vec![
-                                            widget::text(&package.name).into(),
-                                            widget::text(&package.summary).into(),
-                                        ])
-                                        .into(),
-                                        widget::horizontal_space(Length::Fill).into(),
-                                        widget::column::with_children(vec![
-                                            widget::text(
-                                                package.origin_opt.as_deref().unwrap_or(""),
-                                            )
-                                            .into(),
-                                            widget::text(&package.version).into(),
-                                        ])
-                                        .align_items(Alignment::End)
-                                        .into(),
-                                    ])
-                                    .align_items(Alignment::Center)
-                                    .spacing(space_xxs),
-                                ));
+                                flex_row
+                                    .push(widget::mouse_area(package.card_view(&spacing)).into());
                             }
+                            column = column.push(
+                                widget::flex_row(flex_row)
+                                    .column_spacing(space_xxs)
+                                    .row_spacing(space_xxs),
+                            );
                             widget::scrollable(column).into()
                         }
                         None => {
