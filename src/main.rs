@@ -141,7 +141,6 @@ pub enum Message {
     SelectNone,
     SelectCategoryResult(usize),
     SelectSearchResult(usize),
-    Selected(Selected),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
@@ -251,31 +250,50 @@ impl NavPage {
 }
 
 impl Package {
-    pub fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
+    pub fn card_view<'a>(
+        &'a self,
+        controls: Vec<Element<'a, Message>>,
+        spacing: &cosmic_theme::Spacing,
+    ) -> Element<'a, Message> {
+        let width = 360.0 + 2.0 * spacing.space_s as f32;
+        let mut height = 88.0 + 2.0 * spacing.space_xxs as f32;
+        let mut column = widget::column::with_children(vec![
+            widget::text::body(&self.info.name)
+                .height(Length::Fixed(20.0))
+                .into(),
+            widget::text::caption(&self.info.summary)
+                .height(Length::Fixed(28.0))
+                .into(),
+            //TODO: combine origins
+            widget::text::caption(self.info.origin_opt.as_deref().unwrap_or("")).into(),
+            widget::text::caption(&self.version).into(),
+        ]);
+        if !controls.is_empty() {
+            column = column
+                .push(widget::vertical_space(Length::Fixed(
+                    spacing.space_xxs.into(),
+                )))
+                .push(
+                    widget::row::with_children(controls)
+                        .height(Length::Fixed(32.0))
+                        .spacing(spacing.space_xs),
+                );
+            height += spacing.space_xxs as f32 + 32.0;
+        }
+
         widget::container(
             widget::row::with_children(vec![
                 widget::icon::icon(self.icon.clone())
                     .size(ICON_SIZE_PACKAGE)
                     .into(),
-                widget::column::with_children(vec![
-                    widget::text::body(&self.name)
-                        .height(Length::Fixed(20.0))
-                        .into(),
-                    widget::text::caption(&self.summary)
-                        .height(Length::Fixed(28.0))
-                        .into(),
-                    //TODO: combine origins
-                    widget::text::caption(self.origin_opt.as_deref().unwrap_or("")).into(),
-                    widget::text::caption(&self.version).into(),
-                ])
-                .into(),
+                column.into(),
             ])
             .align_items(Alignment::Center)
             .spacing(spacing.space_s),
         )
         .center_y()
-        .width(Length::Fixed(360.0 + (spacing.space_s as f32) * 2.0))
-        .height(Length::Fixed(88.0 + (spacing.space_xxs as f32) * 2.0))
+        .width(Length::Fixed(width))
+        .height(Length::Fixed(height))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
         .into()
@@ -574,37 +592,6 @@ impl App {
         )
     }
 
-    fn select_package(&self, backend_name: &'static str, package: Package) -> Command<Message> {
-        let backend = match self.backends.get(backend_name) {
-            Some(some) => some.clone(),
-            None => {
-                log::error!("failed to find backend {:?}", backend_name);
-                return Command::none();
-            }
-        };
-        Command::perform(
-            async move {
-                tokio::task::spawn_blocking(move || match backend.info(&package) {
-                    Ok(info) => message::app(Message::Selected(Selected {
-                        backend_name,
-                        id: package.id,
-                        icon: package.icon,
-                        info,
-                        screenshot_images: HashMap::new(),
-                        screenshot_shown: 0,
-                    })),
-                    Err(err) => {
-                        log::error!("failed to get appstream data for {}: {}", package.id, err);
-                        message::none()
-                    }
-                })
-                .await
-                .unwrap_or(message::none())
-            },
-            |x| x,
-        )
-    }
-
     fn update_backends(&self) -> Command<Message> {
         let locale = self.locale.clone();
         Command::perform(
@@ -655,7 +642,7 @@ impl App {
                         } else if b.1.id == SYSTEM_ID {
                             cmp::Ordering::Greater
                         } else {
-                            lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name)
+                            lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
                         }
                     });
                     message::app(Message::Installed(installed))
@@ -695,7 +682,7 @@ impl App {
                         } else if b.1.id == SYSTEM_ID {
                             cmp::Ordering::Greater
                         } else {
-                            lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name)
+                            lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
                         }
                     });
                     message::app(Message::Updates(updates))
@@ -1004,7 +991,14 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            return self.select_package(backend_name, package);
+                            self.selected_opt = Some(Selected {
+                                backend_name,
+                                id: package.id,
+                                icon: package.icon,
+                                info: package.info,
+                                screenshot_images: HashMap::new(),
+                                screenshot_shown: 0,
+                            });
                         }
                         None => {
                             log::error!(
@@ -1022,7 +1016,14 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            return self.select_package(backend_name, package);
+                            self.selected_opt = Some(Selected {
+                                backend_name,
+                                id: package.id,
+                                icon: package.icon,
+                                info: package.info,
+                                screenshot_images: HashMap::new(),
+                                screenshot_shown: 0,
+                            });
                         }
                         None => {
                             log::error!("failed to find updates package with index {}", updates_i);
@@ -1070,9 +1071,6 @@ impl Application for App {
                         }
                     }
                 }
-            }
-            Message::Selected(selected) => {
-                self.selected_opt = Some(selected);
             }
             Message::SelectedScreenshot(i, url, data) => {
                 if let Some(selected) = &mut self.selected_opt {
@@ -1404,10 +1402,11 @@ impl Application for App {
                                 installed.len(),
                             )));
                             let mut flex_row = Vec::with_capacity(installed.len());
-                            for (installed_i, (_backend_i, package)) in installed.iter().enumerate()
+                            for (installed_i, (_backend_name, package)) in
+                                installed.iter().enumerate()
                             {
                                 flex_row.push(
-                                    widget::mouse_area(package.card_view(&spacing))
+                                    widget::mouse_area(package.card_view(vec![], &spacing))
                                         .on_press(Message::SelectInstalled(installed_i))
                                         .into(),
                                 );
@@ -1442,9 +1441,47 @@ impl Application for App {
                                 updates.len(),
                             )));
                             let mut flex_row = Vec::with_capacity(updates.len());
-                            for (updates_i, (_backend_i, package)) in updates.iter().enumerate() {
+                            for (updates_i, (backend_name, package)) in updates.iter().enumerate() {
+                                let mut waiting_refresh = false;
+                                for (other_backend_name, package_id) in self
+                                    .waiting_installed
+                                    .iter()
+                                    .chain(self.waiting_updates.iter())
+                                {
+                                    if other_backend_name == backend_name
+                                        && package_id == &package.id
+                                    {
+                                        waiting_refresh = true;
+                                        break;
+                                    }
+                                }
+                                let mut progress_opt = None;
+                                for (_id, (op, progress)) in self.pending_operations.iter() {
+                                    if &op.backend_name == backend_name
+                                        && op.package_id == package.id
+                                    {
+                                        progress_opt = Some(*progress);
+                                        break;
+                                    }
+                                }
+                                let controls = if let Some(progress) = progress_opt {
+                                    vec![widget::progress_bar(0.0..=100.0, progress)
+                                        .height(Length::Fixed(4.0))
+                                        .into()]
+                                } else if waiting_refresh {
+                                    vec![]
+                                } else {
+                                    vec![widget::button::standard(fl!("update"))
+                                        .on_press(Message::Operation(
+                                            OperationKind::Update,
+                                            backend_name,
+                                            package.id.clone(),
+                                            package.info.clone(),
+                                        ))
+                                        .into()]
+                                };
                                 flex_row.push(
-                                    widget::mouse_area(package.card_view(&spacing))
+                                    widget::mouse_area(package.card_view(controls, &spacing))
                                         .on_press(Message::SelectUpdates(updates_i))
                                         .into(),
                                 );

@@ -46,28 +46,31 @@ impl Flatpak {
         })
     }
 
-    fn ref_to_package<R: InstalledRefExt + RefExt>(r: R) -> Option<Package> {
+    fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
         let id = r.name()?;
+        match self.appstream_cache.infos.get(id.as_str()) {
+            Some(info) => {
+                let mut extra = HashMap::new();
+                if let Some(arch) = r.arch() {
+                    extra.insert("arch".to_string(), arch.to_string());
+                }
+                if let Some(branch) = r.branch() {
+                    extra.insert("branch".to_string(), branch.to_string());
+                }
 
-        let mut extra = HashMap::new();
-        if let Some(arch) = r.arch() {
-            extra.insert("arch".to_string(), arch.to_string());
+                Some(Package {
+                    id: id.to_string(),
+                    icon: self.appstream_cache.icon(info),
+                    info: info.clone(),
+                    version: r.appdata_version().unwrap_or_default().to_string(),
+                    extra,
+                })
+            }
+            None => {
+                log::warn!("failed to find info {}", id);
+                None
+            }
         }
-        if let Some(branch) = r.branch() {
-            extra.insert("branch".to_string(), branch.to_string());
-        }
-
-        Some(Package {
-            id: id.to_string(),
-            //TODO: get icon from appstream data?
-            icon: widget::icon::from_name(id.to_string()).size(128).handle(),
-            //TODO: this sometimes gets junk data, like the developer name instead of the app name
-            name: r.appdata_name().unwrap_or(id).to_string(),
-            summary: r.appdata_summary().map_or(String::new(), |x| x.to_string()),
-            version: r.appdata_version().unwrap_or_default().to_string(),
-            origin_opt: r.origin().map(|x| x.to_string()),
-            extra,
-        })
     }
 }
 
@@ -87,7 +90,7 @@ impl Backend for Flatpak {
         let mut packages = Vec::new();
         //TODO: show non-desktop items?
         for r in inst.list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)? {
-            if let Some(package) = Self::ref_to_package(r) {
+            if let Some(package) = self.ref_to_package(r) {
                 packages.push(package);
             }
         }
@@ -101,7 +104,7 @@ impl Backend for Flatpak {
         for r in inst.list_installed_refs_for_update(Cancellable::NONE)? {
             // Only show apps
             if r.kind() == RefKind::App {
-                if let Some(package) = Self::ref_to_package(r) {
+                if let Some(package) = self.ref_to_package(r) {
                     packages.push(package);
                 }
             }

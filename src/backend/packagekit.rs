@@ -3,7 +3,7 @@ use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use super::{Backend, Package};
 use crate::{AppInfo, AppstreamCache, OperationKind, SYSTEM_ID};
@@ -136,9 +136,7 @@ impl Packagekit {
                                 packages.push(Package {
                                     id: id.clone(),
                                     icon: self.appstream_cache.icon(info),
-                                    name: info.name.clone(),
-                                    summary: info.summary.clone(),
-                                    origin_opt: info.origin_opt.clone(),
+                                    info: info.clone(),
                                     version: version_opt.unwrap_or("").to_string(),
                                     extra: HashMap::new(),
                                 });
@@ -163,13 +161,23 @@ impl Packagekit {
                 icon: widget::icon::from_name("package-x-generic")
                     .size(128)
                     .handle(),
-                name: "System Packages".to_string(),
-                summary: format!(
-                    "{} package{}",
-                    system_packages,
-                    if system_packages == 1 { "" } else { "s" }
-                ),
-                origin_opt: None,
+                //TODO: fill in more AppInfo fields
+                info: Arc::new(AppInfo {
+                    origin_opt: None,
+                    name: "System Packages".to_string(),
+                    summary: format!(
+                        "{} package{}",
+                        system_packages,
+                        if system_packages == 1 { "" } else { "s" }
+                    ),
+                    description: String::new(),
+                    pkgname: None,
+                    categories: Vec::new(),
+                    desktop_ids: Vec::new(),
+                    flatpak_refs: Vec::new(),
+                    icons: Vec::new(),
+                    screenshots: Vec::new(),
+                }),
                 version: String::new(),
                 extra: HashMap::new(),
             });

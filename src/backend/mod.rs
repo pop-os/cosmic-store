@@ -14,23 +14,13 @@ mod packagekit;
 pub struct Package {
     pub id: String,
     pub icon: widget::icon::Handle,
-    pub name: String,
-    pub summary: String,
-    pub origin_opt: Option<String>,
+    pub info: Arc<AppInfo>,
     pub version: String,
     pub extra: HashMap<String, String>,
 }
 
 pub trait Backend: fmt::Debug + Send + Sync {
     fn load_cache(&mut self) -> Result<(), Box<dyn Error>>;
-    //TODO: remove
-    fn info(&self, package: &Package) -> Result<Arc<AppInfo>, Box<dyn Error>> {
-        let info_cache = self.info_cache();
-        match info_cache.infos.get(&package.id) {
-            Some(info) => Ok(info.clone()),
-            None => Err(format!("failed to find info for {}", package.id).into()),
-        }
-    }
     fn info_cache(&self) -> &AppstreamCache;
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
