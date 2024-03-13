@@ -962,6 +962,7 @@ impl Application for App {
                 }
             }
             Message::SearchActivate => {
+                self.selected_opt = None;
                 self.search_active = true;
                 return widget::text_input::focus(self.search_id.clone());
             }
