@@ -50,6 +50,7 @@ mod operation;
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
+const SYSTEM_ID: &'static str = "__SYSTEM__";
 
 /// Runs application with these settings
 #[rustfmt::skip]
@@ -628,8 +629,15 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded installed from {} in {:?}", backend_name, duration);
                     }
-                    installed
-                        .sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
+                    installed.sort_by(|a, b| {
+                        if a.1.id == SYSTEM_ID {
+                            cmp::Ordering::Less
+                        } else if b.1.id == SYSTEM_ID {
+                            cmp::Ordering::Greater
+                        } else {
+                            lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name)
+                        }
+                    });
                     message::app(Message::Installed(installed))
                 })
                 .await
@@ -661,7 +669,15 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded updates from {} in {:?}", backend_name, duration);
                     }
-                    updates.sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name));
+                    updates.sort_by(|a, b| {
+                        if a.1.id == SYSTEM_ID {
+                            cmp::Ordering::Less
+                        } else if b.1.id == SYSTEM_ID {
+                            cmp::Ordering::Greater
+                        } else {
+                            lexical_sort::natural_lexical_cmp(&a.1.name, &b.1.name)
+                        }
+                    });
                     message::app(Message::Updates(updates))
                 })
                 .await

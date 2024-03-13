@@ -1,3 +1,4 @@
+use cosmic::widget;
 use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
@@ -5,7 +6,7 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error};
 
 use super::{Backend, Package};
-use crate::{AppInfo, AppstreamCache, OperationKind};
+use crate::{AppInfo, AppstreamCache, OperationKind, SYSTEM_ID};
 
 struct TransactionPackage {
     info: u32,
@@ -112,6 +113,7 @@ impl Packagekit {
     ) -> Result<Vec<Package>, Box<dyn Error>> {
         let tx_packages = transaction_handle(tx, |_| {})?;
 
+        let mut system_packages = 0;
         let mut packages = Vec::new();
         for tx_package in tx_packages {
             let mut parts = tx_package.package_id.split(';');
@@ -150,8 +152,27 @@ impl Packagekit {
                 None => {
                     // Ignore packages with no components
                     log::debug!("no components for package {}", package_name);
+                    system_packages += 1;
                 }
             }
+        }
+        if system_packages > 0 {
+            //TODO: translate
+            packages.push(Package {
+                id: SYSTEM_ID.to_string(),
+                icon: widget::icon::from_name("package-x-generic")
+                    .size(128)
+                    .handle(),
+                name: "System Packages".to_string(),
+                summary: format!(
+                    "{} package{}",
+                    system_packages,
+                    if system_packages == 1 { "" } else { "s" }
+                ),
+                origin_opt: None,
+                version: String::new(),
+                extra: HashMap::new(),
+            });
         }
         Ok(packages)
     }
