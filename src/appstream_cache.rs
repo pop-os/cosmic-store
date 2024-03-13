@@ -567,6 +567,7 @@ impl AppstreamCache {
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
         let mut origin_opt = None;
+        let mut media_base_url_opt = None;
         let mut infos = Vec::new();
         //TODO: par_iter?
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
@@ -579,6 +580,7 @@ impl AppstreamCache {
             };
             if doc_i == 0 {
                 origin_opt = value["Origin"].as_str().map(|x| x.to_string());
+                media_base_url_opt = value["MediaBaseUrl"].as_str().map(|x| x.to_string());
             } else {
                 match Component::deserialize(&value) {
                     Ok(mut component) => {
@@ -713,20 +715,39 @@ impl AppstreamCache {
                         }
 
                         if let Some(screenshots) = value["Screenshots"].as_sequence() {
+                            if &component.id.0 == "com.system76.CosmicEdit" {
+                                println!("{:?}", screenshots);
+                            }
                             for screenshot_value in screenshots {
                                 if let Some(screenshot) = screenshot_value.as_mapping() {
                                     let mut images = Vec::new();
                                     if let Some(source_image) =
                                         screenshot.get("source-image").and_then(|x| x.as_mapping())
                                     {
-                                        if let Some(url_str) = source_image["url"].as_str() {
-                                            if let Ok(url) = Url::parse(url_str) {
-                                                images.push(Image {
-                                                    kind: ImageKind::Source,
-                                                    width: None,
-                                                    height: None,
-                                                    url,
-                                                });
+                                        if let Some(path_str) = source_image["url"].as_str() {
+                                            let url_str = match &media_base_url_opt {
+                                                Some(media_base_url) => {
+                                                    //TODO: join using url crate?
+                                                    format!("{media_base_url}/{path_str}")
+                                                }
+                                                None => path_str.to_string(),
+                                            };
+                                            match Url::parse(&url_str) {
+                                                Ok(url) => {
+                                                    images.push(Image {
+                                                        kind: ImageKind::Source,
+                                                        width: None,
+                                                        height: None,
+                                                        url,
+                                                    });
+                                                }
+                                                Err(err) => {
+                                                    log::warn!(
+                                                        "failed to parse {:?}: {}",
+                                                        url_str,
+                                                        err
+                                                    );
+                                                }
                                             }
                                         }
                                     }
