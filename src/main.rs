@@ -523,7 +523,23 @@ impl App {
                                                 Some(5)
                                             }
                                         }
-                                        None => None,
+                                        None => match regex.find(&info.description) {
+                                            Some(mat) => {
+                                                if mat.range().start == 0 {
+                                                    if mat.range().end == info.summary.len() {
+                                                        // Description equals search phrase
+                                                        Some(6)
+                                                    } else {
+                                                        // Description starts with search phrase
+                                                        Some(7)
+                                                    }
+                                                } else {
+                                                    // Description contains search phrase
+                                                    Some(8)
+                                                }
+                                            }
+                                            None => None,
+                                        },
                                     },
                                 };
                                 if let Some(weight) = weight_opt {
