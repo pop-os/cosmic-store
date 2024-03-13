@@ -3,6 +3,7 @@ cancel = Cancel
 install = Install
 open = Open
 uninstall = Uninstall
+update = Update
 
 # Nav Pages
 create = Create

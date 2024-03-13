@@ -6,6 +6,7 @@ use crate::AppInfo;
 pub enum OperationKind {
     Install,
     Uninstall,
+    Update,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -22,6 +23,7 @@ impl Operation {
         let verb = match self.kind {
             OperationKind::Install => "install",
             OperationKind::Uninstall => "uninstall",
+            OperationKind::Update => "update",
         };
         (
             format!("Failed to {verb} {}", self.info.name),

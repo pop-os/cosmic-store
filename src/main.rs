@@ -137,6 +137,7 @@ pub enum Message {
     SearchResults(String, Vec<SearchResult>),
     SearchSubmit,
     SelectInstalled(usize),
+    SelectUpdates(usize),
     SelectNone,
     SelectCategoryResult(usize),
     SelectSearchResult(usize),
@@ -352,6 +353,8 @@ pub struct App {
     stats: Arc<Vec<(String, u64)>>,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
+    waiting_installed: Vec<(&'static str, String)>,
+    waiting_updates: Vec<(&'static str, String)>,
     category_results: Option<(&'static str, Vec<SearchResult>)>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -554,6 +557,7 @@ impl App {
             |x| x,
         )
     }
+
     fn select_package(&self, backend_name: &'static str, package: Package) -> Command<Message> {
         let backend = match self.backends.get(backend_name) {
             Some(some) => some.clone(),
@@ -801,6 +805,8 @@ impl Application for App {
             stats,
             installed: None,
             updates: None,
+            waiting_installed: Vec::new(),
+            waiting_updates: Vec::new(),
             category_results: None,
             search_results: None,
             selected_opt: None,
@@ -897,6 +903,7 @@ impl Application for App {
             }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
+                self.waiting_installed.clear();
             }
             Message::Key(modifiers, key) => {
                 for (key_bind, action) in self.key_binds.iter() {
@@ -918,9 +925,13 @@ impl Application for App {
             }
             Message::PendingComplete(id) => {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
+                    self.waiting_installed
+                        .push((op.backend_name, op.package_id.clone()));
+                    self.waiting_updates
+                        .push((op.backend_name, op.package_id.clone()));
                     //TODO: self.complete_operations.insert(id, op);
                 }
-                return self.update_installed();
+                return Command::batch([self.update_installed(), self.update_updates()]);
             }
             Message::PendingError(id, err) => {
                 log::warn!("operation {id} failed: {err}");
@@ -983,6 +994,21 @@ impl Application for App {
                                 "failed to find installed package with index {}",
                                 installed_i
                             );
+                        }
+                    }
+                }
+            }
+            Message::SelectUpdates(updates_i) => {
+                if let Some(updates) = &self.updates {
+                    match updates
+                        .get(updates_i)
+                        .map(|(backend_name, package)| (backend_name, package.clone()))
+                    {
+                        Some((backend_name, package)) => {
+                            return self.select_package(backend_name, package);
+                        }
+                        None => {
+                            log::error!("failed to find updates package with index {}", updates_i);
                         }
                     }
                 }
@@ -1062,6 +1088,7 @@ impl Application for App {
             }
             Message::Updates(updates) => {
                 self.updates = Some(updates);
+                self.waiting_updates.clear();
             }
             Message::WindowClose => {
                 return window::close(window::Id::MAIN);
@@ -1147,12 +1174,32 @@ impl Application for App {
 
         let content: Element<_> = match &self.selected_opt {
             Some(selected) => {
-                //TODO: more efficient check
+                //TODO: more efficient checks
+                let mut waiting_refresh = false;
+                for (backend_name, package_id) in self
+                    .waiting_installed
+                    .iter()
+                    .chain(self.waiting_updates.iter())
+                {
+                    if backend_name == &selected.backend_name && package_id == &selected.id {
+                        waiting_refresh = true;
+                        break;
+                    }
+                }
                 let mut is_installed = false;
                 if let Some(installed) = &self.installed {
                     for (backend_name, package) in installed {
                         if backend_name == &selected.backend_name && package.id == selected.id {
                             is_installed = true;
+                            break;
+                        }
+                    }
+                }
+                let mut has_updates = false;
+                if let Some(updates) = &self.updates {
+                    for (backend_name, package) in updates {
+                        if backend_name == &selected.backend_name && package.id == selected.id {
+                            has_updates = true;
                             break;
                         }
                     }
@@ -1179,12 +1226,26 @@ impl Application for App {
                             .height(Length::Fixed(4.0))
                             .into(),
                     )
+                } else if waiting_refresh {
+                    // Do not show buttons while waiting for refresh
                 } else if is_installed {
                     //TODO: what if there are multiple desktop IDs?
                     if let Some(desktop_id) = selected.info.desktop_ids.first() {
                         buttons.push(
                             widget::button::suggested(fl!("open"))
                                 .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                .into(),
+                        );
+                    }
+                    if has_updates {
+                        buttons.push(
+                            widget::button::standard(fl!("update"))
+                                .on_press(Message::Operation(
+                                    OperationKind::Update,
+                                    selected.backend_name,
+                                    selected.id.clone(),
+                                    selected.info.clone(),
+                                ))
                                 .into(),
                         );
                     }
@@ -1365,8 +1426,11 @@ impl Application for App {
                             )));
                             let mut flex_row = Vec::with_capacity(updates.len());
                             for (updates_i, (_backend_i, package)) in updates.iter().enumerate() {
-                                flex_row
-                                    .push(widget::mouse_area(package.card_view(&spacing)).into());
+                                flex_row.push(
+                                    widget::mouse_area(package.card_view(&spacing))
+                                        .on_press(Message::SelectUpdates(updates_i))
+                                        .into(),
+                                );
                             }
                             column = column.push(
                                 widget::flex_row(flex_row)

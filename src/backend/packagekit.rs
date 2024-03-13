@@ -222,46 +222,34 @@ impl Backend for Packagekit {
         for tx_package in tx_packages.iter() {
             package_ids.push(tx_package.package_id.as_str());
         }
+        let tx = self.transaction()?;
+        tx.set_hints(&["interactive=true"])?;
         match kind {
             OperationKind::Install => {
                 log::info!("installing packages {:?}", package_ids);
-                {
-                    let tx = self.transaction()?;
-                    tx.set_hints(&["interactive=true"])?;
-                    tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
-                    let _tx_packages = transaction_handle(tx, |progress| {
-                        log::info!(
-                            "{} {} {}%",
-                            progress.package_id,
-                            progress.status,
-                            progress.percentage
-                        );
-                        //TODO: show progress as total of all items
-                        f(progress.percentage as f32);
-                    })?;
-                }
-                Ok(())
+                tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
             }
             OperationKind::Uninstall => {
                 log::info!("uninstalling packages {:?}", package_ids);
-                {
-                    let tx = self.transaction()?;
-                    tx.set_hints(&["interactive=true"])?;
-                    //TODO: transaction flags, autoremove?
-                    tx.remove_packages(0, &package_ids, true, false)?;
-                    let _tx_packages = transaction_handle(tx, |progress| {
-                        log::info!(
-                            "{} {} {}%",
-                            progress.package_id,
-                            progress.status,
-                            progress.percentage
-                        );
-                        //TODO: show progress as total of all items
-                        f(progress.percentage as f32);
-                    })?;
-                }
-                Ok(())
+                //TODO: transaction flags, autoremove?
+                tx.remove_packages(0, &package_ids, true, false)?;
+            }
+            OperationKind::Update => {
+                log::info!("updating packages {:?}", package_ids);
+                //TODO: transaction flags?
+                tx.update_packages(0, &package_ids)?;
             }
         }
+        let _tx_packages = transaction_handle(tx, |progress| {
+            log::info!(
+                "{} {} {}%",
+                progress.package_id,
+                progress.status,
+                progress.percentage
+            );
+            //TODO: show progress as total of all items
+            f(progress.percentage as f32);
+        })?;
+        Ok(())
     }
 }
