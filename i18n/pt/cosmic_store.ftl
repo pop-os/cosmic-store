@@ -1,6 +1,21 @@
 back = Voltar
+cancel = Cancelar
 install = Instalar
 open = Abrir
+uninstall = Desinstalar
+update = Atualizar
+
+# Nav Pages
+create = Criar
+work = Trabalhar
+develop = Desenvolver
+learn = Aprender
+game = Jogar
+relax = Relaxar
+socialize = Socializar
+utilities = Utilitários
+installed-apps = Apps instaladas
+updates = Atualizações
 
 # Context Pages
 
