@@ -6,6 +6,7 @@ Build-Depends:
     debhelper-compat (=13),
     just (>= 1.13.0),
     libflatpak-dev,
+    libssl-dev,
     pkg-config,
     rust-all,
 Standards-Version: 4.6.2
