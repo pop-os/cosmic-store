@@ -99,8 +99,11 @@ impl Backend for Flatpak {
         let inst = Installation::new_user(Cancellable::NONE)?;
         let mut packages = Vec::new();
         for r in inst.list_installed_refs_for_update(Cancellable::NONE)? {
-            if let Some(package) = Self::ref_to_package(r) {
-                packages.push(package);
+            // Only show apps
+            if r.kind() == RefKind::App {
+                if let Some(package) = Self::ref_to_package(r) {
+                    packages.push(package);
+                }
             }
         }
         Ok(packages)
