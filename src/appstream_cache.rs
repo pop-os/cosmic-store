@@ -407,7 +407,7 @@ impl AppstreamCache {
 
         for infos in path_results {
             for (id, info) in infos {
-                if let Some(pkgname) = &info.pkgname {
+                for pkgname in &info.pkgnames {
                     self.pkgnames
                         .entry(pkgname.clone())
                         .or_insert_with(|| HashSet::new())

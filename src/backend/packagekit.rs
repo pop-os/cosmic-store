@@ -3,7 +3,7 @@ use packagekit_zbus::{
     zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
 use crate::{AppInfo, AppstreamCache, OperationKind, SYSTEM_ID};
@@ -113,7 +113,7 @@ impl Packagekit {
     ) -> Result<Vec<Package>, Box<dyn Error>> {
         let tx_packages = transaction_handle(tx, |_| {})?;
 
-        let mut system_packages = 0;
+        let mut system_packages = Vec::new();
         let mut packages = Vec::new();
         for tx_package in tx_packages {
             let mut parts = tx_package.package_id.split(';');
@@ -150,11 +150,26 @@ impl Packagekit {
                 None => {
                     // Ignore packages with no components
                     log::debug!("no components for package {}", package_name);
-                    system_packages += 1;
+                    system_packages.push((
+                        package_name.to_string(),
+                        version_opt.unwrap_or("").to_string(),
+                    ));
                 }
             }
         }
-        if system_packages > 0 {
+        if !system_packages.is_empty() {
+            let name = "System Packages".to_string();
+            let summary = format!(
+                "{} package{}",
+                system_packages.len(),
+                if system_packages.len() == 1 { "" } else { "s" }
+            );
+            let mut description = String::new();
+            let mut pkgnames = Vec::with_capacity(system_packages.len());
+            for (package_name, version) in system_packages {
+                let _ = writeln!(description, " * {}: {}", package_name, version);
+                pkgnames.push(package_name);
+            }
             //TODO: translate
             packages.push(Package {
                 id: SYSTEM_ID.to_string(),
@@ -164,14 +179,10 @@ impl Packagekit {
                 //TODO: fill in more AppInfo fields
                 info: Arc::new(AppInfo {
                     origin_opt: None,
-                    name: "System Packages".to_string(),
-                    summary: format!(
-                        "{} package{}",
-                        system_packages,
-                        if system_packages == 1 { "" } else { "s" }
-                    ),
-                    description: String::new(),
-                    pkgname: None,
+                    name,
+                    summary,
+                    description,
+                    pkgnames,
                     categories: Vec::new(),
                     desktop_ids: Vec::new(),
                     flatpak_refs: Vec::new(),
@@ -215,27 +226,31 @@ impl Backend for Packagekit {
         info: &AppInfo,
         mut f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
-        let Some(pkgname) = &info.pkgname else {
+        let mut package_names = Vec::with_capacity(info.pkgnames.len());
+        for pkgname in &info.pkgnames {
+            package_names.push(pkgname.as_str());
+        }
+        if package_names.is_empty() {
             return Err(format!("{} missing package name", package_id).into());
-        };
+        }
         let tx_packages = {
             let tx = self.transaction()?;
             tx.resolve(
                 FilterKind::Newest as u64 | FilterKind::Arch as u64,
-                &[pkgname],
+                &package_names,
             )?;
             transaction_handle(tx, |_| {})?
         };
-        let mut package_ids = Vec::new();
+        let mut package_ids = Vec::with_capacity(package_names.len());
         for tx_package in tx_packages.iter() {
             package_ids.push(tx_package.package_id.as_str());
         }
         let tx = self.transaction()?;
-        tx.set_hints(&["interactive=true"])?;
         match kind {
             OperationKind::Install => {
                 log::info!("installing packages {:?}", package_ids);
-                tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+                //TODO: transaction flags
+                tx.install_packages(0, &package_ids)?;
             }
             OperationKind::Uninstall => {
                 log::info!("uninstalling packages {:?}", package_ids);

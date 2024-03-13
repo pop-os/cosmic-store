@@ -1,4 +1,3 @@
-use cosmic::widget;
 use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, RefKind, Transaction};
 use std::{
     cell::Cell,
