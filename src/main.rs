@@ -1210,11 +1210,16 @@ impl Application for App {
                         }
                     }
                 }
-                let mut has_updates = false;
+                let mut update_opt = None;
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
                         if backend_name == &selected.backend_name && package.id == selected.id {
-                            has_updates = true;
+                            update_opt = Some(Message::Operation(
+                                OperationKind::Update,
+                                backend_name,
+                                package.id.clone(),
+                                package.info.clone(),
+                            ));
                             break;
                         }
                     }
@@ -1252,15 +1257,10 @@ impl Application for App {
                                 .into(),
                         );
                     }
-                    if has_updates {
+                    if let Some(update) = update_opt {
                         buttons.push(
                             widget::button::standard(fl!("update"))
-                                .on_press(Message::Operation(
-                                    OperationKind::Update,
-                                    selected.backend_name,
-                                    selected.id.clone(),
-                                    selected.info.clone(),
-                                ))
+                                .on_press(update)
                                 .into(),
                         );
                     }
