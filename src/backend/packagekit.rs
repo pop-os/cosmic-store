@@ -69,6 +69,7 @@ fn transaction_handle(
 enum FilterKind {
     None = 1 << 1,
     Installed = 1 << 2,
+    NotInstalled = 1 << 3,
     Newest = 1 << 16,
     Arch = 1 << 18,
 }
@@ -77,6 +78,8 @@ enum FilterKind {
 enum TransactionFlag {
     None = 1 << 0,
     OnlyTrusted = 1 << 1,
+    AllowReinstall = 1 << 4,
+    AllowDowngrade = 1 << 6,
 }
 
 #[derive(Debug)]
@@ -235,10 +238,16 @@ impl Backend for Packagekit {
         }
         let tx_packages = {
             let tx = self.transaction()?;
-            tx.resolve(
-                FilterKind::Newest as u64 | FilterKind::Arch as u64,
-                &package_names,
-            )?;
+            log::info!("resolve packages for {:?}", package_names);
+            let filter = match kind {
+                OperationKind::Install | OperationKind::Update => {
+                    FilterKind::NotInstalled as u64
+                        | FilterKind::Newest as u64
+                        | FilterKind::Arch as u64
+                }
+                OperationKind::Uninstall => FilterKind::Installed as u64,
+            };
+            tx.resolve(filter, &package_names)?;
             transaction_handle(tx, |_| {})?
         };
         let mut package_ids = Vec::with_capacity(package_names.len());
@@ -261,7 +270,7 @@ impl Backend for Packagekit {
             OperationKind::Update => {
                 log::info!("updating packages {:?}", package_ids);
                 //TODO: transaction flags?
-                tx.update_packages(0, &package_ids)?;
+                tx.update_packages(TransactionFlag::AllowDowngrade as u64, &package_ids)?;
             }
         }
         let _tx_packages = transaction_handle(tx, |progress| {
