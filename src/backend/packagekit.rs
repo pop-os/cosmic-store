@@ -246,6 +246,7 @@ impl Backend for Packagekit {
             package_ids.push(tx_package.package_id.as_str());
         }
         let tx = self.transaction()?;
+        tx.set_hints(&["interactive=true"])?;
         match kind {
             OperationKind::Install => {
                 log::info!("installing packages {:?}", package_ids);
