@@ -260,17 +260,17 @@ impl Backend for Packagekit {
             OperationKind::Install => {
                 log::info!("installing packages {:?}", package_ids);
                 //TODO: transaction flags
-                tx.install_packages(0, &package_ids)?;
+                tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
             }
             OperationKind::Uninstall => {
                 log::info!("uninstalling packages {:?}", package_ids);
-                //TODO: transaction flags, autoremove?
-                tx.remove_packages(0, &package_ids, true, false)?;
+                //TODO: transaction flags?
+                tx.remove_packages(0, &package_ids, true, true)?;
             }
             OperationKind::Update => {
                 log::info!("updating packages {:?}", package_ids);
                 //TODO: transaction flags?
-                tx.update_packages(TransactionFlag::AllowDowngrade as u64, &package_ids)?;
+                tx.update_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
             }
         }
         let _tx_packages = transaction_handle(tx, |progress| {
