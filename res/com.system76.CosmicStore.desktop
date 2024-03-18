@@ -5,6 +5,6 @@ Exec=cosmic-store
 Terminal=false
 Type=Application
 StartupNotify=true
-Icon=system-software-package-manager
+Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;
