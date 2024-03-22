@@ -1,3 +1,4 @@
+cosmic-app-store = COSMIC App Store
 back = Back
 cancel = Cancel
 install = Install

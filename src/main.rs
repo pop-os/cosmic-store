@@ -695,9 +695,7 @@ impl App {
     }
 
     fn update_title(&mut self) -> Command<Message> {
-        let title = "COSMIC App Store";
-        self.set_header_title(title.to_string());
-        self.set_window_title(title.to_string())
+        self.set_window_title(fl!("cosmic-app-store"))
     }
 
     fn settings(&self) -> Element<Message> {
