@@ -1,3 +1,4 @@
+cosmic-app-store = App Store de COSMIC
 back = Rétourner
 cancel = Annuler
 install = Installer
@@ -6,13 +7,13 @@ uninstall = Désinstaller
 update = Mettre à jour
 
 # Nav Pages
-create = Créez
-work = Travaillez
-develop = Developpez
-learn = Aprendez
-game = Jouez
-relax = Relaxez-vous
-socialize = Socialisez
+create = Creation
+work = Travaille
+develop = Développement
+learn = Apprentissage
+game = Jeux
+relax = Relax
+socialize = Socialisation
 utilities = Utilités
 installed-apps = Applications installées
 updates = Mises à jour
