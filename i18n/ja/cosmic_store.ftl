@@ -1,3 +1,4 @@
+cosmic-app-store = COSMICアップストア
 back = 戻る
 cancel = キャンセル
 install = インストール
