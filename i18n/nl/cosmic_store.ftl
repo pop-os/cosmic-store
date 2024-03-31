@@ -1,3 +1,4 @@
+cosmic-app-store = COSMIC App-Store
 back = Terug
 cancel = Annuleren
 install = Installeren
