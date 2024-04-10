@@ -1177,7 +1177,6 @@ impl Application for App {
     fn view(&self) -> Element<Self::Message> {
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
-            space_xl,
             space_m,
             space_s,
             space_xs,
@@ -1231,7 +1230,7 @@ impl Application for App {
                 }
 
                 let mut column = widget::column::with_capacity(2)
-                    .padding([0, space_xl])
+                    .padding([0, space_s])
                     .spacing(space_m)
                     .width(Length::Fill);
                 column = column
@@ -1360,7 +1359,7 @@ impl Application for App {
                     let results_len = cmp::min(results.len(), 256);
 
                     let mut column = widget::column::with_capacity(1)
-                        .padding([0, space_xl])
+                        .padding([0, space_s])
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
@@ -1393,7 +1392,7 @@ impl Application for App {
                     NavPage::Installed => match &self.installed {
                         Some(installed) => {
                             let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             if installed.is_empty() {
@@ -1421,7 +1420,7 @@ impl Application for App {
                         }
                         None => {
                             let mut column = widget::column::with_capacity(1)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: translate
@@ -1433,7 +1432,7 @@ impl Application for App {
                     NavPage::Updates => match &self.updates {
                         Some(updates) => {
                             let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             if updates.is_empty() {
@@ -1496,7 +1495,7 @@ impl Application for App {
                         }
                         None => {
                             let mut column = widget::column::with_capacity(1)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: translate
@@ -1511,7 +1510,7 @@ impl Application for App {
                             let results_len = cmp::min(results.len(), 256);
 
                             let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: back button?
@@ -1537,7 +1536,7 @@ impl Application for App {
                         }
                         None => {
                             let mut column = widget::column::with_capacity(1)
-                                .padding([0, space_xl])
+                                .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: translate
