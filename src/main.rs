@@ -1262,16 +1262,18 @@ impl Application for App {
                                 .into(),
                         );
                     }
-                    buttons.push(
-                        widget::button::destructive(fl!("uninstall"))
-                            .on_press(Message::Operation(
-                                OperationKind::Uninstall,
-                                selected.backend_name,
-                                selected.id.clone(),
-                                selected.info.clone(),
-                            ))
-                            .into(),
-                    );
+                    if selected.id != SYSTEM_ID {
+                        buttons.push(
+                            widget::button::destructive(fl!("uninstall"))
+                                .on_press(Message::Operation(
+                                    OperationKind::Uninstall,
+                                    selected.backend_name,
+                                    selected.id.clone(),
+                                    selected.info.clone(),
+                                ))
+                                .into(),
+                        );
+                    }
                 } else {
                     buttons.push(
                         widget::button::suggested(fl!("install"))
