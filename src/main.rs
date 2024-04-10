@@ -1505,17 +1505,12 @@ impl Application for App {
                             //TODO: paging or dynamic load
                             let results_len = cmp::min(results.len(), 256);
 
-                            let mut column = widget::column::with_capacity(2)
+                            let mut column = widget::column::with_capacity(1)
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: back button?
-                            //TODO: translate
-                            column = column.push(widget::text(format!(
-                                "{} results in category {:?}",
-                                results.len(),
-                                category
-                            )));
+                            //TODO: no results message?
                             let mut flex_row = Vec::with_capacity(results_len);
                             for (result_i, result) in results.iter().take(results_len).enumerate() {
                                 flex_row.push(
