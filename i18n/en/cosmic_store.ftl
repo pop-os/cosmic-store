@@ -2,6 +2,7 @@ cosmic-app-store = COSMIC App Store
 back = Back
 cancel = Cancel
 install = Install
+no-results = No results for "{$search}"
 open = Open
 uninstall = Uninstall
 update = Update
