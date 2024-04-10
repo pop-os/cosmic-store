@@ -1367,6 +1367,8 @@ impl Application for App {
                     if results.is_empty() {
                         column =
                             column.push(widget::text(fl!("no-results", search = input.as_str())));
+                    } else {
+                        column = column.align_items(Alignment::Center);
                     }
                     let mut flex_row = Vec::with_capacity(results_len);
                     for (result_i, result) in results.iter().take(results_len).enumerate() {
@@ -1394,11 +1396,12 @@ impl Application for App {
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
-                            //TODO: translate
-                            column = column.push(widget::text(format!(
-                                "{} installed applications",
-                                installed.len(),
-                            )));
+                            if installed.is_empty() {
+                                column =
+                                    column.push(widget::text(fl!("no-installed-applications")));
+                            } else {
+                                column = column.align_items(Alignment::Center);
+                            }
                             let mut flex_row = Vec::with_capacity(installed.len());
                             for (installed_i, (_backend_name, package)) in
                                 installed.iter().enumerate()
@@ -1433,11 +1436,11 @@ impl Application for App {
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
-                            //TODO: translate
-                            column = column.push(widget::text(format!(
-                                "{} applications with updates",
-                                updates.len(),
-                            )));
+                            if updates.is_empty() {
+                                column = column.push(widget::text(fl!("no-updates")));
+                            } else {
+                                column = column.align_items(Alignment::Center);
+                            }
                             let mut flex_row = Vec::with_capacity(updates.len());
                             for (updates_i, (backend_name, package)) in updates.iter().enumerate() {
                                 let mut waiting_refresh = false;
@@ -1507,12 +1510,16 @@ impl Application for App {
                             //TODO: paging or dynamic load
                             let results_len = cmp::min(results.len(), 256);
 
-                            let mut column = widget::column::with_capacity(1)
+                            let mut column = widget::column::with_capacity(2)
                                 .padding([0, space_xl])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
                             //TODO: back button?
-                            //TODO: no results message?
+                            if results.is_empty() {
+                                //TODO: no results message?
+                            } else {
+                                column = column.align_items(Alignment::Center);
+                            }
                             let mut flex_row = Vec::with_capacity(results_len);
                             for (result_i, result) in results.iter().take(results_len).enumerate() {
                                 flex_row.push(
