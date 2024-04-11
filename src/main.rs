@@ -145,6 +145,7 @@ pub enum Message {
     SelectedScreenshotShown(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
+    UpdateAll,
     Updates(Vec<(&'static str, Package)>),
     WindowClose,
     WindowNew,
@@ -1099,6 +1100,23 @@ impl Application for App {
                 }
                 self.set_context_title(context_page.title());
             }
+            Message::UpdateAll => {
+                if let Some(updates) = &self.updates {
+                    //TODO: this shows multiple pkexec dialogs
+                    let mut ops = Vec::with_capacity(updates.len());
+                    for (backend_name, package) in updates.iter() {
+                        ops.push(Operation {
+                            kind: OperationKind::Update,
+                            backend_name,
+                            package_id: package.id.clone(),
+                            info: package.info.clone(),
+                        });
+                    }
+                    for op in ops {
+                        self.operation(op);
+                    }
+                }
+            }
             Message::Updates(updates) => {
                 self.updates = Some(updates);
                 self.waiting_updates.clear();
@@ -1439,6 +1457,12 @@ impl Application for App {
                                 column = column.push(widget::text(fl!("no-updates")));
                             } else {
                                 column = column.align_items(Alignment::Center);
+                                column = column.push(widget::row::with_children(vec![
+                                    widget::button::standard(fl!("update-all"))
+                                        .on_press(Message::UpdateAll)
+                                        .into(),
+                                    widget::horizontal_space(Length::Fill).into(),
+                                ]));
                             }
                             let mut flex_row = Vec::with_capacity(updates.len());
                             for (updates_i, (backend_name, package)) in updates.iter().enumerate() {

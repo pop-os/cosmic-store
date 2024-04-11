@@ -8,6 +8,7 @@ no-results = No results for "{$search}"
 open = Open
 uninstall = Uninstall
 update = Update
+update-all = Update all
 
 # Nav Pages
 create = Create
