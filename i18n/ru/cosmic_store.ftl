@@ -1,20 +1,25 @@
+cosmic-app-store = Магазин приложений COSMIC
 back = Назад
 cancel = Отмена
 install = Установить
+no-installed-applications = Нет установленных приложений
+no-updates = Нет доступных обновлений
+no-results = Нет результатов для "{$search}"
 open = Открыть
 uninstall = Удалить
 update = Обновить
+update-all = Обновить все
 
 # Nav Pages
-create = Создавай
-work = Работай
-develop = Разрабатывай
-learn = Учись
-game = Играй
-relax = Отдыхай
-socialize = Общайся
+create = Творчество
+work = Работа
+develop = Разработка
+learn = Обучение
+game = Игры
+relax = Отдых
+socialize = Общение
 utilities = Утилиты
-installed-apps = Установленные приложения
+installed-apps = Установленные
 updates = Обновления
 
 # Context Pages
