@@ -506,10 +506,25 @@ impl AppstreamCache {
                         icon_opt = Some(widget::icon::from_path(icon_path));
                     }
                 }
+                AppIcon::Remote(_url, _width, _height, _scale) => {
+                    //TODO
+                }
+                AppIcon::Local(path, width, height, _scale) => {
+                    let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
+                    if size < cached_size {
+                        // Skip if size is less than cached size
+                        continue;
+                    }
+                    let icon_path = Path::new(path);
+                    if icon_path.is_file() {
+                        icon_opt = Some(widget::icon::from_path(icon_path.to_path_buf()));
+                        cached_size = size;
+                    }
+                }
             }
         }
         icon_opt.unwrap_or_else(|| {
-            log::info!("failed to get icon from {:?}", info.icons);
+            log::debug!("failed to get icon from {:?}", info.icons);
             widget::icon::from_name("package-x-generic")
                 .size(128)
                 .handle()

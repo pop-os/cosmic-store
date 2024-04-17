@@ -99,6 +99,8 @@ fn convert_markup(markup: &str) -> Result<String, Box<dyn Error>> {
 pub enum AppIcon {
     Cached(String, Option<u32>, Option<u32>, Option<u32>),
     Stock(String),
+    Remote(String, Option<u32>, Option<u32>, Option<u32>),
+    Local(String, Option<u32>, Option<u32>, Option<u32>),
 }
 
 // Replaced Screenshot due to skip_field not supported in bitcode
@@ -188,7 +190,23 @@ impl AppInfo {
                     scale,
                 )),
                 Icon::Stock(path) => Some(AppIcon::Stock(path)),
-                _ => None,
+                Icon::Remote {
+                    url,
+                    width,
+                    height,
+                    scale,
+                } => Some(AppIcon::Remote(url.to_string(), width, height, scale)),
+                Icon::Local {
+                    path,
+                    width,
+                    height,
+                    scale,
+                } => Some(AppIcon::Local(
+                    path.to_str()?.to_string(),
+                    width,
+                    height,
+                    scale,
+                )),
             })
             .collect();
         let mut screenshots = Vec::new();
