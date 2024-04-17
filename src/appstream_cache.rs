@@ -44,10 +44,8 @@ pub struct AppstreamCacheTag {
 #[derive(Debug, Default, bitcode::Decode, bitcode::Encode)]
 pub struct AppstreamCache {
     // Uses btreemap for stable sort order
-    #[bitcode(with_serde)] //TODO: do not use serde
-    pub path_tags: BTreeMap<PathBuf, AppstreamCacheTag>,
-    #[bitcode(with_serde)] //TODO: do not use serde
-    pub icons_paths: Vec<PathBuf>,
+    pub path_tags: BTreeMap<String, AppstreamCacheTag>,
+    pub icons_paths: Vec<String>,
     pub locale: String,
     pub infos: HashMap<String, Arc<AppInfo>>,
     pub pkgnames: HashMap<String, HashSet<String>>,
@@ -55,14 +53,20 @@ pub struct AppstreamCache {
 
 impl AppstreamCache {
     /// Get cache for specified appstream data sources
-    pub fn new(paths: Vec<PathBuf>, icons_paths: Vec<PathBuf>, locale: &str) -> Self {
+    pub fn new(paths: Vec<PathBuf>, icons_paths: Vec<String>, locale: &str) -> Self {
         let mut cache = Self::default();
         cache.icons_paths = icons_paths;
         cache.locale = locale.to_string();
 
         for path in paths.iter() {
             let canonical = match fs::canonicalize(path) {
-                Ok(ok) => ok,
+                Ok(pathbuf) => match pathbuf.into_os_string().into_string() {
+                    Ok(ok) => ok,
+                    Err(os_string) => {
+                        log::error!("failed to convert {:?} to string", os_string);
+                        continue;
+                    }
+                },
                 Err(err) => {
                     log::error!("failed to canonicalize {:?}: {}", path, err);
                     continue;
@@ -155,7 +159,12 @@ impl AppstreamCache {
 
                 let icons_path = catalog_path.join("icons");
                 if icons_path.is_dir() {
-                    icons_paths.push(icons_path);
+                    match icons_path.into_os_string().into_string() {
+                        Ok(ok) => icons_paths.push(ok),
+                        Err(os_string) => {
+                            log::error!("failed to convert {:?} to string", os_string)
+                        }
+                    }
                 }
             }
         }
@@ -170,7 +179,7 @@ impl AppstreamCache {
 
     /// Versioned filename of cache
     fn cache_filename() -> &'static str {
-        "appstream_cache-v0-1.bitcode-v0-5"
+        "appstream_cache-v0-1.bitcode-v0-6"
     }
 
     /// Remove all files from cache not matching filename
@@ -298,13 +307,7 @@ impl AppstreamCache {
     pub fn save_cache(&self, cache_name: &str) {
         let start = Instant::now();
 
-        let bitcode = match bitcode::encode::<Self>(self) {
-            Ok(ok) => ok,
-            Err(err) => {
-                log::warn!("failed to encode cache {:?}: {}", cache_name, err);
-                return;
-            }
-        };
+        let bitcode = bitcode::encode::<Self>(self);
 
         let cache_dir = match self.cache_dir(cache_name) {
             Some(some) => some,
@@ -341,7 +344,7 @@ impl AppstreamCache {
             .path_tags
             .par_iter()
             .filter_map(|(path, _tag)| {
-                let file_name = match path.file_name() {
+                let file_name = match Path::new(path).file_name() {
                     Some(file_name_os) => match file_name_os.to_str() {
                         Some(some) => some,
                         None => {
@@ -453,7 +456,7 @@ impl AppstreamCache {
         };
 
         for icons_path in self.icons_paths.iter() {
-            let icon_path = icons_path.join(origin).join(&size).join(name);
+            let icon_path = Path::new(icons_path).join(origin).join(&size).join(name);
             if icon_path.is_file() {
                 return Some(icon_path);
             }
@@ -497,12 +500,13 @@ impl AppstreamCache {
         })
     }
 
-    fn parse_xml<R: Read>(
-        path: &Path,
+    fn parse_xml<P: AsRef<Path>, R: Read>(
+        path: P,
         reader: R,
         locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
+        let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
         let e = xmltree::Element::parse(reader)?;
         let _version = e
@@ -560,12 +564,13 @@ impl AppstreamCache {
         Ok(infos)
     }
 
-    fn parse_yaml<R: Read>(
-        path: &Path,
+    fn parse_yaml<P: AsRef<Path>, R: Read>(
+        path: P,
         reader: R,
         locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
+        let path = path.as_ref();
         let mut origin_opt = None;
         let mut media_base_url_opt = None;
         let mut infos = Vec::new();

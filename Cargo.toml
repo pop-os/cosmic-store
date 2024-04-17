@@ -29,7 +29,7 @@ sys-locale = "0.3"
 serde_yaml = "0.9"
 # fast cache
 atomicwrites = "0.4"
-bitcode = { version = "0.5", features = ["serde"] }
+bitcode = { version = "0.6", features = ["serde"] }
 dirs = "5"
 # flatpak feature
 libflatpak = { version = "0.4", optional = true }

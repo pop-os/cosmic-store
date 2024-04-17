@@ -773,7 +773,7 @@ impl Application for App {
         let stats = {
             let start = Instant::now();
             match bitcode::decode::<Vec<(String, u64)>>(include_bytes!(
-                "../res/flathub-stats-2024-02.bitcode-v0-5"
+                "../res/flathub-stats-2024-03.bitcode-v0-6"
             )) {
                 Ok(ok) => {
                     let elapsed = start.elapsed();

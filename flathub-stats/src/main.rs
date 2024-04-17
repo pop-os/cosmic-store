@@ -16,8 +16,8 @@ async fn stats(year: u16, month: u8, day: u8) -> Result<Stats, Box<dyn Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let year = 2024;
-    let month = 2;
-    let days = 29;
+    let month = 3;
+    let days = 31;
 
     let mut ref_downloads = HashMap::new();
     for day in 1..=days {
@@ -35,9 +35,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     sorted.sort_by(|a, b| b.1.cmp(&a.1));
 
-    let bitcode = bitcode::encode(&sorted)?;
+    let bitcode = bitcode::encode(&sorted);
     fs::write(
-        format!("flathub-stats-{year}-{month:02}.bitcode-v0-5"),
+        format!("flathub-stats-{year}-{month:02}.bitcode-v0-6"),
         &bitcode,
     )?;
 

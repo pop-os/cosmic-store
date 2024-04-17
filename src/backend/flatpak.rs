@@ -34,7 +34,12 @@ impl Flatpak {
 
                 let icons_path = appstream_dir.join("icons");
                 if icons_path.is_dir() {
-                    icons_paths.push(icons_path);
+                    match icons_path.into_os_string().into_string() {
+                        Ok(ok) => icons_paths.push(ok),
+                        Err(os_string) => {
+                            log::error!("failed to convert {:?} to string", os_string)
+                        }
+                    }
                 }
             }
         }
