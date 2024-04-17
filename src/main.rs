@@ -1713,7 +1713,7 @@ impl Application for App {
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(widget::text::title4(NavPage::Installed.title()));
+                        column = column.push(widget::text::title2(NavPage::Installed.title()));
                         match &self.installed {
                             Some(installed) => {
                                 if installed.is_empty() {
@@ -1750,7 +1750,7 @@ impl Application for App {
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(widget::text::title4(NavPage::Updates.title()));
+                        column = column.push(widget::text::title2(NavPage::Updates.title()));
                         match &self.updates {
                             Some(updates) => {
                                 if updates.is_empty() {
@@ -1833,7 +1833,7 @@ impl Application for App {
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(widget::text::title4(nav_page.title()));
+                        column = column.push(widget::text::title2(nav_page.title()));
                         //TODO: ensure category matches?
                         match &self.category_results {
                             Some((_category, results)) => {
