@@ -571,7 +571,7 @@ impl AppstreamCache {
                                     return None;
                                 }
 
-                                let id = component.id.to_string();
+                                let id = component.id.0.trim_end_matches(".desktop").to_string();
                                 let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                                 return Some((
                                     id,
@@ -815,7 +815,7 @@ impl AppstreamCache {
                             }
                         }
 
-                        let id = component.id.to_string();
+                        let id = component.id.0.trim_end_matches(".desktop").to_string();
                         let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                         infos.push((
                             id,

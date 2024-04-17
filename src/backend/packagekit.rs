@@ -145,7 +145,7 @@ impl Packagekit {
             match appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
                     for id in ids.iter() {
-                        match appstream_cache.infos.get(id) {
+                        match appstream_cache.infos.get(id.trim_end_matches(".desktop")) {
                             Some(info) => {
                                 packages.push(Package {
                                     id: id.clone(),

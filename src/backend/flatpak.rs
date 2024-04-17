@@ -84,26 +84,31 @@ impl Flatpak {
                 // Only show items from correct cache
                 continue;
             }
-            if let Some(info) = appstream_cache.infos.get(id.as_str()) {
-                let mut extra = HashMap::new();
-                if let Some(arch) = r.arch() {
-                    extra.insert("arch".to_string(), arch.to_string());
-                }
-                if let Some(branch) = r.branch() {
-                    extra.insert("branch".to_string(), branch.to_string());
-                }
 
-                return Some(Package {
-                    id: id.to_string(),
-                    icon: appstream_cache.icon(info),
-                    info: info.clone(),
-                    version: r.appdata_version().unwrap_or_default().to_string(),
-                    extra,
-                });
+            //TODO: better matching of .desktop suffix
+            let info = match appstream_cache.infos.get(id.trim_end_matches(".desktop")) {
+                Some(some) => some,
+                None => continue,
+            };
+
+            let mut extra = HashMap::new();
+            if let Some(arch) = r.arch() {
+                extra.insert("arch".to_string(), arch.to_string());
             }
+            if let Some(branch) = r.branch() {
+                extra.insert("branch".to_string(), branch.to_string());
+            }
+
+            return Some(Package {
+                id: id.to_string(),
+                icon: appstream_cache.icon(info),
+                info: info.clone(),
+                version: r.appdata_version().unwrap_or_default().to_string(),
+                extra,
+            });
         }
 
-        log::warn!("failed to find info {}", id);
+        log::warn!("failed to find info for {} from {}", id, origin);
         None
     }
 }
