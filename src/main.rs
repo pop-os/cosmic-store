@@ -10,6 +10,7 @@ use cosmic::{
         futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
+        widget::scrollable,
         window, Alignment, Length,
     },
     theme, widget, Application, ApplicationExt, Element,
@@ -463,6 +464,7 @@ pub struct App {
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, f32)>,
     failed_operations: BTreeMap<u64, (Operation, String)>,
+    scrollable_id: widget::Id,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
@@ -724,6 +726,19 @@ impl App {
         )
     }
 
+    fn select(&mut self, selected: Selected) -> Command<Message> {
+        self.selected_opt = Some(selected);
+        self.set_scroll()
+    }
+
+    fn set_scroll(&self) -> Command<Message> {
+        //TODO: preserve scroll per page?
+        scrollable::scroll_to(
+            self.scrollable_id.clone(),
+            scrollable::AbsoluteOffset::default(),
+        )
+    }
+
     fn update_backends(&self) -> Command<Message> {
         let locale = self.locale.clone();
         Command::perform(
@@ -915,6 +930,7 @@ impl Application for App {
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
+            scrollable_id: widget::Id::unique(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
@@ -943,7 +959,9 @@ impl Application for App {
         } else if self.search_active {
             // Close search if open
             self.search_active = false;
-            self.search_results = None;
+            if self.search_results.take().is_some() {
+                return self.set_scroll();
+            }
         }
         Command::none()
     }
@@ -955,15 +973,17 @@ impl Application for App {
         self.search_results = None;
         self.selected_opt = None;
         self.nav_model.activate(id);
-        //TODO: do not preserve scroll on page change
+        let mut commands = Vec::with_capacity(2);
+        //TODO: preserve scroll per page?
+        commands.push(self.set_scroll());
         if let Some(category) = self
             .nav_model
             .active_data::<NavPage>()
             .and_then(|nav_page| nav_page.category())
         {
-            return self.category(category);
+            commands.push(self.category(category));
         }
-        Command::none()
+        Command::batch(commands)
     }
 
     /// Handle application events here.
@@ -1012,6 +1032,7 @@ impl Application for App {
             }
             Message::CategoryResults(category, results) => {
                 self.category_results = Some((category, results));
+                return self.set_scroll();
             }
             Message::Config(config) => {
                 if config != self.config {
@@ -1088,7 +1109,9 @@ impl Application for App {
             Message::SearchClear => {
                 self.search_active = false;
                 self.search_input.clear();
-                self.search_results = None;
+                if self.search_results.take().is_some() {
+                    return self.set_scroll();
+                }
             }
             Message::SearchInput(input) => {
                 if input != self.search_input {
@@ -1102,6 +1125,7 @@ impl Application for App {
             Message::SearchResults(input, results) => {
                 if input == self.search_input {
                     self.search_results = Some((input, results));
+                    return self.set_scroll();
                 } else {
                     log::warn!(
                         "received {} results for {:?} after search changed to {:?}",
@@ -1123,8 +1147,7 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            log::info!("selected {:?}", package.id);
-                            self.selected_opt = Some(Selected {
+                            return self.select(Selected {
                                 backend_name,
                                 id: package.id,
                                 icon: package.icon,
@@ -1149,8 +1172,7 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            log::info!("selected {:?}", package.id);
-                            self.selected_opt = Some(Selected {
+                            return self.select(Selected {
                                 backend_name,
                                 id: package.id,
                                 icon: package.icon,
@@ -1167,13 +1189,13 @@ impl Application for App {
             }
             Message::SelectNone => {
                 self.selected_opt = None;
+                //TODO: scroll to top
             }
             Message::SelectCategoryResult(result_i) => {
                 if let Some((_category, results)) = &self.category_results {
                     match results.get(result_i) {
                         Some(result) => {
-                            log::info!("selected {:?}", result.id);
-                            self.selected_opt = Some(Selected {
+                            return self.select(Selected {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
@@ -1192,8 +1214,7 @@ impl Application for App {
                 if let Some(results) = self.explore_results.get(&explore_page) {
                     match results.get(result_i) {
                         Some(result) => {
-                            log::info!("selected {:?}", result.id);
-                            self.selected_opt = Some(Selected {
+                            return self.select(Selected {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
@@ -1216,8 +1237,7 @@ impl Application for App {
                 if let Some((_input, results)) = &self.search_results {
                     match results.get(result_i) {
                         Some(result) => {
-                            log::info!("selected {:?}", result.id);
-                            self.selected_opt = Some(Selected {
+                            return self.select(Selected {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
                                 icon: result.icon.clone(),
@@ -1545,7 +1565,9 @@ impl Application for App {
                 column =
                     column.push(widget::text::body(&selected.info.description).width(Length::Fill));
                 //TODO: description, releases, etc.
-                widget::scrollable(column).into()
+                widget::scrollable(column)
+                    .id(self.scrollable_id.clone())
+                    .into()
             }
             None => match &self.search_results {
                 Some((input, results)) => {
@@ -1576,7 +1598,9 @@ impl Application for App {
                             .column_spacing(space_xxs)
                             .row_spacing(space_xxs),
                     );
-                    widget::scrollable(column).into()
+                    widget::scrollable(column)
+                        .id(self.scrollable_id.clone())
+                        .into()
                 }
                 None => match self
                     .nav_model
@@ -1627,7 +1651,9 @@ impl Application for App {
                                     //TODO: loading message?
                                 }
                             }
-                            widget::scrollable(column).into()
+                            widget::scrollable(column)
+                                .id(self.scrollable_id.clone())
+                                .into()
                         }
                         None => {
                             let explore_pages = ExplorePage::all();
@@ -1676,7 +1702,9 @@ impl Application for App {
                                     }
                                 }
                             }
-                            widget::scrollable(column).into()
+                            widget::scrollable(column)
+                                .id(self.scrollable_id.clone())
+                                .into()
                         }
                     },
                     NavPage::Installed => {
@@ -1711,7 +1739,9 @@ impl Application for App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column).into()
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
                     }
                     //TODO: reduce duplication
                     NavPage::Updates => {
@@ -1792,7 +1822,9 @@ impl Application for App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column).into()
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
                     }
                     //TODO: reduce duplication
                     nav_page => {
@@ -1830,7 +1862,9 @@ impl Application for App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column).into()
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
                     }
                 },
             },
