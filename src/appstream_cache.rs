@@ -18,7 +18,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{AppIcon, AppInfo};
+use crate::{stats, AppIcon, AppInfo};
 
 const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
@@ -530,12 +530,14 @@ impl AppstreamCache {
                                 }
 
                                 let id = component.id.to_string();
+                                let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
                                         origin_opt.map(|x| x.as_str()),
                                         component,
                                         locale,
+                                        monthly_downloads,
                                     )),
                                 ));
                             }
@@ -773,9 +775,15 @@ impl AppstreamCache {
                         }
 
                         let id = component.id.to_string();
+                        let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                         infos.push((
                             id,
-                            Arc::new(AppInfo::new(origin_opt.as_deref(), component, locale)),
+                            Arc::new(AppInfo::new(
+                                origin_opt.as_deref(),
+                                component,
+                                locale,
+                                monthly_downloads,
+                            )),
                         ));
                     }
                     Err(err) => {

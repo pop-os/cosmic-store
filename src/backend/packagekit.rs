@@ -193,6 +193,7 @@ impl Packagekit {
                     flatpak_refs: Vec::new(),
                     icons: Vec::new(),
                     screenshots: Vec::new(),
+                    monthly_downloads: 0,
                 }),
                 version: String::new(),
                 extra: HashMap::new(),

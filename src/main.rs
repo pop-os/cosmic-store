@@ -47,6 +47,8 @@ mod localize;
 use operation::{Operation, OperationKind};
 mod operation;
 
+mod stats;
+
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
@@ -140,7 +142,7 @@ pub struct Flags {
 pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
-    CategoryResults(&'static str, Vec<SearchResult>),
+    CategoryResults(Category, Vec<SearchResult>),
     Config(Config),
     DialogCancel,
     ExplorePage(Option<ExplorePage>),
@@ -189,6 +191,45 @@ impl ContextPage {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogPage {
     FailedOperation(u64),
+}
+
+// From https://specifications.freedesktop.org/menu-spec/latest/apa.html
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Category {
+    AudioVideo,
+    Development,
+    Education,
+    Game,
+    Graphics,
+    Network,
+    Office,
+    Science,
+    Settings,
+    System,
+    Utility,
+}
+
+impl Category {
+    fn id(&self) -> &'static str {
+        match self {
+            Self::AudioVideo => "AudioVideo",
+            Self::Development => "Development",
+            Self::Education => "Education",
+            Self::Game => "Game",
+            Self::Graphics => "Graphics",
+            Self::Network => "Network",
+            Self::Office => "Office",
+            Self::Science => "Science",
+            Self::Settings => "Settings",
+            Self::System => "System",
+            Self::Utility => "Utility",
+        }
+    }
+
+    fn title(&self) -> String {
+        //TODO: nice titles for categories
+        self.id().to_string()
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
@@ -241,21 +282,21 @@ impl NavPage {
     }
 
     // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
-    fn category(&self) -> Option<&'static str> {
+    fn category(&self) -> Option<Category> {
         match self {
             /*TODO: Categories:
             Science
             Settings
             System
             */
-            Self::Create => Some("Graphics"),
-            Self::Work => Some("Office"),
-            Self::Develop => Some("Development"),
-            Self::Learn => Some("Education"),
-            Self::Game => Some("Game"),
-            Self::Relax => Some("AudioVideo"),
-            Self::Socialize => Some("Network"),
-            Self::Utilities => Some("Utility"),
+            Self::Create => Some(Category::Graphics),
+            Self::Work => Some(Category::Office),
+            Self::Develop => Some(Category::Development),
+            Self::Learn => Some(Category::Education),
+            Self::Game => Some(Category::Game),
+            Self::Relax => Some(Category::AudioVideo),
+            Self::Socialize => Some(Category::Network),
+            Self::Utilities => Some(Category::Utility),
             _ => None,
         }
     }
@@ -362,7 +403,7 @@ pub struct SearchResult {
     id: String,
     icon: widget::icon::Handle,
     info: Arc<AppInfo>,
-    weight: usize,
+    weight: i64,
 }
 
 impl SearchResult {
@@ -425,12 +466,11 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
-    stats: Arc<Vec<(String, u64)>>,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
     waiting_installed: Vec<(&'static str, String)>,
     waiting_updates: Vec<(&'static str, String)>,
-    category_results: Option<(&'static str, Vec<SearchResult>)>,
+    category_results: Option<(Category, Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -490,7 +530,7 @@ impl App {
         self.pending_operations.insert(id, (operation, 0.0));
     }
 
-    fn generic_search<F: Fn(&str, &AppInfo) -> Option<usize> + Send + Sync>(
+    fn generic_search<F: Fn(&str, &AppInfo) -> Option<i64> + Send + Sync>(
         backends: &Backends,
         filter_map: F,
     ) -> Vec<SearchResult> {
@@ -528,21 +568,16 @@ impl App {
         results
     }
 
-    fn category(&self, category: &'static str) -> Command<Message> {
+    fn category(&self, category: Category) -> Command<Message> {
         let backends = self.backends.clone();
-        let stats = self.stats.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |id, info| {
+                    let results = Self::generic_search(&backends, |_id, info| {
                         //TODO: contains doesn't work due to type mismatch
-                        if info.categories.iter().any(|x| x == category) {
-                            let weight = stats
-                                .iter()
-                                .position(|(stats_id, _downloads)| match_id(stats_id, id))
-                                .unwrap_or(stats.len());
-                            Some(weight)
+                        if info.categories.iter().any(|x| x == category.id()) {
+                            Some(-(info.monthly_downloads as i64))
                         } else {
                             None
                         }
@@ -565,20 +600,18 @@ impl App {
 
     fn explore_results(&self, explore_page: ExplorePage) -> Command<Message> {
         let backends = self.backends.clone();
-        let stats = self.stats.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |id, _info| {
+                    let results = Self::generic_search(&backends, |id, info| {
                         //TODO: use explore_page
                         match explore_page {
                             ExplorePage::EditorsChoice => EDITORS_CHOICE
                                 .iter()
-                                .position(|choice_id| match_id(choice_id, &id)),
-                            ExplorePage::PopularApps => stats
-                                .iter()
-                                .position(|(stats_id, _downloads)| match_id(stats_id, id)),
+                                .position(|choice_id| match_id(choice_id, &id))
+                                .map(|x| x as i64),
+                            ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
                             _ => None,
                         }
                     });
@@ -612,19 +645,15 @@ impl App {
             }
         };
         let backends = self.backends.clone();
-        let stats = self.stats.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |id, info| {
+                    let results = Self::generic_search(&backends, |_id, info| {
                         //TODO: improve performance
-                        let stats_weight = |weight: usize| {
-                            weight * (stats.len() + 1)
-                                + stats
-                                    .iter()
-                                    .position(|(stats_id, _downloads)| match_id(stats_id, id))
-                                    .unwrap_or(stats.len())
+                        let stats_weight = |weight: i64| {
+                            //TODO: make sure no overflows
+                            (weight << 56) - (info.monthly_downloads as i64)
                         };
                         //TODO: fuzzy match (nucleus-matcher?)
                         match regex.find(&info.name) {
@@ -869,23 +898,6 @@ impl Application for App {
             }
         }
 
-        let stats = {
-            let start = Instant::now();
-            match bitcode::decode::<Vec<(String, u64)>>(include_bytes!(
-                "../res/flathub-stats-2024-03.bitcode-v0-6"
-            )) {
-                Ok(ok) => {
-                    let elapsed = start.elapsed();
-                    log::info!("loaded flathub statistics in {:?}", elapsed);
-                    Arc::new(ok)
-                }
-                Err(err) => {
-                    log::warn!("failed to load flathub statistics: {}", err);
-                    Arc::new(Vec::new())
-                }
-            }
-        };
-
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -904,7 +916,6 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
-            stats,
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),

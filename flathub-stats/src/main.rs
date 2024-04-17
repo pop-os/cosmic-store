@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let month = 3;
     let days = 31;
 
-    let mut ref_downloads = HashMap::new();
+    let mut ref_downloads = HashMap::<String, u64>::new();
     for day in 1..=days {
         let stats = stats(year, month, day).await?;
         for (id, archs) in stats.refs {
@@ -29,13 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let mut sorted = Vec::<(String, u64)>::new();
-    for (id, downloads) in ref_downloads {
-        sorted.push((id, downloads));
-    }
-    sorted.sort_by(|a, b| b.1.cmp(&a.1));
-
-    let bitcode = bitcode::encode(&sorted);
+    let bitcode = bitcode::encode(&ref_downloads);
     fs::write(
         format!("flathub-stats-{year}-{month:02}.bitcode-v0-6"),
         &bitcode,

@@ -120,10 +120,16 @@ pub struct AppInfo {
     pub flatpak_refs: Vec<String>,
     pub icons: Vec<AppIcon>,
     pub screenshots: Vec<AppScreenshot>,
+    pub monthly_downloads: u64,
 }
 
 impl AppInfo {
-    pub fn new(origin_opt: Option<&str>, component: Component, locale: &str) -> Self {
+    pub fn new(
+        origin_opt: Option<&str>,
+        component: Component,
+        locale: &str,
+        monthly_downloads: u64,
+    ) -> Self {
         let name = get_translatable(&component.name, locale);
         let summary = component
             .summary
@@ -214,6 +220,7 @@ impl AppInfo {
             flatpak_refs,
             icons,
             screenshots,
+            monthly_downloads,
         }
     }
 }
