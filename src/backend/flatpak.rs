@@ -145,6 +145,7 @@ impl Backend for Flatpak {
         Ok(packages)
     }
 
+    //TODO: ensure correct flatpak remote is chosen
     fn operation(
         &self,
         kind: OperationKind,
