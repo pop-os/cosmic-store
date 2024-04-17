@@ -8,6 +8,7 @@ use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 use super::{Backend, Package};
 use crate::{AppInfo, AppstreamCache, OperationKind, SYSTEM_ID};
 
+#[allow(dead_code)]
 struct TransactionPackage {
     info: u32,
     package_id: String,
@@ -74,6 +75,7 @@ enum FilterKind {
     Arch = 1 << 18,
 }
 
+#[allow(dead_code)]
 #[repr(u64)]
 enum TransactionFlag {
     None = 1 << 0,

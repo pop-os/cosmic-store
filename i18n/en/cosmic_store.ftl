@@ -6,11 +6,13 @@ no-installed-applications = No installed applications
 no-updates = No updates available
 no-results = No results for "{$search}"
 open = Open
+see-all = See all
 uninstall = Uninstall
 update = Update
 update-all = Update all
 
 # Nav Pages
+explore = Explore
 create = Create
 work = Work
 develop = Develop
@@ -21,6 +23,12 @@ socialize = Socialize
 utilities = Utilities
 installed-apps = Installed apps
 updates = Updates
+
+# Explore Pages
+editors-choice = Editor's Choice
+popular-apps = Popular Apps
+new-apps = New Apps
+recently-updated = Recently Updated
 
 # Context Pages
 

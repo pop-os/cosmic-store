@@ -36,7 +36,7 @@ mod backend;
 use config::{AppTheme, Config, CONFIG_VERSION};
 mod config;
 
-use icon_cache::icon_cache_get;
+use icon_cache::{icon_cache_handle, icon_cache_icon};
 mod icon_cache;
 
 use key_bind::{key_binds, KeyBind};
@@ -51,6 +51,20 @@ const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
 const SYSTEM_ID: &'static str = "__SYSTEM__";
+
+const EDITORS_CHOICE: &'static [&'static str] = &[
+    "com.slack.Slack.desktop",
+    "org.telegram.desktop",
+    "org.gnome.meld.desktop",
+    "com.valvesoftware.Steam",
+    "net.lutris.Lutris",
+    "com.mattermost.Desktop",
+    "com.visualstudio.code",
+    "com.spotify.Client",
+    "virt-manager.desktop",
+    "org.signal.Signal",
+    "org.chromium.Chromium",
+];
 
 /// Runs application with these settings
 #[rustfmt::skip]
@@ -124,6 +138,8 @@ pub enum Message {
     CategoryResults(&'static str, Vec<SearchResult>),
     Config(Config),
     DialogCancel,
+    ExplorePage(Option<ExplorePage>),
+    ExploreResults(ExplorePage, Vec<SearchResult>),
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
@@ -140,6 +156,7 @@ pub enum Message {
     SelectUpdates(usize),
     SelectNone,
     SelectCategoryResult(usize),
+    SelectExploreResult(ExplorePage, usize),
     SelectSearchResult(usize),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
@@ -169,8 +186,10 @@ pub enum DialogPage {
     FailedOperation(u64),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
 pub enum NavPage {
+    #[default]
+    Explore,
     Create,
     Work,
     Develop,
@@ -186,6 +205,7 @@ pub enum NavPage {
 impl NavPage {
     fn all() -> &'static [Self] {
         &[
+            Self::Explore,
             Self::Create,
             Self::Work,
             Self::Develop,
@@ -201,6 +221,7 @@ impl NavPage {
 
     fn title(&self) -> String {
         match self {
+            Self::Explore => fl!("explore"),
             Self::Create => fl!("create"),
             Self::Work => fl!("work"),
             Self::Develop => fl!("develop"),
@@ -236,16 +257,45 @@ impl NavPage {
 
     fn icon(&self) -> widget::icon::Icon {
         match self {
-            Self::Create => icon_cache_get("store-create-symbolic", 16),
-            Self::Work => icon_cache_get("store-work-symbolic", 16),
-            Self::Develop => icon_cache_get("store-develop-symbolic", 16),
-            Self::Learn => icon_cache_get("store-learn-symbolic", 16),
-            Self::Game => icon_cache_get("store-game-symbolic", 16),
-            Self::Relax => icon_cache_get("store-relax-symbolic", 16),
-            Self::Socialize => icon_cache_get("store-socialize-symbolic", 16),
-            Self::Utilities => icon_cache_get("store-utilities-symbolic", 16),
-            Self::Installed => icon_cache_get("store-installed-symbolic", 16),
-            Self::Updates => icon_cache_get("store-updates-symbolic", 16),
+            Self::Explore => icon_cache_icon("store-home-symbolic", 16),
+            Self::Create => icon_cache_icon("store-create-symbolic", 16),
+            Self::Work => icon_cache_icon("store-work-symbolic", 16),
+            Self::Develop => icon_cache_icon("store-develop-symbolic", 16),
+            Self::Learn => icon_cache_icon("store-learn-symbolic", 16),
+            Self::Game => icon_cache_icon("store-game-symbolic", 16),
+            Self::Relax => icon_cache_icon("store-relax-symbolic", 16),
+            Self::Socialize => icon_cache_icon("store-socialize-symbolic", 16),
+            Self::Utilities => icon_cache_icon("store-utilities-symbolic", 16),
+            Self::Installed => icon_cache_icon("store-installed-symbolic", 16),
+            Self::Updates => icon_cache_icon("store-updates-symbolic", 16),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ExplorePage {
+    EditorsChoice,
+    PopularApps,
+    NewApps,
+    RecentlyUpdated,
+}
+
+impl ExplorePage {
+    fn all() -> &'static [Self] {
+        &[
+            Self::EditorsChoice,
+            Self::PopularApps,
+            Self::NewApps,
+            Self::RecentlyUpdated,
+        ]
+    }
+
+    fn title(&self) -> String {
+        match self {
+            Self::EditorsChoice => fl!("editors-choice"),
+            Self::PopularApps => fl!("popular-apps"),
+            Self::NewApps => fl!("new-apps"),
+            Self::RecentlyUpdated => fl!("recently-updated"),
         }
     }
 }
@@ -361,6 +411,7 @@ pub struct App {
     backends: Backends,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
+    explore_page_opt: Option<ExplorePage>,
     key_binds: HashMap<KeyBind, Action>,
     nav_model: widget::nav_bar::Model,
     pending_operation_id: u64,
@@ -375,6 +426,7 @@ pub struct App {
     waiting_installed: Vec<(&'static str, String)>,
     waiting_updates: Vec<(&'static str, String)>,
     category_results: Option<(&'static str, Vec<SearchResult>)>,
+    explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
@@ -433,6 +485,37 @@ impl App {
         self.pending_operations.insert(id, (operation, 0.0));
     }
 
+    fn generic_search<F: Fn(&str, &AppInfo) -> Option<usize> + Send + Sync>(
+        backends: &Backends,
+        filter_map: F,
+    ) -> Vec<SearchResult> {
+        let mut results = Vec::<SearchResult>::new();
+        //TODO: par_iter?
+        for (backend_name, backend) in backends.iter() {
+            let appstream_cache = backend.info_cache();
+            let mut backend_results = appstream_cache
+                .infos
+                .par_iter()
+                .filter_map(|(id, info)| {
+                    let weight = filter_map(id, info)?;
+                    Some(SearchResult {
+                        backend_name,
+                        id: id.clone(),
+                        icon: appstream_cache.icon(info),
+                        info: info.clone(),
+                        weight,
+                    })
+                })
+                .collect();
+            results.append(&mut backend_results);
+        }
+        results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+            cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name),
+            ordering => ordering,
+        });
+        results
+    }
+
     fn category(&self, category: &'static str) -> Command<Message> {
         let backends = self.backends.clone();
         let stats = self.stats.clone();
@@ -440,43 +523,61 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let mut results = Vec::<SearchResult>::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let appstream_cache = backend.info_cache();
-                        let mut backend_results = appstream_cache
-                            .infos
-                            .par_iter()
-                            .filter_map(|(id, info)| {
-                                //TODO: contains doesn't work due to type mismatch
-                                if info.categories.iter().any(|x| x == category) {
-                                    let weight = stats
-                                        .iter()
-                                        .position(|(stats_id, _downloads)| stats_id == id)
-                                        .unwrap_or(stats.len());
-                                    Some(SearchResult {
-                                        backend_name,
-                                        id: id.clone(),
-                                        icon: appstream_cache.icon(info),
-                                        info: info.clone(),
-                                        weight,
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        results.append(&mut backend_results);
-                    }
-                    results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                        cmp::Ordering::Equal => {
-                            lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name)
+                    let results = Self::generic_search(&backends, |id, info| {
+                        //TODO: contains doesn't work due to type mismatch
+                        if info.categories.iter().any(|x| x == category) {
+                            let weight = stats
+                                .iter()
+                                .position(|(stats_id, _downloads)| stats_id == id)
+                                .unwrap_or(stats.len());
+                            Some(weight)
+                        } else {
+                            None
                         }
-                        ordering => ordering,
                     });
                     let duration = start.elapsed();
-                    log::info!("searched for category {:?} in {:?}", category, duration);
+                    log::info!(
+                        "searched for category {:?} in {:?}, found {} results",
+                        category,
+                        duration,
+                        results.len()
+                    );
                     message::app(Message::CategoryResults(category, results))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn explore_results(&self, explore_page: ExplorePage) -> Command<Message> {
+        let backends = self.backends.clone();
+        let stats = self.stats.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let results = Self::generic_search(&backends, |id, _info| {
+                        //TODO: use explore_page
+                        match explore_page {
+                            ExplorePage::EditorsChoice => {
+                                EDITORS_CHOICE.iter().position(|choice_id| choice_id == &id)
+                            }
+                            ExplorePage::PopularApps => stats
+                                .iter()
+                                .position(|(stats_id, _downloads)| stats_id == id),
+                            _ => None,
+                        }
+                    });
+                    let duration = start.elapsed();
+                    log::info!(
+                        "searched for {:?} in {:?}, found {} results",
+                        explore_page,
+                        duration,
+                        results.len()
+                    );
+                    message::app(Message::ExploreResults(explore_page, results))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -503,87 +604,65 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let mut results = Vec::<SearchResult>::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let appstream_cache = backend.info_cache();
-                        let mut backend_results = appstream_cache
-                            .infos
-                            .par_iter()
-                            .filter_map(|(id, info)| {
-                                //TODO: fuzzy match (nucleus-matcher?)
-                                let weight_opt = match regex.find(&info.name) {
+                    let results = Self::generic_search(&backends, |_id, info| {
+                        //TODO: fuzzy match (nucleus-matcher?)
+                        match regex.find(&info.name) {
+                            Some(mat) => {
+                                if mat.range().start == 0 {
+                                    if mat.range().end == info.name.len() {
+                                        // Name equals search phrase
+                                        Some(0)
+                                    } else {
+                                        // Name starts with search phrase
+                                        Some(1)
+                                    }
+                                } else {
+                                    // Name contains search phrase
+                                    Some(2)
+                                }
+                            }
+                            None => match regex.find(&info.summary) {
+                                Some(mat) => {
+                                    if mat.range().start == 0 {
+                                        if mat.range().end == info.summary.len() {
+                                            // Summary equals search phrase
+                                            Some(3)
+                                        } else {
+                                            // Summary starts with search phrase
+                                            Some(4)
+                                        }
+                                    } else {
+                                        // Summary contains search phrase
+                                        Some(5)
+                                    }
+                                }
+                                None => match regex.find(&info.description) {
                                     Some(mat) => {
                                         if mat.range().start == 0 {
-                                            if mat.range().end == info.name.len() {
-                                                // Name equals search phrase
-                                                Some(0)
+                                            if mat.range().end == info.summary.len() {
+                                                // Description equals search phrase
+                                                Some(6)
                                             } else {
-                                                // Name starts with search phrase
-                                                Some(1)
+                                                // Description starts with search phrase
+                                                Some(7)
                                             }
                                         } else {
-                                            // Name contains search phrase
-                                            Some(2)
+                                            // Description contains search phrase
+                                            Some(8)
                                         }
                                     }
-                                    None => match regex.find(&info.summary) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == info.summary.len() {
-                                                    // Summary equals search phrase
-                                                    Some(3)
-                                                } else {
-                                                    // Summary starts with search phrase
-                                                    Some(4)
-                                                }
-                                            } else {
-                                                // Summary contains search phrase
-                                                Some(5)
-                                            }
-                                        }
-                                        None => match regex.find(&info.description) {
-                                            Some(mat) => {
-                                                if mat.range().start == 0 {
-                                                    if mat.range().end == info.summary.len() {
-                                                        // Description equals search phrase
-                                                        Some(6)
-                                                    } else {
-                                                        // Description starts with search phrase
-                                                        Some(7)
-                                                    }
-                                                } else {
-                                                    // Description contains search phrase
-                                                    Some(8)
-                                                }
-                                            }
-                                            None => None,
-                                        },
-                                    },
-                                };
-                                if let Some(weight) = weight_opt {
-                                    Some(SearchResult {
-                                        backend_name,
-                                        id: id.clone(),
-                                        icon: appstream_cache.icon(info),
-                                        info: info.clone(),
-                                        weight,
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        results.append(&mut backend_results);
-                    }
-                    results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-                        cmp::Ordering::Equal => {
-                            lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name)
+                                    None => None,
+                                },
+                            },
                         }
-                        ordering => ordering,
                     });
                     let duration = start.elapsed();
-                    log::info!("searched for {:?} in {:?}", input, duration);
+                    log::info!(
+                        "searched for {:?} in {:?}, found {} results",
+                        input,
+                        duration,
+                        results.len()
+                    );
                     message::app(Message::SearchResults(input, results))
                 })
                 .await
@@ -763,9 +842,8 @@ impl Application for App {
                 .text(nav_page.title())
                 .data::<NavPage>(nav_page)
                 .id();
-            if nav_page == NavPage::Installed {
-                // Activate installed page by default
-                //TODO: different default page, save last page?
+            if nav_page == NavPage::default() {
+                //TODO: save last page?
                 nav_model.activate(id);
             }
         }
@@ -796,6 +874,7 @@ impl Application for App {
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
+            explore_page_opt: None,
             key_binds: key_binds(),
             nav_model,
             pending_operation_id: 0,
@@ -810,6 +889,7 @@ impl Application for App {
             waiting_installed: Vec::new(),
             waiting_updates: Vec::new(),
             category_results: None,
+            explore_results: HashMap::new(),
             search_results: None,
             selected_opt: None,
         };
@@ -836,6 +916,7 @@ impl Application for App {
 
     fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Command<Message> {
         self.category_results = None;
+        self.explore_page_opt = None;
         self.search_active = false;
         self.search_results = None;
         self.selected_opt = None;
@@ -887,7 +968,13 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                return Command::batch([self.update_installed(), self.update_updates()]);
+                return Command::batch([
+                    self.update_installed(),
+                    self.update_updates(),
+                    self.explore_results(ExplorePage::EditorsChoice),
+                    self.explore_results(ExplorePage::PopularApps),
+                    //TODO: add more explore pages
+                ]);
             }
             Message::CategoryResults(category, results) => {
                 self.category_results = Some((category, results));
@@ -902,6 +989,12 @@ impl Application for App {
             }
             Message::DialogCancel => {
                 self.dialog_pages.pop_front();
+            }
+            Message::ExplorePage(explore_page_opt) => {
+                self.explore_page_opt = explore_page_opt;
+            }
+            Message::ExploreResults(explore_page, results) => {
+                self.explore_results.insert(explore_page, results);
             }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
@@ -990,6 +1083,7 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
+                            log::info!("selected {:?}", package.id);
                             self.selected_opt = Some(Selected {
                                 backend_name,
                                 id: package.id,
@@ -1015,6 +1109,7 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
+                            log::info!("selected {:?}", package.id);
                             self.selected_opt = Some(Selected {
                                 backend_name,
                                 id: package.id,
@@ -1037,6 +1132,7 @@ impl Application for App {
                 if let Some((_category, results)) = &self.category_results {
                     match results.get(result_i) {
                         Some(result) => {
+                            log::info!("selected {:?}", result.id);
                             self.selected_opt = Some(Selected {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
@@ -1052,10 +1148,35 @@ impl Application for App {
                     }
                 }
             }
+            Message::SelectExploreResult(explore_page, result_i) => {
+                if let Some(results) = self.explore_results.get(&explore_page) {
+                    match results.get(result_i) {
+                        Some(result) => {
+                            log::info!("selected {:?}", result.id);
+                            self.selected_opt = Some(Selected {
+                                backend_name: result.backend_name,
+                                id: result.id.clone(),
+                                icon: result.icon.clone(),
+                                info: result.info.clone(),
+                                screenshot_images: HashMap::new(),
+                                screenshot_shown: 0,
+                            })
+                        }
+                        None => {
+                            log::error!(
+                                "failed to find {:?} result with index {}",
+                                explore_page,
+                                result_i
+                            );
+                        }
+                    }
+                }
+            }
             Message::SelectSearchResult(result_i) => {
                 if let Some((_input, results)) = &self.search_results {
                     match results.get(result_i) {
                         Some(result) => {
+                            log::info!("selected {:?}", result.id);
                             self.selected_opt = Some(Selected {
                                 backend_name: result.backend_name,
                                 id: result.id.clone(),
@@ -1405,169 +1526,255 @@ impl Application for App {
                 None => match self
                     .nav_model
                     .active_data::<NavPage>()
-                    .map_or(NavPage::Installed, |nav_page| *nav_page)
+                    .map_or(NavPage::default(), |nav_page| *nav_page)
                 {
-                    NavPage::Installed => match &self.installed {
-                        Some(installed) => {
+                    NavPage::Explore => match self.explore_page_opt {
+                        Some(explore_page) => {
                             let mut column = widget::column::with_capacity(2)
                                 .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
-                            if installed.is_empty() {
-                                column =
-                                    column.push(widget::text(fl!("no-installed-applications")));
-                            } else {
-                                column = column.align_items(Alignment::Center);
-                            }
-                            let mut flex_row = Vec::with_capacity(installed.len());
-                            for (installed_i, (_backend_name, package)) in
-                                installed.iter().enumerate()
-                            {
-                                flex_row.push(
-                                    widget::mouse_area(package.card_view(vec![], &spacing))
-                                        .on_press(Message::SelectInstalled(installed_i))
-                                        .into(),
-                                );
-                            }
                             column = column.push(
-                                widget::flex_row(flex_row)
-                                    .column_spacing(space_xxs)
-                                    .row_spacing(space_xxs),
+                                widget::button::text(NavPage::Explore.title())
+                                    .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                                    .on_press(Message::ExplorePage(None)),
                             );
-                            widget::scrollable(column).into()
-                        }
-                        None => {
-                            let mut column = widget::column::with_capacity(1)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            //TODO: translate
-                            column = column.push(widget::text("Loading"));
-                            widget::scrollable(column).into()
-                        }
-                    },
-                    //TODO: reduce duplication
-                    NavPage::Updates => match &self.updates {
-                        Some(updates) => {
-                            let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            if updates.is_empty() {
-                                column = column.push(widget::text(fl!("no-updates")));
-                            } else {
-                                column = column.align_items(Alignment::Center);
-                                column = column.push(widget::row::with_children(vec![
-                                    widget::button::standard(fl!("update-all"))
-                                        .on_press(Message::UpdateAll)
-                                        .into(),
-                                    widget::horizontal_space(Length::Fill).into(),
-                                ]));
-                            }
-                            let mut flex_row = Vec::with_capacity(updates.len());
-                            for (updates_i, (backend_name, package)) in updates.iter().enumerate() {
-                                let mut waiting_refresh = false;
-                                for (other_backend_name, package_id) in self
-                                    .waiting_installed
-                                    .iter()
-                                    .chain(self.waiting_updates.iter())
-                                {
-                                    if other_backend_name == backend_name
-                                        && package_id == &package.id
-                                    {
-                                        waiting_refresh = true;
-                                        break;
-                                    }
-                                }
-                                let mut progress_opt = None;
-                                for (_id, (op, progress)) in self.pending_operations.iter() {
-                                    if &op.backend_name == backend_name
-                                        && op.package_id == package.id
-                                    {
-                                        progress_opt = Some(*progress);
-                                        break;
-                                    }
-                                }
-                                let controls = if let Some(progress) = progress_opt {
-                                    vec![widget::progress_bar(0.0..=100.0, progress)
-                                        .height(Length::Fixed(4.0))
-                                        .into()]
-                                } else if waiting_refresh {
-                                    vec![]
-                                } else {
-                                    vec![widget::button::standard(fl!("update"))
-                                        .on_press(Message::Operation(
-                                            OperationKind::Update,
-                                            backend_name,
-                                            package.id.clone(),
-                                            package.info.clone(),
-                                        ))
-                                        .into()]
-                                };
-                                flex_row.push(
-                                    widget::mouse_area(package.card_view(controls, &spacing))
-                                        .on_press(Message::SelectUpdates(updates_i))
-                                        .into(),
-                                );
-                            }
-                            column = column.push(
-                                widget::flex_row(flex_row)
-                                    .column_spacing(space_xxs)
-                                    .row_spacing(space_xxs),
-                            );
-                            widget::scrollable(column).into()
-                        }
-                        None => {
-                            let mut column = widget::column::with_capacity(1)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            //TODO: translate
-                            column = column.push(widget::text("Loading"));
-                            widget::scrollable(column).into()
-                        }
-                    },
-                    //TODO: reduce duplication
-                    _ => match &self.category_results {
-                        Some((category, results)) => {
-                            //TODO: paging or dynamic load
-                            let results_len = cmp::min(results.len(), 256);
+                            column = column.push(widget::text::title4(explore_page.title()));
+                            //TODO: ensure explore_page matches
+                            match self.explore_results.get(&explore_page) {
+                                Some(results) => {
+                                    //TODO: paging or dynamic load
+                                    let results_len = cmp::min(results.len(), 256);
 
-                            let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            //TODO: back button?
-                            if results.is_empty() {
-                                //TODO: no results message?
-                            } else {
-                                column = column.align_items(Alignment::Center);
+                                    if results.is_empty() {
+                                        //TODO: no results message?
+                                    }
+                                    let mut flex_row = Vec::with_capacity(results_len);
+                                    for (result_i, result) in
+                                        results.iter().take(results_len).enumerate()
+                                    {
+                                        flex_row.push(
+                                            widget::mouse_area(result.card_view(&spacing))
+                                                .on_press(Message::SelectExploreResult(
+                                                    explore_page,
+                                                    result_i,
+                                                ))
+                                                .into(),
+                                        );
+                                    }
+                                    column = column.push(
+                                        widget::flex_row(flex_row)
+                                            .column_spacing(space_xxs)
+                                            .row_spacing(space_xxs),
+                                    );
+                                }
+                                None => {
+                                    //TODO: loading message?
+                                }
                             }
-                            let mut flex_row = Vec::with_capacity(results_len);
-                            for (result_i, result) in results.iter().take(results_len).enumerate() {
-                                flex_row.push(
-                                    widget::mouse_area(result.card_view(&spacing))
-                                        .on_press(Message::SelectCategoryResult(result_i))
-                                        .into(),
-                                );
-                            }
-                            column = column.push(
-                                widget::flex_row(flex_row)
-                                    .column_spacing(space_xxs)
-                                    .row_spacing(space_xxs),
-                            );
                             widget::scrollable(column).into()
                         }
                         None => {
-                            let mut column = widget::column::with_capacity(1)
+                            let explore_pages = ExplorePage::all();
+                            let mut column = widget::column::with_capacity(explore_pages.len() * 2)
                                 .padding([0, space_s])
                                 .spacing(space_xxs)
                                 .width(Length::Fill);
-                            //TODO: translate
-                            column = column.push(widget::text("Loading"));
+                            for explore_page in explore_pages.iter() {
+                                column = column.push(widget::row::with_children(vec![
+                                    widget::text::title4(explore_page.title()).into(),
+                                    widget::horizontal_space(Length::Fill).into(),
+                                    widget::button::text(fl!("see-all"))
+                                        .trailing_icon(icon_cache_handle("go-next-symbolic", 16))
+                                        .on_press(Message::ExplorePage(Some(*explore_page)))
+                                        .into(),
+                                ]));
+                                //TODO: ensure explore_page matches
+                                match self.explore_results.get(&explore_page) {
+                                    Some(results) => {
+                                        let results_len = cmp::min(results.len(), 8);
+
+                                        if results.is_empty() {
+                                            //TODO: no results message?
+                                        }
+                                        let mut flex_row = Vec::with_capacity(results_len);
+                                        for (result_i, result) in
+                                            results.iter().take(results_len).enumerate()
+                                        {
+                                            flex_row.push(
+                                                widget::mouse_area(result.card_view(&spacing))
+                                                    .on_press(Message::SelectExploreResult(
+                                                        *explore_page,
+                                                        result_i,
+                                                    ))
+                                                    .into(),
+                                            );
+                                        }
+                                        column = column.push(
+                                            widget::flex_row(flex_row)
+                                                .column_spacing(space_xxs)
+                                                .row_spacing(space_xxs),
+                                        );
+                                    }
+                                    None => {
+                                        //TODO: loading message?
+                                    }
+                                }
+                            }
                             widget::scrollable(column).into()
                         }
                     },
+                    NavPage::Installed => {
+                        let mut column = widget::column::with_capacity(3)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title4(NavPage::Installed.title()));
+                        match &self.installed {
+                            Some(installed) => {
+                                if installed.is_empty() {
+                                    column =
+                                        column.push(widget::text(fl!("no-installed-applications")));
+                                }
+                                let mut flex_row = Vec::with_capacity(installed.len());
+                                for (installed_i, (_backend_name, package)) in
+                                    installed.iter().enumerate()
+                                {
+                                    flex_row.push(
+                                        widget::mouse_area(package.card_view(vec![], &spacing))
+                                            .on_press(Message::SelectInstalled(installed_i))
+                                            .into(),
+                                    );
+                                }
+                                column = column.push(
+                                    widget::flex_row(flex_row)
+                                        .column_spacing(space_xxs)
+                                        .row_spacing(space_xxs),
+                                );
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column).into()
+                    }
+                    //TODO: reduce duplication
+                    NavPage::Updates => {
+                        let mut column = widget::column::with_capacity(3)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title4(NavPage::Updates.title()));
+                        match &self.updates {
+                            Some(updates) => {
+                                if updates.is_empty() {
+                                    column = column.push(widget::text(fl!("no-updates")));
+                                } else {
+                                    column = column.push(widget::row::with_children(vec![
+                                        widget::button::standard(fl!("update-all"))
+                                            .on_press(Message::UpdateAll)
+                                            .into(),
+                                        widget::horizontal_space(Length::Fill).into(),
+                                    ]));
+                                }
+                                let mut flex_row = Vec::with_capacity(updates.len());
+                                for (updates_i, (backend_name, package)) in
+                                    updates.iter().enumerate()
+                                {
+                                    let mut waiting_refresh = false;
+                                    for (other_backend_name, package_id) in self
+                                        .waiting_installed
+                                        .iter()
+                                        .chain(self.waiting_updates.iter())
+                                    {
+                                        if other_backend_name == backend_name
+                                            && package_id == &package.id
+                                        {
+                                            waiting_refresh = true;
+                                            break;
+                                        }
+                                    }
+                                    let mut progress_opt = None;
+                                    for (_id, (op, progress)) in self.pending_operations.iter() {
+                                        if &op.backend_name == backend_name
+                                            && op.package_id == package.id
+                                        {
+                                            progress_opt = Some(*progress);
+                                            break;
+                                        }
+                                    }
+                                    let controls = if let Some(progress) = progress_opt {
+                                        vec![widget::progress_bar(0.0..=100.0, progress)
+                                            .height(Length::Fixed(4.0))
+                                            .into()]
+                                    } else if waiting_refresh {
+                                        vec![]
+                                    } else {
+                                        vec![widget::button::standard(fl!("update"))
+                                            .on_press(Message::Operation(
+                                                OperationKind::Update,
+                                                backend_name,
+                                                package.id.clone(),
+                                                package.info.clone(),
+                                            ))
+                                            .into()]
+                                    };
+                                    flex_row.push(
+                                        widget::mouse_area(package.card_view(controls, &spacing))
+                                            .on_press(Message::SelectUpdates(updates_i))
+                                            .into(),
+                                    );
+                                }
+                                column = column.push(
+                                    widget::flex_row(flex_row)
+                                        .column_spacing(space_xxs)
+                                        .row_spacing(space_xxs),
+                                );
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column).into()
+                    }
+                    //TODO: reduce duplication
+                    nav_page => {
+                        let mut column = widget::column::with_capacity(2)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title4(nav_page.title()));
+                        //TODO: ensure category matches?
+                        match &self.category_results {
+                            Some((_category, results)) => {
+                                //TODO: paging or dynamic load
+                                let results_len = cmp::min(results.len(), 256);
+
+                                if results.is_empty() {
+                                    //TODO: no results message?
+                                }
+                                let mut flex_row = Vec::with_capacity(results_len);
+                                for (result_i, result) in
+                                    results.iter().take(results_len).enumerate()
+                                {
+                                    flex_row.push(
+                                        widget::mouse_area(result.card_view(&spacing))
+                                            .on_press(Message::SelectCategoryResult(result_i))
+                                            .into(),
+                                    );
+                                }
+                                column = column.push(
+                                    widget::flex_row(flex_row)
+                                        .column_spacing(space_xxs)
+                                        .row_spacing(space_xxs),
+                                );
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column).into()
+                    }
                 },
             },
         };
