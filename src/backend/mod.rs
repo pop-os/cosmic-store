@@ -21,7 +21,7 @@ pub struct Package {
 
 pub trait Backend: fmt::Debug + Send + Sync {
     fn load_caches(&mut self) -> Result<(), Box<dyn Error>>;
-    fn info_caches(&self) -> &[(String, AppstreamCache)];
+    fn info_caches(&self) -> &[AppstreamCache];
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn operation(

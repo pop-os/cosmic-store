@@ -468,8 +468,8 @@ pub struct App {
     search_input: String,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
-    waiting_installed: Vec<(&'static str, String)>,
-    waiting_updates: Vec<(&'static str, String)>,
+    waiting_installed: Vec<(&'static str, String, String)>,
+    waiting_updates: Vec<(&'static str, String, String)>,
     category_results: Option<(Category, Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
@@ -538,7 +538,7 @@ impl App {
         //TODO: par_iter?
         for (backend_name, backend) in backends.iter() {
             //TODO: par_iter?
-            for (_cache_name, appstream_cache) in backend.info_caches() {
+            for appstream_cache in backend.info_caches() {
                 let mut backend_results = appstream_cache
                     .infos
                     .par_iter()
@@ -1054,10 +1054,16 @@ impl Application for App {
             }
             Message::PendingComplete(id) => {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
-                    self.waiting_installed
-                        .push((op.backend_name, op.package_id.clone()));
-                    self.waiting_updates
-                        .push((op.backend_name, op.package_id.clone()));
+                    self.waiting_installed.push((
+                        op.backend_name,
+                        op.info.source_id.clone(),
+                        op.package_id.clone(),
+                    ));
+                    self.waiting_updates.push((
+                        op.backend_name,
+                        op.info.source_id.clone(),
+                        op.package_id.clone(),
+                    ));
                     //TODO: self.complete_operations.insert(id, op);
                 }
                 return Command::batch([self.update_installed(), self.update_updates()]);
@@ -1361,12 +1367,14 @@ impl Application for App {
             Some(selected) => {
                 //TODO: more efficient checks
                 let mut waiting_refresh = false;
-                for (backend_name, package_id) in self
+                for (backend_name, source_id, package_id) in self
                     .waiting_installed
                     .iter()
                     .chain(self.waiting_updates.iter())
                 {
-                    if backend_name == &selected.backend_name && match_id(package_id, &selected.id)
+                    if backend_name == &selected.backend_name
+                        && source_id == &selected.info.source_id
+                        && match_id(package_id, &selected.id)
                     {
                         waiting_refresh = true;
                         break;
@@ -1376,6 +1384,7 @@ impl Application for App {
                 if let Some(installed) = &self.installed {
                     for (backend_name, package) in installed {
                         if backend_name == &selected.backend_name
+                            && &package.info.source_id == &selected.info.source_id
                             && match_id(&package.id, &selected.id)
                         {
                             is_installed = true;
@@ -1387,6 +1396,7 @@ impl Application for App {
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
                         if backend_name == &selected.backend_name
+                            && &package.info.source_id == &selected.info.source_id
                             && match_id(&package.id, &selected.id)
                         {
                             update_opt = Some(Message::Operation(
@@ -1402,6 +1412,7 @@ impl Application for App {
                 let mut progress_opt = None;
                 for (_id, (op, progress)) in self.pending_operations.iter() {
                     if op.backend_name == selected.backend_name
+                        && &op.info.source_id == &selected.info.source_id
                         && match_id(&op.package_id, &selected.id)
                     {
                         progress_opt = Some(*progress);
@@ -1726,12 +1737,13 @@ impl Application for App {
                                     updates.iter().enumerate()
                                 {
                                     let mut waiting_refresh = false;
-                                    for (other_backend_name, package_id) in self
+                                    for (other_backend_name, source_id, package_id) in self
                                         .waiting_installed
                                         .iter()
                                         .chain(self.waiting_updates.iter())
                                     {
                                         if other_backend_name == backend_name
+                                            && source_id == &package.info.source_id
                                             && match_id(package_id, &package.id)
                                         {
                                             waiting_refresh = true;
@@ -1741,6 +1753,7 @@ impl Application for App {
                                     let mut progress_opt = None;
                                     for (_id, (op, progress)) in self.pending_operations.iter() {
                                         if &op.backend_name == backend_name
+                                            && &op.info.source_id == &package.info.source_id
                                             && match_id(&op.package_id, &package.id)
                                         {
                                             progress_opt = Some(*progress);

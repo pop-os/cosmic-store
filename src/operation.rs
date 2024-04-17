@@ -26,10 +26,13 @@ impl Operation {
             OperationKind::Update => "update",
         };
         (
-            format!("Failed to {verb} {}", self.info.name),
             format!(
-                "Failed to {verb} {} ({}):\n{err}",
-                self.info.name, self.package_id
+                "Failed to {verb} {} from {}",
+                self.info.name, self.info.source_name
+            ),
+            format!(
+                "Failed to {verb} {} ({}) from {} ({}):\n{err}",
+                self.info.name, self.package_id, self.info.source_name, self.info.source_id
             ),
         )
     }

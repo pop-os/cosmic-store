@@ -43,6 +43,7 @@ pub struct AppstreamCacheTag {
 
 #[derive(Debug, Default, bitcode::Decode, bitcode::Encode)]
 pub struct AppstreamCache {
+    pub source_id: String,
     pub source_name: String,
     // Uses btreemap for stable sort order
     pub path_tags: BTreeMap<String, AppstreamCacheTag>,
@@ -55,12 +56,14 @@ pub struct AppstreamCache {
 impl AppstreamCache {
     /// Get cache for specified appstream data sources
     pub fn new(
+        source_id: String,
         source_name: String,
         paths: Vec<PathBuf>,
         icons_paths: Vec<String>,
         locale: &str,
     ) -> Self {
         let mut cache = Self::default();
+        cache.source_id = source_id;
         cache.source_name = source_name;
         cache.icons_paths = icons_paths;
         cache.locale = locale.to_string();
@@ -117,7 +120,7 @@ impl AppstreamCache {
     }
 
     /// Get cache for system appstream data sources
-    pub fn system(locale: &str) -> Self {
+    pub fn system(source_id: String, source_name: String, locale: &str) -> Self {
         let mut paths = Vec::new();
         let mut icons_paths = Vec::new();
         //TODO: get using xdg dirs?
@@ -176,7 +179,7 @@ impl AppstreamCache {
             }
         }
 
-        AppstreamCache::new("System".to_string(), paths, icons_paths, locale)
+        AppstreamCache::new(source_id, source_name, paths, icons_paths, locale)
     }
 
     /// Directory where cache should be stored
@@ -435,11 +438,12 @@ impl AppstreamCache {
     }
 
     /// Either load from cache or load from originals. Cache is cleaned before loading and saved after.
-    pub fn reload(&mut self, cache_name: &str) {
-        self.clean_cache(cache_name);
-        if !self.load_cache(cache_name) {
+    pub fn reload(&mut self) {
+        let source_id = self.source_id.clone();
+        self.clean_cache(&source_id);
+        if !self.load_cache(&source_id) {
             self.load_original();
-            self.save_cache(cache_name);
+            self.save_cache(&source_id);
         }
     }
 
@@ -572,6 +576,7 @@ impl AppstreamCache {
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
+                                        &self.source_id,
                                         &self.source_name,
                                         origin_opt.map(|x| x.as_str()),
                                         component,
@@ -815,6 +820,7 @@ impl AppstreamCache {
                         infos.push((
                             id,
                             Arc::new(AppInfo::new(
+                                &self.source_id,
                                 &self.source_name,
                                 origin_opt.as_deref(),
                                 component,

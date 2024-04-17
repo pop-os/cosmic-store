@@ -112,6 +112,7 @@ pub struct AppScreenshot {
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
+    pub source_id: String,
     pub source_name: String,
     pub origin_opt: Option<String>,
     pub name: String,
@@ -128,6 +129,7 @@ pub struct AppInfo {
 
 impl AppInfo {
     pub fn new(
+        source_id: &str,
         source_name: &str,
         origin_opt: Option<&str>,
         component: Component,
@@ -230,6 +232,7 @@ impl AppInfo {
         }
 
         Self {
+            source_id: source_id.to_string(),
             source_name: source_name.to_string(),
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),

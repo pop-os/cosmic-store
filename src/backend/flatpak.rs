@@ -11,7 +11,7 @@ use crate::{AppInfo, AppstreamCache, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
-    appstream_caches: Vec<(String, AppstreamCache)>,
+    appstream_caches: Vec<AppstreamCache>,
 }
 
 impl Flatpak {
@@ -21,7 +21,7 @@ impl Flatpak {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            let cache_name = match remote.name() {
+            let source_id = match remote.name() {
                 Some(some) => some.to_string(),
                 None => {
                     log::warn!("remote {:?} missing name", remote);
@@ -61,11 +61,14 @@ impl Flatpak {
 
             let source_name = match remote.title() {
                 Some(title) => title.to_string(),
-                None => cache_name.clone(),
+                None => source_id.clone(),
             };
-            appstream_caches.push((
-                cache_name,
-                AppstreamCache::new(source_name, paths, icons_paths, locale),
+            appstream_caches.push(AppstreamCache::new(
+                source_id,
+                source_name,
+                paths,
+                icons_paths,
+                locale,
             ));
         }
 
@@ -76,8 +79,8 @@ impl Flatpak {
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
         let id = r.name()?;
         let origin = r.origin()?;
-        for (cache_name, appstream_cache) in self.appstream_caches.iter() {
-            if cache_name != &origin {
+        for appstream_cache in self.appstream_caches.iter() {
+            if &appstream_cache.source_id != &origin {
                 // Only show items from correct cache
                 continue;
             }
@@ -107,13 +110,13 @@ impl Flatpak {
 
 impl Backend for Flatpak {
     fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
-        for (cache_name, appstream_cache) in self.appstream_caches.iter_mut() {
-            appstream_cache.reload(cache_name);
+        for appstream_cache in self.appstream_caches.iter_mut() {
+            appstream_cache.reload();
         }
         Ok(())
     }
 
-    fn info_caches(&self) -> &[(String, AppstreamCache)] {
+    fn info_caches(&self) -> &[AppstreamCache] {
         &self.appstream_caches
     }
 
@@ -145,7 +148,6 @@ impl Backend for Flatpak {
         Ok(packages)
     }
 
-    //TODO: ensure correct flatpak remote is chosen
     fn operation(
         &self,
         kind: OperationKind,
@@ -203,6 +205,9 @@ impl Backend for Flatpak {
                         let Some(remote_name) = remote.name() else {
                             continue;
                         };
+                        if remote_name != info.source_id {
+                            continue;
+                        }
                         match inst.fetch_remote_ref_sync(
                             &remote_name,
                             r.kind(),

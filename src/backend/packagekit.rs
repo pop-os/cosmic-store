@@ -87,16 +87,23 @@ enum TransactionFlag {
 #[derive(Debug)]
 pub struct Packagekit {
     connection: Connection,
-    appstream_caches: Vec<(String, AppstreamCache)>,
+    appstream_caches: Vec<AppstreamCache>,
 }
 
 impl Packagekit {
     pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
         //TODO: cache more zbus stuff?
         let connection = Connection::system()?;
+        let source_id = "packagekit";
+        //TODO: translate?
+        let source_name = "System";
         Ok(Self {
             connection,
-            appstream_caches: vec![("packagekit".to_string(), AppstreamCache::system(locale))],
+            appstream_caches: vec![AppstreamCache::system(
+                source_id.to_string(),
+                source_name.to_string(),
+                locale,
+            )],
         })
     }
 
@@ -116,7 +123,7 @@ impl Packagekit {
         &self,
         tx: TransactionProxyBlocking,
     ) -> Result<Vec<Package>, Box<dyn Error>> {
-        let appstream_cache = &self.appstream_caches[0].1;
+        let appstream_cache = &self.appstream_caches[0];
 
         let tx_packages = transaction_handle(tx, |_| {})?;
 
@@ -185,6 +192,7 @@ impl Packagekit {
                     .handle(),
                 //TODO: fill in more AppInfo fields
                 info: Arc::new(AppInfo {
+                    source_id: appstream_cache.source_id.clone(),
                     source_name: appstream_cache.source_name.clone(),
                     origin_opt: None,
                     name,
@@ -208,13 +216,13 @@ impl Packagekit {
 
 impl Backend for Packagekit {
     fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
-        for (cache_name, appstream_cache) in self.appstream_caches.iter_mut() {
-            appstream_cache.reload(cache_name);
+        for appstream_cache in self.appstream_caches.iter_mut() {
+            appstream_cache.reload();
         }
         Ok(())
     }
 
-    fn info_caches(&self) -> &[(String, AppstreamCache)] {
+    fn info_caches(&self) -> &[AppstreamCache] {
         &self.appstream_caches
     }
 
