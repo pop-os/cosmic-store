@@ -68,8 +68,12 @@ impl Flatpak {
 
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
         let id = r.name()?;
-        //TODO: find correct cache
+        let origin = r.origin()?;
         for (cache_name, appstream_cache) in self.appstream_caches.iter() {
+            if cache_name != &origin {
+                // Only show items from correct cache
+                continue;
+            }
             if let Some(info) = appstream_cache.infos.get(id.as_str()) {
                 let mut extra = HashMap::new();
                 if let Some(arch) = r.arch() {
