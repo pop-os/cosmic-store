@@ -185,6 +185,7 @@ impl Packagekit {
                     .handle(),
                 //TODO: fill in more AppInfo fields
                 info: Arc::new(AppInfo {
+                    source_name: appstream_cache.source_name.clone(),
                     origin_opt: None,
                     name,
                     summary,

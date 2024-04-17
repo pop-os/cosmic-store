@@ -59,7 +59,14 @@ impl Flatpak {
                 }
             }
 
-            appstream_caches.push((cache_name, AppstreamCache::new(paths, icons_paths, locale)));
+            let source_name = match remote.title() {
+                Some(title) => title.to_string(),
+                None => cache_name.clone(),
+            };
+            appstream_caches.push((
+                cache_name,
+                AppstreamCache::new(source_name, paths, icons_paths, locale),
+            ));
         }
 
         // We don't store the installation because it is not Send

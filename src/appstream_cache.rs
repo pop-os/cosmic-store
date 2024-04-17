@@ -43,6 +43,7 @@ pub struct AppstreamCacheTag {
 
 #[derive(Debug, Default, bitcode::Decode, bitcode::Encode)]
 pub struct AppstreamCache {
+    pub source_name: String,
     // Uses btreemap for stable sort order
     pub path_tags: BTreeMap<String, AppstreamCacheTag>,
     pub icons_paths: Vec<String>,
@@ -53,8 +54,14 @@ pub struct AppstreamCache {
 
 impl AppstreamCache {
     /// Get cache for specified appstream data sources
-    pub fn new(paths: Vec<PathBuf>, icons_paths: Vec<String>, locale: &str) -> Self {
+    pub fn new(
+        source_name: String,
+        paths: Vec<PathBuf>,
+        icons_paths: Vec<String>,
+        locale: &str,
+    ) -> Self {
         let mut cache = Self::default();
+        cache.source_name = source_name;
         cache.icons_paths = icons_paths;
         cache.locale = locale.to_string();
 
@@ -169,7 +176,7 @@ impl AppstreamCache {
             }
         }
 
-        AppstreamCache::new(paths, icons_paths, locale)
+        AppstreamCache::new("System".to_string(), paths, icons_paths, locale)
     }
 
     /// Directory where cache should be stored
@@ -369,7 +376,7 @@ impl AppstreamCache {
 
                 if file_name.ends_with(".xml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_xml(path, &mut gz, &self.locale) {
+                    match self.parse_xml(path, &mut gz) {
                         Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
@@ -378,7 +385,7 @@ impl AppstreamCache {
                     }
                 } else if file_name.ends_with(".yml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
-                    match AppstreamCache::parse_yaml(path, &mut gz, &self.locale) {
+                    match self.parse_yaml(path, &mut gz) {
                         Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
@@ -386,7 +393,7 @@ impl AppstreamCache {
                         }
                     }
                 } else if file_name.ends_with(".xml") {
-                    match AppstreamCache::parse_xml(path, &mut file, &self.locale) {
+                    match self.parse_xml(path, &mut file) {
                         Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
@@ -394,7 +401,7 @@ impl AppstreamCache {
                         }
                     }
                 } else if file_name.ends_with(".yml") {
-                    match AppstreamCache::parse_yaml(path, &mut file, &self.locale) {
+                    match self.parse_yaml(path, &mut file) {
                         Ok(infos) => Some(infos),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
@@ -532,9 +539,9 @@ impl AppstreamCache {
     }
 
     fn parse_xml<P: AsRef<Path>, R: Read>(
+        &self,
         path: P,
         reader: R,
-        locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
@@ -565,9 +572,10 @@ impl AppstreamCache {
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
+                                        &self.source_name,
                                         origin_opt.map(|x| x.as_str()),
                                         component,
-                                        locale,
+                                        &self.locale,
                                         monthly_downloads,
                                     )),
                                 ));
@@ -598,9 +606,9 @@ impl AppstreamCache {
     }
 
     fn parse_yaml<P: AsRef<Path>, R: Read>(
+        &self,
         path: P,
         reader: R,
-        locale: &str,
     ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
@@ -807,9 +815,10 @@ impl AppstreamCache {
                         infos.push((
                             id,
                             Arc::new(AppInfo::new(
+                                &self.source_name,
                                 origin_opt.as_deref(),
                                 component,
-                                locale,
+                                &self.locale,
                                 monthly_downloads,
                             )),
                         ));

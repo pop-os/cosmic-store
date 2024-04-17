@@ -362,7 +362,7 @@ impl Package {
                 .height(Length::Fixed(28.0))
                 .into(),
             //TODO: combine origins
-            widget::text::caption(self.info.origin_opt.as_deref().unwrap_or("")).into(),
+            widget::text::caption(&self.info.source_name).into(),
             widget::text::caption(&self.version).into(),
         ]);
         if !controls.is_empty() {
@@ -421,7 +421,7 @@ impl SearchResult {
                         .height(Length::Fixed(28.0))
                         .into(),
                     //TODO: Combine origins
-                    widget::text::caption(self.info.origin_opt.as_deref().unwrap_or("")).into(),
+                    widget::text::caption(&self.info.source_name).into(),
                 ])
                 .into(),
             ])
