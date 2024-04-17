@@ -753,9 +753,6 @@ impl AppstreamCache {
                         }
 
                         if let Some(screenshots) = value["Screenshots"].as_sequence() {
-                            if &component.id.0 == "com.system76.CosmicEdit" {
-                                println!("{:?}", screenshots);
-                            }
                             for screenshot_value in screenshots {
                                 if let Some(screenshot) = screenshot_value.as_mapping() {
                                     let mut images = Vec::new();

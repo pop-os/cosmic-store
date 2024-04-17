@@ -11,49 +11,66 @@ use crate::{AppInfo, AppstreamCache, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
-    appstream_cache: AppstreamCache,
+    appstream_caches: Vec<(String, AppstreamCache)>,
 }
 
 impl Flatpak {
     pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
+        let mut appstream_caches = Vec::new();
+
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        let mut paths = Vec::new();
-        let mut icons_paths = Vec::new();
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            if let Some(appstream_dir) = remote.appstream_dir(None).and_then(|x| x.path()) {
-                let xml_gz_path = appstream_dir.join("appstream.xml.gz");
-                if xml_gz_path.is_file() {
-                    paths.push(xml_gz_path);
-                } else {
-                    let xml_path = appstream_dir.join("appstream.xml");
-                    if xml_path.is_file() {
-                        paths.push(xml_path);
-                    }
+            let cache_name = match remote.name() {
+                Some(some) => some.to_string(),
+                None => {
+                    log::warn!("remote {:?} missing name", remote);
+                    continue;
                 }
+            };
 
-                let icons_path = appstream_dir.join("icons");
-                if icons_path.is_dir() {
-                    match icons_path.into_os_string().into_string() {
-                        Ok(ok) => icons_paths.push(ok),
-                        Err(os_string) => {
-                            log::error!("failed to convert {:?} to string", os_string)
-                        }
+            let appstream_dir = match remote.appstream_dir(None).and_then(|x| x.path()) {
+                Some(some) => some,
+                None => {
+                    log::warn!("remote {:?} missing appstream dir", remote);
+                    continue;
+                }
+            };
+
+            let mut paths = Vec::new();
+            let xml_gz_path = appstream_dir.join("appstream.xml.gz");
+            if xml_gz_path.is_file() {
+                paths.push(xml_gz_path);
+            } else {
+                let xml_path = appstream_dir.join("appstream.xml");
+                if xml_path.is_file() {
+                    paths.push(xml_path);
+                }
+            }
+
+            let mut icons_paths = Vec::new();
+            let icons_path = appstream_dir.join("icons");
+            if icons_path.is_dir() {
+                match icons_path.into_os_string().into_string() {
+                    Ok(ok) => icons_paths.push(ok),
+                    Err(os_string) => {
+                        log::error!("failed to convert {:?} to string", os_string)
                     }
                 }
             }
+
+            appstream_caches.push((cache_name, AppstreamCache::new(paths, icons_paths, locale)));
         }
 
         // We don't store the installation because it is not Send
-        Ok(Self {
-            appstream_cache: AppstreamCache::new(paths, icons_paths, locale),
-        })
+        Ok(Self { appstream_caches })
     }
 
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
         let id = r.name()?;
-        match self.appstream_cache.infos.get(id.as_str()) {
-            Some(info) => {
+        //TODO: find correct cache
+        for (cache_name, appstream_cache) in self.appstream_caches.iter() {
+            if let Some(info) = appstream_cache.infos.get(id.as_str()) {
                 let mut extra = HashMap::new();
                 if let Some(arch) = r.arch() {
                     extra.insert("arch".to_string(), arch.to_string());
@@ -62,30 +79,31 @@ impl Flatpak {
                     extra.insert("branch".to_string(), branch.to_string());
                 }
 
-                Some(Package {
+                return Some(Package {
                     id: id.to_string(),
-                    icon: self.appstream_cache.icon(info),
+                    icon: appstream_cache.icon(info),
                     info: info.clone(),
                     version: r.appdata_version().unwrap_or_default().to_string(),
                     extra,
-                })
-            }
-            None => {
-                log::warn!("failed to find info {}", id);
-                None
+                });
             }
         }
+
+        log::warn!("failed to find info {}", id);
+        None
     }
 }
 
 impl Backend for Flatpak {
-    fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
-        self.appstream_cache.reload("flatpak");
+    fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
+        for (cache_name, appstream_cache) in self.appstream_caches.iter_mut() {
+            appstream_cache.reload(cache_name);
+        }
         Ok(())
     }
 
-    fn info_cache(&self) -> &AppstreamCache {
-        &self.appstream_cache
+    fn info_caches(&self) -> &[(String, AppstreamCache)] {
+        &self.appstream_caches
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {

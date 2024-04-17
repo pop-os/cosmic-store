@@ -537,22 +537,24 @@ impl App {
         let mut results = Vec::<SearchResult>::new();
         //TODO: par_iter?
         for (backend_name, backend) in backends.iter() {
-            let appstream_cache = backend.info_cache();
-            let mut backend_results = appstream_cache
-                .infos
-                .par_iter()
-                .filter_map(|(id, info)| {
-                    let weight = filter_map(id, info)?;
-                    Some(SearchResult {
-                        backend_name,
-                        id: id.clone(),
-                        icon: appstream_cache.icon(info),
-                        info: info.clone(),
-                        weight,
+            //TODO: par_iter?
+            for (_cache_name, appstream_cache) in backend.info_caches() {
+                let mut backend_results = appstream_cache
+                    .infos
+                    .par_iter()
+                    .filter_map(|(id, info)| {
+                        let weight = filter_map(id, info)?;
+                        Some(SearchResult {
+                            backend_name,
+                            id: id.clone(),
+                            icon: appstream_cache.icon(info),
+                            info: info.clone(),
+                            weight,
+                        })
                     })
-                })
-                .collect();
-            results.append(&mut backend_results);
+                    .collect();
+                results.append(&mut backend_results);
+            }
         }
         results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => {
@@ -1411,8 +1413,11 @@ impl Application for App {
                     .padding([0, space_s])
                     .spacing(space_m)
                     .width(Length::Fill);
-                column = column
-                    .push(widget::button::standard(fl!("back")).on_press(Message::SelectNone));
+                column = column.push(
+                    widget::button::standard(fl!("back"))
+                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                        .on_press(Message::SelectNone),
+                );
                 let mut buttons = Vec::with_capacity(2);
                 if let Some(progress) = progress_opt {
                     //TODO: get height from theme?

@@ -87,7 +87,7 @@ enum TransactionFlag {
 #[derive(Debug)]
 pub struct Packagekit {
     connection: Connection,
-    appstream_cache: AppstreamCache,
+    appstream_caches: Vec<(String, AppstreamCache)>,
 }
 
 impl Packagekit {
@@ -96,7 +96,7 @@ impl Packagekit {
         let connection = Connection::system()?;
         Ok(Self {
             connection,
-            appstream_cache: AppstreamCache::system(locale),
+            appstream_caches: vec![("packagekit".to_string(), AppstreamCache::system(locale))],
         })
     }
 
@@ -116,6 +116,8 @@ impl Packagekit {
         &self,
         tx: TransactionProxyBlocking,
     ) -> Result<Vec<Package>, Box<dyn Error>> {
+        let appstream_cache = &self.appstream_caches[0].1;
+
         let tx_packages = transaction_handle(tx, |_| {})?;
 
         let mut system_packages = Vec::new();
@@ -133,14 +135,14 @@ impl Packagekit {
             let _status_opt = data_parts.next();
             let _origin_opt = data_parts.next();
 
-            match self.appstream_cache.pkgnames.get(package_name) {
+            match appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
                     for id in ids.iter() {
-                        match self.appstream_cache.infos.get(id) {
+                        match appstream_cache.infos.get(id) {
                             Some(info) => {
                                 packages.push(Package {
                                     id: id.clone(),
-                                    icon: self.appstream_cache.icon(info),
+                                    icon: appstream_cache.icon(info),
                                     info: info.clone(),
                                     version: version_opt.unwrap_or("").to_string(),
                                     extra: HashMap::new(),
@@ -204,13 +206,15 @@ impl Packagekit {
 }
 
 impl Backend for Packagekit {
-    fn load_cache(&mut self) -> Result<(), Box<dyn Error>> {
-        self.appstream_cache.reload("packagekit");
+    fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
+        for (cache_name, appstream_cache) in self.appstream_caches.iter_mut() {
+            appstream_cache.reload(cache_name);
+        }
         Ok(())
     }
 
-    fn info_cache(&self) -> &AppstreamCache {
-        &self.appstream_cache
+    fn info_caches(&self) -> &[(String, AppstreamCache)] {
+        &self.appstream_caches
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {

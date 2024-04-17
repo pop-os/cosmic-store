@@ -20,8 +20,8 @@ pub struct Package {
 }
 
 pub trait Backend: fmt::Debug + Send + Sync {
-    fn load_cache(&mut self) -> Result<(), Box<dyn Error>>;
-    fn info_cache(&self) -> &AppstreamCache;
+    fn load_caches(&mut self) -> Result<(), Box<dyn Error>>;
+    fn info_caches(&self) -> &[(String, AppstreamCache)];
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn operation(
@@ -70,13 +70,13 @@ pub fn backends(locale: &str) -> Backends {
 
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
-        match Arc::get_mut(backend).unwrap().load_cache() {
+        match Arc::get_mut(backend).unwrap().load_caches() {
             Ok(()) => {
                 let duration = start.elapsed();
-                log::info!("loaded {} backend cache in {:?}", backend_name, duration);
+                log::info!("loaded {} backend caches in {:?}", backend_name, duration);
             }
             Err(err) => {
-                log::error!("failed to load {} backend cache: {}", backend_name, err);
+                log::error!("failed to load {} backend caches: {}", backend_name, err);
             }
         }
     });
