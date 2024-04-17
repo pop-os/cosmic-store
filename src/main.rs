@@ -53,15 +53,15 @@ const ICON_SIZE_DETAILS: u16 = 128;
 const SYSTEM_ID: &'static str = "__SYSTEM__";
 
 const EDITORS_CHOICE: &'static [&'static str] = &[
-    "com.slack.Slack.desktop",
+    "com.slack.Slack",
     "org.telegram.desktop",
-    "org.gnome.meld.desktop",
+    "org.gnome.meld",
     "com.valvesoftware.Steam",
     "net.lutris.Lutris",
     "com.mattermost.Desktop",
     "com.visualstudio.code",
     "com.spotify.Client",
-    "virt-manager.desktop",
+    "virt-manager",
     "org.signal.Signal",
     "org.chromium.Chromium",
 ];
@@ -109,6 +109,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     cosmic::app::run::<App>(settings, flags)?;
 
     Ok(())
+}
+
+//TODO: make app ID a newtype
+fn match_id(a: &str, b: &str) -> bool {
+    a.trim_end_matches(".desktop") == b.trim_end_matches(".desktop")
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -510,7 +515,14 @@ impl App {
             results.append(&mut backend_results);
         }
         results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-            cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name),
+            cmp::Ordering::Equal => {
+                match lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name) {
+                    cmp::Ordering::Equal => {
+                        lexical_sort::natural_lexical_cmp(&a.backend_name, &b.backend_name)
+                    }
+                    ordering => ordering,
+                }
+            }
             ordering => ordering,
         });
         results
@@ -528,7 +540,7 @@ impl App {
                         if info.categories.iter().any(|x| x == category) {
                             let weight = stats
                                 .iter()
-                                .position(|(stats_id, _downloads)| stats_id == id)
+                                .position(|(stats_id, _downloads)| match_id(stats_id, id))
                                 .unwrap_or(stats.len());
                             Some(weight)
                         } else {
@@ -561,12 +573,12 @@ impl App {
                     let results = Self::generic_search(&backends, |id, _info| {
                         //TODO: use explore_page
                         match explore_page {
-                            ExplorePage::EditorsChoice => {
-                                EDITORS_CHOICE.iter().position(|choice_id| choice_id == &id)
-                            }
+                            ExplorePage::EditorsChoice => EDITORS_CHOICE
+                                .iter()
+                                .position(|choice_id| match_id(choice_id, &id)),
                             ExplorePage::PopularApps => stats
                                 .iter()
-                                .position(|(stats_id, _downloads)| stats_id == id),
+                                .position(|(stats_id, _downloads)| match_id(stats_id, id)),
                             _ => None,
                         }
                     });
@@ -600,25 +612,34 @@ impl App {
             }
         };
         let backends = self.backends.clone();
+        let stats = self.stats.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |_id, info| {
+                    let results = Self::generic_search(&backends, |id, info| {
+                        //TODO: improve performance
+                        let stats_weight = |weight: usize| {
+                            weight * (stats.len() + 1)
+                                + stats
+                                    .iter()
+                                    .position(|(stats_id, _downloads)| match_id(stats_id, id))
+                                    .unwrap_or(stats.len())
+                        };
                         //TODO: fuzzy match (nucleus-matcher?)
                         match regex.find(&info.name) {
                             Some(mat) => {
                                 if mat.range().start == 0 {
                                     if mat.range().end == info.name.len() {
                                         // Name equals search phrase
-                                        Some(0)
+                                        Some(stats_weight(0))
                                     } else {
                                         // Name starts with search phrase
-                                        Some(1)
+                                        Some(stats_weight(1))
                                     }
                                 } else {
                                     // Name contains search phrase
-                                    Some(2)
+                                    Some(stats_weight(2))
                                 }
                             }
                             None => match regex.find(&info.summary) {
@@ -626,14 +647,14 @@ impl App {
                                     if mat.range().start == 0 {
                                         if mat.range().end == info.summary.len() {
                                             // Summary equals search phrase
-                                            Some(3)
+                                            Some(stats_weight(3))
                                         } else {
                                             // Summary starts with search phrase
-                                            Some(4)
+                                            Some(stats_weight(4))
                                         }
                                     } else {
                                         // Summary contains search phrase
-                                        Some(5)
+                                        Some(stats_weight(5))
                                     }
                                 }
                                 None => match regex.find(&info.description) {
@@ -641,14 +662,14 @@ impl App {
                                         if mat.range().start == 0 {
                                             if mat.range().end == info.summary.len() {
                                                 // Description equals search phrase
-                                                Some(6)
+                                                Some(stats_weight(6))
                                             } else {
                                                 // Description starts with search phrase
-                                                Some(7)
+                                                Some(stats_weight(7))
                                             }
                                         } else {
                                             // Description contains search phrase
-                                            Some(8)
+                                            Some(stats_weight(8))
                                         }
                                     }
                                     None => None,
@@ -1332,7 +1353,8 @@ impl Application for App {
                     .iter()
                     .chain(self.waiting_updates.iter())
                 {
-                    if backend_name == &selected.backend_name && package_id == &selected.id {
+                    if backend_name == &selected.backend_name && match_id(package_id, &selected.id)
+                    {
                         waiting_refresh = true;
                         break;
                     }
@@ -1340,7 +1362,9 @@ impl Application for App {
                 let mut is_installed = false;
                 if let Some(installed) = &self.installed {
                     for (backend_name, package) in installed {
-                        if backend_name == &selected.backend_name && package.id == selected.id {
+                        if backend_name == &selected.backend_name
+                            && match_id(&package.id, &selected.id)
+                        {
                             is_installed = true;
                             break;
                         }
@@ -1349,7 +1373,9 @@ impl Application for App {
                 let mut update_opt = None;
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
-                        if backend_name == &selected.backend_name && package.id == selected.id {
+                        if backend_name == &selected.backend_name
+                            && match_id(&package.id, &selected.id)
+                        {
                             update_opt = Some(Message::Operation(
                                 OperationKind::Update,
                                 backend_name,
@@ -1362,7 +1388,9 @@ impl Application for App {
                 }
                 let mut progress_opt = None;
                 for (_id, (op, progress)) in self.pending_operations.iter() {
-                    if op.backend_name == selected.backend_name && op.package_id == selected.id {
+                    if op.backend_name == selected.backend_name
+                        && match_id(&op.package_id, &selected.id)
+                    {
                         progress_opt = Some(*progress);
                         break;
                     }
@@ -1688,7 +1716,7 @@ impl Application for App {
                                         .chain(self.waiting_updates.iter())
                                     {
                                         if other_backend_name == backend_name
-                                            && package_id == &package.id
+                                            && match_id(package_id, &package.id)
                                         {
                                             waiting_refresh = true;
                                             break;
@@ -1697,7 +1725,7 @@ impl Application for App {
                                     let mut progress_opt = None;
                                     for (_id, (op, progress)) in self.pending_operations.iter() {
                                         if &op.backend_name == backend_name
-                                            && op.package_id == package.id
+                                            && match_id(&op.package_id, &package.id)
                                         {
                                             progress_opt = Some(*progress);
                                             break;
