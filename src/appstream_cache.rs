@@ -462,6 +462,18 @@ impl AppstreamCache {
             }
         }
 
+        //TODO: smarter removal of .desktop
+        let fallback_name = name.replace(".desktop", "");
+        for icons_path in self.icons_paths.iter() {
+            let icon_path = Path::new(icons_path)
+                .join(origin)
+                .join(&size)
+                .join(&fallback_name);
+            if icon_path.is_file() {
+                return Some(icon_path);
+            }
+        }
+
         None
     }
 
@@ -489,11 +501,15 @@ impl AppstreamCache {
                         // Skip if a cached icon was found
                         continue;
                     }
-                    icon_opt = Some(widget::icon::from_name(stock.clone()).size(128).handle());
+                    if let Some(icon_path) = widget::icon::from_name(stock.clone()).size(128).path()
+                    {
+                        icon_opt = Some(widget::icon::from_path(icon_path));
+                    }
                 }
             }
         }
         icon_opt.unwrap_or_else(|| {
+            log::info!("failed to get icon from {:?}", info.icons);
             widget::icon::from_name("package-x-generic")
                 .size(128)
                 .handle()
