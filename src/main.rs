@@ -11,7 +11,7 @@ use cosmic::{
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
         widget::scrollable,
-        window, Alignment, Length,
+        window, Alignment, Length, Size,
     },
     theme, widget, Application, ApplicationExt, Element,
 };
@@ -352,8 +352,8 @@ impl Package {
         &'a self,
         controls: Vec<Element<'a, Message>>,
         spacing: &cosmic_theme::Spacing,
+        width: usize,
     ) -> Element<'a, Message> {
-        let width = 360.0 + 2.0 * spacing.space_s as f32;
         let mut height = 88.0 + 2.0 * spacing.space_xxs as f32;
         let mut column = widget::column::with_children(vec![
             widget::text::body(&self.info.name)
@@ -390,7 +390,7 @@ impl Package {
             .spacing(spacing.space_s),
         )
         .center_y()
-        .width(Length::Fixed(width))
+        .width(Length::Fixed(width as f32))
         .height(Length::Fixed(height))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
@@ -408,7 +408,49 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
-    pub fn card_view<'a>(&'a self, spacing: &cosmic_theme::Spacing) -> Element<'a, Message> {
+    pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
+        results: &'a [Self],
+        spacing: cosmic_theme::Spacing,
+        width: usize,
+        callback: F,
+    ) -> Element<'a, Message> {
+        let column_spacing = spacing.space_xxs;
+        let (cols, item_width) = {
+            let min_width = 240 + 2 * spacing.space_s as usize;
+            let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+            let cols_m1 = width_m1 / (min_width + column_spacing as usize);
+            let cols = cols_m1 + 1;
+            let item_width = width
+                .checked_sub(cols_m1 * column_spacing as usize)
+                .unwrap_or(0)
+                .checked_div(cols)
+                .unwrap_or(0);
+            (cols, item_width)
+        };
+
+        let mut grid = widget::grid();
+        let mut col = 0;
+        for (result_i, result) in results.iter().enumerate() {
+            if col >= cols {
+                grid = grid.insert_row();
+                col = 0;
+            }
+            grid = grid.push(
+                widget::mouse_area(result.card_view(&spacing, item_width))
+                    .on_press(callback(result_i)),
+            );
+            col += 1;
+        }
+        grid.column_spacing(column_spacing)
+            .row_spacing(column_spacing)
+            .into()
+    }
+
+    pub fn card_view<'a>(
+        &'a self,
+        spacing: &cosmic_theme::Spacing,
+        width: usize,
+    ) -> Element<'a, Message> {
         widget::container(
             widget::row::with_children(vec![
                 widget::icon::icon(self.icon.clone())
@@ -430,7 +472,7 @@ impl SearchResult {
             .spacing(spacing.space_s),
         )
         .center_y()
-        .width(Length::Fixed(240.0 + (spacing.space_s as f32) * 2.0))
+        .width(Length::Fixed(width as f32))
         .height(Length::Fixed(62.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
@@ -867,6 +909,528 @@ impl App {
             )
             .into()])
         .into()
+    }
+
+    fn view_responsive(&self, size: Size) -> Element<Message> {
+        let spacing = theme::active().cosmic().spacing;
+        let cosmic_theme::Spacing {
+            space_m,
+            space_s,
+            space_xs,
+            space_xxs,
+            ..
+        } = spacing;
+
+        let content: Element<_> = match &self.selected_opt {
+            Some(selected) => {
+                //TODO: more efficient checks
+                let mut waiting_refresh = false;
+                for (backend_name, source_id, package_id) in self
+                    .waiting_installed
+                    .iter()
+                    .chain(self.waiting_updates.iter())
+                {
+                    if backend_name == &selected.backend_name
+                        && source_id == &selected.info.source_id
+                        && match_id(package_id, &selected.id)
+                    {
+                        waiting_refresh = true;
+                        break;
+                    }
+                }
+                let mut is_installed = false;
+                if let Some(installed) = &self.installed {
+                    for (backend_name, package) in installed {
+                        if backend_name == &selected.backend_name
+                            && &package.info.source_id == &selected.info.source_id
+                            && match_id(&package.id, &selected.id)
+                        {
+                            is_installed = true;
+                            break;
+                        }
+                    }
+                }
+                let mut update_opt = None;
+                if let Some(updates) = &self.updates {
+                    for (backend_name, package) in updates {
+                        if backend_name == &selected.backend_name
+                            && &package.info.source_id == &selected.info.source_id
+                            && match_id(&package.id, &selected.id)
+                        {
+                            update_opt = Some(Message::Operation(
+                                OperationKind::Update,
+                                backend_name,
+                                package.id.clone(),
+                                package.info.clone(),
+                            ));
+                            break;
+                        }
+                    }
+                }
+                let mut progress_opt = None;
+                for (_id, (op, progress)) in self.pending_operations.iter() {
+                    if op.backend_name == selected.backend_name
+                        && &op.info.source_id == &selected.info.source_id
+                        && match_id(&op.package_id, &selected.id)
+                    {
+                        progress_opt = Some(*progress);
+                        break;
+                    }
+                }
+
+                let mut column = widget::column::with_capacity(2)
+                    .padding([0, space_s])
+                    .spacing(space_m)
+                    .width(Length::Fill);
+                column = column.push(
+                    widget::button::standard(fl!("back"))
+                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                        .on_press(Message::SelectNone),
+                );
+                let mut buttons = Vec::with_capacity(2);
+                if let Some(progress) = progress_opt {
+                    //TODO: get height from theme?
+                    buttons.push(
+                        widget::progress_bar(0.0..=100.0, progress)
+                            .height(Length::Fixed(4.0))
+                            .into(),
+                    )
+                } else if waiting_refresh {
+                    // Do not show buttons while waiting for refresh
+                } else if is_installed {
+                    //TODO: what if there are multiple desktop IDs?
+                    if let Some(desktop_id) = selected.info.desktop_ids.first() {
+                        buttons.push(
+                            widget::button::suggested(fl!("open"))
+                                .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                .into(),
+                        );
+                    }
+                    if let Some(update) = update_opt {
+                        buttons.push(
+                            widget::button::standard(fl!("update"))
+                                .on_press(update)
+                                .into(),
+                        );
+                    }
+                    if selected.id != SYSTEM_ID {
+                        buttons.push(
+                            widget::button::destructive(fl!("uninstall"))
+                                .on_press(Message::Operation(
+                                    OperationKind::Uninstall,
+                                    selected.backend_name,
+                                    selected.id.clone(),
+                                    selected.info.clone(),
+                                ))
+                                .into(),
+                        );
+                    }
+                } else {
+                    buttons.push(
+                        widget::button::suggested(fl!("install"))
+                            .on_press(Message::Operation(
+                                OperationKind::Install,
+                                selected.backend_name,
+                                selected.id.clone(),
+                                selected.info.clone(),
+                            ))
+                            .into(),
+                    )
+                }
+                column = column.push(
+                    widget::row::with_children(vec![
+                        widget::icon::icon(selected.icon.clone())
+                            .size(ICON_SIZE_DETAILS)
+                            .into(),
+                        widget::column::with_children(vec![
+                            widget::text::title2(&selected.info.name).into(),
+                            widget::text(&selected.info.summary).into(),
+                            widget::vertical_space(Length::Fixed(space_s.into())).into(),
+                            widget::row::with_children(buttons).spacing(space_xs).into(),
+                        ])
+                        .into(),
+                    ])
+                    .align_items(Alignment::Center)
+                    .spacing(space_m),
+                );
+                //TODO: proper image scroller
+                if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
+                    //TODO: get proper image dimensions
+                    let image_height = Length::Fixed(480.0);
+                    let mut row = widget::row::with_capacity(3).align_items(Alignment::Center);
+                    {
+                        let mut button = widget::button::icon(
+                            widget::icon::from_name("go-previous-symbolic").size(16),
+                        );
+                        if selected.screenshot_shown > 0 {
+                            button = button.on_press(Message::SelectedScreenshotShown(
+                                selected.screenshot_shown - 1,
+                            ));
+                        }
+                        row = row.push(button);
+                    }
+                    let image_element = if let Some(image) =
+                        selected.screenshot_images.get(&selected.screenshot_shown)
+                    {
+                        widget::image(image.clone())
+                            .width(Length::Fill)
+                            .height(image_height)
+                            .into()
+                    } else {
+                        widget::Space::new(Length::Fill, image_height).into()
+                    };
+                    row = row.push(
+                        widget::column::with_children(vec![
+                            image_element,
+                            widget::text::caption(&screenshot.caption).into(),
+                        ])
+                        .align_items(Alignment::Center),
+                    );
+                    {
+                        let mut button = widget::button::icon(
+                            widget::icon::from_name("go-next-symbolic").size(16),
+                        );
+                        if selected.screenshot_shown + 1 < selected.info.screenshots.len() {
+                            button = button.on_press(Message::SelectedScreenshotShown(
+                                selected.screenshot_shown + 1,
+                            ));
+                        }
+                        row = row.push(button);
+                    }
+                    column = column.push(row);
+                }
+                //TODO: parse markup in description
+                column =
+                    column.push(widget::text::body(&selected.info.description).width(Length::Fill));
+                //TODO: description, releases, etc.
+                widget::scrollable(column)
+                    .id(self.scrollable_id.clone())
+                    .into()
+            }
+            None => match &self.search_results {
+                Some((input, results)) => {
+                    //TODO: paging or dynamic load
+                    let results_len = cmp::min(results.len(), 256);
+
+                    let mut column = widget::column::with_capacity(2)
+                        .padding([0, space_s])
+                        .spacing(space_xxs)
+                        .width(Length::Fill);
+                    //TODO: back button?
+                    if results.is_empty() {
+                        column =
+                            column.push(widget::text(fl!("no-results", search = input.as_str())));
+                    }
+                    column = column.push(SearchResult::grid_view(
+                        &results[..results_len],
+                        spacing,
+                        (size.width - 2.0 * space_s as f32).floor() as usize,
+                        |result_i| Message::SelectSearchResult(result_i),
+                    ));
+                    widget::scrollable(column)
+                        .id(self.scrollable_id.clone())
+                        .into()
+                }
+                None => match self
+                    .nav_model
+                    .active_data::<NavPage>()
+                    .map_or(NavPage::default(), |nav_page| *nav_page)
+                {
+                    NavPage::Explore => {
+                        match self.explore_page_opt {
+                            Some(explore_page) => {
+                                let mut column = widget::column::with_capacity(3)
+                                    .padding([0, space_s])
+                                    .spacing(space_xxs)
+                                    .width(Length::Fill);
+                                column = column.push(
+                                    widget::button::text(NavPage::Explore.title())
+                                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                                        .on_press(Message::ExplorePage(None)),
+                                );
+                                column = column.push(widget::text::title4(explore_page.title()));
+                                //TODO: ensure explore_page matches
+                                match self.explore_results.get(&explore_page) {
+                                    Some(results) => {
+                                        //TODO: paging or dynamic load
+                                        let results_len = cmp::min(results.len(), 256);
+
+                                        if results.is_empty() {
+                                            //TODO: no results message?
+                                        }
+                                        column = column.push(SearchResult::grid_view(
+                                            &results[..results_len],
+                                            spacing,
+                                            (size.width - 2.0 * space_s as f32).floor() as usize,
+                                            move |result_i| {
+                                                Message::SelectExploreResult(explore_page, result_i)
+                                            },
+                                        ));
+                                    }
+                                    None => {
+                                        //TODO: loading message?
+                                    }
+                                }
+                                widget::scrollable(column)
+                                    .id(self.scrollable_id.clone())
+                                    .into()
+                            }
+                            None => {
+                                let explore_pages = ExplorePage::all();
+                                let mut column =
+                                    widget::column::with_capacity(explore_pages.len() * 2)
+                                        .padding([0, space_s])
+                                        .spacing(space_xxs)
+                                        .width(Length::Fill);
+                                for explore_page in explore_pages.iter() {
+                                    column = column.push(widget::row::with_children(vec![
+                                        widget::text::title4(explore_page.title()).into(),
+                                        widget::horizontal_space(Length::Fill).into(),
+                                        widget::button::text(fl!("see-all"))
+                                            .trailing_icon(icon_cache_handle(
+                                                "go-next-symbolic",
+                                                16,
+                                            ))
+                                            .on_press(Message::ExplorePage(Some(*explore_page)))
+                                            .into(),
+                                    ]));
+                                    //TODO: ensure explore_page matches
+                                    match self.explore_results.get(&explore_page) {
+                                        Some(results) => {
+                                            let results_len = cmp::min(results.len(), 8);
+
+                                            if results.is_empty() {
+                                                //TODO: no results message?
+                                            }
+
+                                            column = column.push(SearchResult::grid_view(
+                                                &results[..results_len],
+                                                spacing,
+                                                (size.width - 2.0 * space_s as f32).floor()
+                                                    as usize,
+                                                |result_i| {
+                                                    Message::SelectExploreResult(
+                                                        *explore_page,
+                                                        result_i,
+                                                    )
+                                                },
+                                            ));
+                                        }
+                                        None => {
+                                            //TODO: loading message?
+                                        }
+                                    }
+                                }
+                                widget::scrollable(column)
+                                    .id(self.scrollable_id.clone())
+                                    .into()
+                            }
+                        }
+                    }
+                    NavPage::Installed => {
+                        let mut column = widget::column::with_capacity(3)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title2(NavPage::Installed.title()));
+                        match &self.installed {
+                            Some(installed) => {
+                                if installed.is_empty() {
+                                    column =
+                                        column.push(widget::text(fl!("no-installed-applications")));
+                                }
+
+                                let width = (size.width - 2.0 * space_s as f32).floor() as usize;
+                                let column_spacing = spacing.space_xxs;
+                                let (cols, item_width) = {
+                                    let min_width = 360 + 2 * spacing.space_s as usize;
+                                    let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+                                    let cols_m1 = width_m1 / (min_width + column_spacing as usize);
+                                    let cols = cols_m1 + 1;
+                                    let item_width = width
+                                        .checked_sub(cols_m1 * column_spacing as usize)
+                                        .unwrap_or(0)
+                                        .checked_div(cols)
+                                        .unwrap_or(0);
+                                    (cols, item_width)
+                                };
+
+                                let mut grid = widget::grid();
+                                let mut col = 0;
+                                for (installed_i, (_backend_name, package)) in
+                                    installed.iter().enumerate()
+                                {
+                                    if col >= cols {
+                                        grid = grid.insert_row();
+                                        col = 0;
+                                    }
+                                    grid = grid.push(
+                                        widget::mouse_area(package.card_view(
+                                            vec![],
+                                            &spacing,
+                                            item_width,
+                                        ))
+                                        .on_press(Message::SelectInstalled(installed_i)),
+                                    );
+                                    col += 1;
+                                }
+                                column = column.push(
+                                    grid.column_spacing(column_spacing)
+                                        .row_spacing(column_spacing),
+                                );
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
+                    }
+                    //TODO: reduce duplication
+                    NavPage::Updates => {
+                        let mut column = widget::column::with_capacity(3)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title2(NavPage::Updates.title()));
+                        match &self.updates {
+                            Some(updates) => {
+                                if updates.is_empty() {
+                                    column = column.push(widget::text(fl!("no-updates")));
+                                } else {
+                                    column = column.push(widget::row::with_children(vec![
+                                        widget::button::standard(fl!("update-all"))
+                                            .on_press(Message::UpdateAll)
+                                            .into(),
+                                        widget::horizontal_space(Length::Fill).into(),
+                                    ]));
+                                }
+
+                                let width = (size.width - 2.0 * space_s as f32).floor() as usize;
+                                let column_spacing = spacing.space_xxs;
+                                let (cols, item_width) = {
+                                    let min_width = 360 + 2 * spacing.space_s as usize;
+                                    let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+                                    let cols_m1 = width_m1 / (min_width + column_spacing as usize);
+                                    let cols = cols_m1 + 1;
+                                    let item_width = width
+                                        .checked_sub(cols_m1 * column_spacing as usize)
+                                        .unwrap_or(0)
+                                        .checked_div(cols)
+                                        .unwrap_or(0);
+                                    (cols, item_width)
+                                };
+
+                                let mut grid = widget::grid();
+                                let mut col = 0;
+                                for (updates_i, (backend_name, package)) in
+                                    updates.iter().enumerate()
+                                {
+                                    let mut waiting_refresh = false;
+                                    for (other_backend_name, source_id, package_id) in self
+                                        .waiting_installed
+                                        .iter()
+                                        .chain(self.waiting_updates.iter())
+                                    {
+                                        if other_backend_name == backend_name
+                                            && source_id == &package.info.source_id
+                                            && match_id(package_id, &package.id)
+                                        {
+                                            waiting_refresh = true;
+                                            break;
+                                        }
+                                    }
+                                    let mut progress_opt = None;
+                                    for (_id, (op, progress)) in self.pending_operations.iter() {
+                                        if &op.backend_name == backend_name
+                                            && &op.info.source_id == &package.info.source_id
+                                            && match_id(&op.package_id, &package.id)
+                                        {
+                                            progress_opt = Some(*progress);
+                                            break;
+                                        }
+                                    }
+                                    let controls = if let Some(progress) = progress_opt {
+                                        vec![widget::progress_bar(0.0..=100.0, progress)
+                                            .height(Length::Fixed(4.0))
+                                            .into()]
+                                    } else if waiting_refresh {
+                                        vec![]
+                                    } else {
+                                        vec![widget::button::standard(fl!("update"))
+                                            .on_press(Message::Operation(
+                                                OperationKind::Update,
+                                                backend_name,
+                                                package.id.clone(),
+                                                package.info.clone(),
+                                            ))
+                                            .into()]
+                                    };
+                                    if col >= cols {
+                                        grid = grid.insert_row();
+                                        col = 0;
+                                    }
+                                    grid = grid.push(
+                                        widget::mouse_area(
+                                            package.card_view(controls, &spacing, item_width),
+                                        )
+                                        .on_press(Message::SelectUpdates(updates_i)),
+                                    );
+                                    col += 1;
+                                }
+                                column = column.push(
+                                    grid.column_spacing(column_spacing)
+                                        .row_spacing(column_spacing),
+                                );
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
+                    }
+                    //TODO: reduce duplication
+                    nav_page => {
+                        let mut column = widget::column::with_capacity(2)
+                            .padding([0, space_s])
+                            .spacing(space_xxs)
+                            .width(Length::Fill);
+                        column = column.push(widget::text::title2(nav_page.title()));
+                        //TODO: ensure category matches?
+                        match &self.category_results {
+                            Some((_category, results)) => {
+                                //TODO: paging or dynamic load
+                                let results_len = cmp::min(results.len(), 256);
+
+                                if results.is_empty() {
+                                    //TODO: no results message?
+                                }
+
+                                column = column.push(SearchResult::grid_view(
+                                    &results[..results_len],
+                                    spacing,
+                                    (size.width - 2.0 * space_s as f32).floor() as usize,
+                                    |result_i| Message::SelectCategoryResult(result_i),
+                                ));
+                            }
+                            None => {
+                                //TODO: loading message?
+                            }
+                        }
+                        widget::scrollable(column)
+                            .id(self.scrollable_id.clone())
+                            .into()
+                    }
+                },
+            },
+        };
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
     }
 }
 
@@ -1375,505 +1939,7 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
-        let spacing = theme::active().cosmic().spacing;
-        let cosmic_theme::Spacing {
-            space_m,
-            space_s,
-            space_xs,
-            space_xxs,
-            ..
-        } = spacing;
-
-        let content: Element<_> = match &self.selected_opt {
-            Some(selected) => {
-                //TODO: more efficient checks
-                let mut waiting_refresh = false;
-                for (backend_name, source_id, package_id) in self
-                    .waiting_installed
-                    .iter()
-                    .chain(self.waiting_updates.iter())
-                {
-                    if backend_name == &selected.backend_name
-                        && source_id == &selected.info.source_id
-                        && match_id(package_id, &selected.id)
-                    {
-                        waiting_refresh = true;
-                        break;
-                    }
-                }
-                let mut is_installed = false;
-                if let Some(installed) = &self.installed {
-                    for (backend_name, package) in installed {
-                        if backend_name == &selected.backend_name
-                            && &package.info.source_id == &selected.info.source_id
-                            && match_id(&package.id, &selected.id)
-                        {
-                            is_installed = true;
-                            break;
-                        }
-                    }
-                }
-                let mut update_opt = None;
-                if let Some(updates) = &self.updates {
-                    for (backend_name, package) in updates {
-                        if backend_name == &selected.backend_name
-                            && &package.info.source_id == &selected.info.source_id
-                            && match_id(&package.id, &selected.id)
-                        {
-                            update_opt = Some(Message::Operation(
-                                OperationKind::Update,
-                                backend_name,
-                                package.id.clone(),
-                                package.info.clone(),
-                            ));
-                            break;
-                        }
-                    }
-                }
-                let mut progress_opt = None;
-                for (_id, (op, progress)) in self.pending_operations.iter() {
-                    if op.backend_name == selected.backend_name
-                        && &op.info.source_id == &selected.info.source_id
-                        && match_id(&op.package_id, &selected.id)
-                    {
-                        progress_opt = Some(*progress);
-                        break;
-                    }
-                }
-
-                let mut column = widget::column::with_capacity(2)
-                    .padding([0, space_s])
-                    .spacing(space_m)
-                    .width(Length::Fill);
-                column = column.push(
-                    widget::button::standard(fl!("back"))
-                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                        .on_press(Message::SelectNone),
-                );
-                let mut buttons = Vec::with_capacity(2);
-                if let Some(progress) = progress_opt {
-                    //TODO: get height from theme?
-                    buttons.push(
-                        widget::progress_bar(0.0..=100.0, progress)
-                            .height(Length::Fixed(4.0))
-                            .into(),
-                    )
-                } else if waiting_refresh {
-                    // Do not show buttons while waiting for refresh
-                } else if is_installed {
-                    //TODO: what if there are multiple desktop IDs?
-                    if let Some(desktop_id) = selected.info.desktop_ids.first() {
-                        buttons.push(
-                            widget::button::suggested(fl!("open"))
-                                .on_press(Message::OpenDesktopId(desktop_id.clone()))
-                                .into(),
-                        );
-                    }
-                    if let Some(update) = update_opt {
-                        buttons.push(
-                            widget::button::standard(fl!("update"))
-                                .on_press(update)
-                                .into(),
-                        );
-                    }
-                    if selected.id != SYSTEM_ID {
-                        buttons.push(
-                            widget::button::destructive(fl!("uninstall"))
-                                .on_press(Message::Operation(
-                                    OperationKind::Uninstall,
-                                    selected.backend_name,
-                                    selected.id.clone(),
-                                    selected.info.clone(),
-                                ))
-                                .into(),
-                        );
-                    }
-                } else {
-                    buttons.push(
-                        widget::button::suggested(fl!("install"))
-                            .on_press(Message::Operation(
-                                OperationKind::Install,
-                                selected.backend_name,
-                                selected.id.clone(),
-                                selected.info.clone(),
-                            ))
-                            .into(),
-                    )
-                }
-                column = column.push(
-                    widget::row::with_children(vec![
-                        widget::icon::icon(selected.icon.clone())
-                            .size(ICON_SIZE_DETAILS)
-                            .into(),
-                        widget::column::with_children(vec![
-                            widget::text::title2(&selected.info.name).into(),
-                            widget::text(&selected.info.summary).into(),
-                            widget::vertical_space(Length::Fixed(space_s.into())).into(),
-                            widget::row::with_children(buttons).spacing(space_xs).into(),
-                        ])
-                        .into(),
-                    ])
-                    .align_items(Alignment::Center)
-                    .spacing(space_m),
-                );
-                //TODO: proper image scroller
-                if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
-                    //TODO: get proper image dimensions
-                    let image_height = Length::Fixed(480.0);
-                    let mut row = widget::row::with_capacity(3).align_items(Alignment::Center);
-                    {
-                        let mut button = widget::button::icon(
-                            widget::icon::from_name("go-previous-symbolic").size(16),
-                        );
-                        if selected.screenshot_shown > 0 {
-                            button = button.on_press(Message::SelectedScreenshotShown(
-                                selected.screenshot_shown - 1,
-                            ));
-                        }
-                        row = row.push(button);
-                    }
-                    let image_element = if let Some(image) =
-                        selected.screenshot_images.get(&selected.screenshot_shown)
-                    {
-                        widget::image(image.clone())
-                            .width(Length::Fill)
-                            .height(image_height)
-                            .into()
-                    } else {
-                        widget::Space::new(Length::Fill, image_height).into()
-                    };
-                    row = row.push(
-                        widget::column::with_children(vec![
-                            image_element,
-                            widget::text::caption(&screenshot.caption).into(),
-                        ])
-                        .align_items(Alignment::Center),
-                    );
-                    {
-                        let mut button = widget::button::icon(
-                            widget::icon::from_name("go-next-symbolic").size(16),
-                        );
-                        if selected.screenshot_shown + 1 < selected.info.screenshots.len() {
-                            button = button.on_press(Message::SelectedScreenshotShown(
-                                selected.screenshot_shown + 1,
-                            ));
-                        }
-                        row = row.push(button);
-                    }
-                    column = column.push(row);
-                }
-                //TODO: parse markup in description
-                column =
-                    column.push(widget::text::body(&selected.info.description).width(Length::Fill));
-                //TODO: description, releases, etc.
-                widget::scrollable(column)
-                    .id(self.scrollable_id.clone())
-                    .into()
-            }
-            None => match &self.search_results {
-                Some((input, results)) => {
-                    //TODO: paging or dynamic load
-                    let results_len = cmp::min(results.len(), 256);
-
-                    let mut column = widget::column::with_capacity(1)
-                        .padding([0, space_s])
-                        .spacing(space_xxs)
-                        .width(Length::Fill);
-                    //TODO: back button?
-                    if results.is_empty() {
-                        column =
-                            column.push(widget::text(fl!("no-results", search = input.as_str())));
-                    } else {
-                        column = column.align_items(Alignment::Center);
-                    }
-                    let mut flex_row = Vec::with_capacity(results_len);
-                    for (result_i, result) in results.iter().take(results_len).enumerate() {
-                        flex_row.push(
-                            widget::mouse_area(result.card_view(&spacing))
-                                .on_press(Message::SelectSearchResult(result_i))
-                                .into(),
-                        );
-                    }
-                    column = column.push(
-                        widget::flex_row(flex_row)
-                            .column_spacing(space_xxs)
-                            .row_spacing(space_xxs),
-                    );
-                    widget::scrollable(column)
-                        .id(self.scrollable_id.clone())
-                        .into()
-                }
-                None => match self
-                    .nav_model
-                    .active_data::<NavPage>()
-                    .map_or(NavPage::default(), |nav_page| *nav_page)
-                {
-                    NavPage::Explore => match self.explore_page_opt {
-                        Some(explore_page) => {
-                            let mut column = widget::column::with_capacity(2)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            column = column.push(
-                                widget::button::text(NavPage::Explore.title())
-                                    .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                                    .on_press(Message::ExplorePage(None)),
-                            );
-                            column = column.push(widget::text::title4(explore_page.title()));
-                            //TODO: ensure explore_page matches
-                            match self.explore_results.get(&explore_page) {
-                                Some(results) => {
-                                    //TODO: paging or dynamic load
-                                    let results_len = cmp::min(results.len(), 256);
-
-                                    if results.is_empty() {
-                                        //TODO: no results message?
-                                    }
-                                    let mut flex_row = Vec::with_capacity(results_len);
-                                    for (result_i, result) in
-                                        results.iter().take(results_len).enumerate()
-                                    {
-                                        flex_row.push(
-                                            widget::mouse_area(result.card_view(&spacing))
-                                                .on_press(Message::SelectExploreResult(
-                                                    explore_page,
-                                                    result_i,
-                                                ))
-                                                .into(),
-                                        );
-                                    }
-                                    column = column.push(
-                                        widget::flex_row(flex_row)
-                                            .column_spacing(space_xxs)
-                                            .row_spacing(space_xxs),
-                                    );
-                                }
-                                None => {
-                                    //TODO: loading message?
-                                }
-                            }
-                            widget::scrollable(column)
-                                .id(self.scrollable_id.clone())
-                                .into()
-                        }
-                        None => {
-                            let explore_pages = ExplorePage::all();
-                            let mut column = widget::column::with_capacity(explore_pages.len() * 2)
-                                .padding([0, space_s])
-                                .spacing(space_xxs)
-                                .width(Length::Fill);
-                            for explore_page in explore_pages.iter() {
-                                column = column.push(widget::row::with_children(vec![
-                                    widget::text::title4(explore_page.title()).into(),
-                                    widget::horizontal_space(Length::Fill).into(),
-                                    widget::button::text(fl!("see-all"))
-                                        .trailing_icon(icon_cache_handle("go-next-symbolic", 16))
-                                        .on_press(Message::ExplorePage(Some(*explore_page)))
-                                        .into(),
-                                ]));
-                                //TODO: ensure explore_page matches
-                                match self.explore_results.get(&explore_page) {
-                                    Some(results) => {
-                                        let results_len = cmp::min(results.len(), 8);
-
-                                        if results.is_empty() {
-                                            //TODO: no results message?
-                                        }
-                                        let mut flex_row = Vec::with_capacity(results_len);
-                                        for (result_i, result) in
-                                            results.iter().take(results_len).enumerate()
-                                        {
-                                            flex_row.push(
-                                                widget::mouse_area(result.card_view(&spacing))
-                                                    .on_press(Message::SelectExploreResult(
-                                                        *explore_page,
-                                                        result_i,
-                                                    ))
-                                                    .into(),
-                                            );
-                                        }
-                                        column = column.push(
-                                            widget::flex_row(flex_row)
-                                                .column_spacing(space_xxs)
-                                                .row_spacing(space_xxs),
-                                        );
-                                    }
-                                    None => {
-                                        //TODO: loading message?
-                                    }
-                                }
-                            }
-                            widget::scrollable(column)
-                                .id(self.scrollable_id.clone())
-                                .into()
-                        }
-                    },
-                    NavPage::Installed => {
-                        let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s])
-                            .spacing(space_xxs)
-                            .width(Length::Fill);
-                        column = column.push(widget::text::title2(NavPage::Installed.title()));
-                        match &self.installed {
-                            Some(installed) => {
-                                if installed.is_empty() {
-                                    column =
-                                        column.push(widget::text(fl!("no-installed-applications")));
-                                }
-                                let mut flex_row = Vec::with_capacity(installed.len());
-                                for (installed_i, (_backend_name, package)) in
-                                    installed.iter().enumerate()
-                                {
-                                    flex_row.push(
-                                        widget::mouse_area(package.card_view(vec![], &spacing))
-                                            .on_press(Message::SelectInstalled(installed_i))
-                                            .into(),
-                                    );
-                                }
-                                column = column.push(
-                                    widget::flex_row(flex_row)
-                                        .column_spacing(space_xxs)
-                                        .row_spacing(space_xxs),
-                                );
-                            }
-                            None => {
-                                //TODO: loading message?
-                            }
-                        }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
-                    }
-                    //TODO: reduce duplication
-                    NavPage::Updates => {
-                        let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s])
-                            .spacing(space_xxs)
-                            .width(Length::Fill);
-                        column = column.push(widget::text::title2(NavPage::Updates.title()));
-                        match &self.updates {
-                            Some(updates) => {
-                                if updates.is_empty() {
-                                    column = column.push(widget::text(fl!("no-updates")));
-                                } else {
-                                    column = column.push(widget::row::with_children(vec![
-                                        widget::button::standard(fl!("update-all"))
-                                            .on_press(Message::UpdateAll)
-                                            .into(),
-                                        widget::horizontal_space(Length::Fill).into(),
-                                    ]));
-                                }
-                                let mut flex_row = Vec::with_capacity(updates.len());
-                                for (updates_i, (backend_name, package)) in
-                                    updates.iter().enumerate()
-                                {
-                                    let mut waiting_refresh = false;
-                                    for (other_backend_name, source_id, package_id) in self
-                                        .waiting_installed
-                                        .iter()
-                                        .chain(self.waiting_updates.iter())
-                                    {
-                                        if other_backend_name == backend_name
-                                            && source_id == &package.info.source_id
-                                            && match_id(package_id, &package.id)
-                                        {
-                                            waiting_refresh = true;
-                                            break;
-                                        }
-                                    }
-                                    let mut progress_opt = None;
-                                    for (_id, (op, progress)) in self.pending_operations.iter() {
-                                        if &op.backend_name == backend_name
-                                            && &op.info.source_id == &package.info.source_id
-                                            && match_id(&op.package_id, &package.id)
-                                        {
-                                            progress_opt = Some(*progress);
-                                            break;
-                                        }
-                                    }
-                                    let controls = if let Some(progress) = progress_opt {
-                                        vec![widget::progress_bar(0.0..=100.0, progress)
-                                            .height(Length::Fixed(4.0))
-                                            .into()]
-                                    } else if waiting_refresh {
-                                        vec![]
-                                    } else {
-                                        vec![widget::button::standard(fl!("update"))
-                                            .on_press(Message::Operation(
-                                                OperationKind::Update,
-                                                backend_name,
-                                                package.id.clone(),
-                                                package.info.clone(),
-                                            ))
-                                            .into()]
-                                    };
-                                    flex_row.push(
-                                        widget::mouse_area(package.card_view(controls, &spacing))
-                                            .on_press(Message::SelectUpdates(updates_i))
-                                            .into(),
-                                    );
-                                }
-                                column = column.push(
-                                    widget::flex_row(flex_row)
-                                        .column_spacing(space_xxs)
-                                        .row_spacing(space_xxs),
-                                );
-                            }
-                            None => {
-                                //TODO: loading message?
-                            }
-                        }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
-                    }
-                    //TODO: reduce duplication
-                    nav_page => {
-                        let mut column = widget::column::with_capacity(2)
-                            .padding([0, space_s])
-                            .spacing(space_xxs)
-                            .width(Length::Fill);
-                        column = column.push(widget::text::title2(nav_page.title()));
-                        //TODO: ensure category matches?
-                        match &self.category_results {
-                            Some((_category, results)) => {
-                                //TODO: paging or dynamic load
-                                let results_len = cmp::min(results.len(), 256);
-
-                                if results.is_empty() {
-                                    //TODO: no results message?
-                                }
-                                let mut flex_row = Vec::with_capacity(results_len);
-                                for (result_i, result) in
-                                    results.iter().take(results_len).enumerate()
-                                {
-                                    flex_row.push(
-                                        widget::mouse_area(result.card_view(&spacing))
-                                            .on_press(Message::SelectCategoryResult(result_i))
-                                            .into(),
-                                    );
-                                }
-                                column = column.push(
-                                    widget::flex_row(flex_row)
-                                        .column_spacing(space_xxs)
-                                        .row_spacing(space_xxs),
-                                );
-                            }
-                            None => {
-                                //TODO: loading message?
-                            }
-                        }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
-                    }
-                },
-            },
-        };
-
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
+        widget::responsive(move |size| self.view_responsive(size)).into()
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
