@@ -137,6 +137,7 @@ pub enum Message {
     PendingComplete(u64),
     PendingError(u64, String),
     PendingProgress(u64, f32),
+    ScrollView(scrollable::Viewport),
     SearchActivate,
     SearchClear,
     SearchInput(String),
@@ -518,6 +519,26 @@ impl SearchResult {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ScrollContext {
+    NavPage,
+    ExplorePage,
+    SearchResults,
+    Selected,
+}
+
+impl ScrollContext {
+    fn unused_contexts(&self) -> &'static [ScrollContext] {
+        // Contexts that can be safely removed when another is active
+        match self {
+            Self::NavPage => &[Self::Selected, Self::SearchResults, Self::ExplorePage],
+            Self::ExplorePage => &[Self::Selected, Self::SearchResults],
+            Self::SearchResults => &[Self::Selected],
+            Self::Selected => &[],
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Selected {
     backend_name: &'static str,
@@ -545,6 +566,7 @@ pub struct App {
     pending_operations: BTreeMap<u64, (Operation, f32)>,
     failed_operations: BTreeMap<u64, (Operation, String)>,
     scrollable_id: widget::Id,
+    scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
@@ -817,14 +839,33 @@ impl App {
 
     fn select(&mut self, selected: Selected) -> Command<Message> {
         self.selected_opt = Some(selected);
-        self.set_scroll()
+        self.update_scroll()
     }
 
-    fn set_scroll(&self) -> Command<Message> {
-        //TODO: preserve scroll per page?
+    fn scroll_context(&self) -> ScrollContext {
+        if self.selected_opt.is_some() {
+            ScrollContext::Selected
+        } else if self.search_results.is_some() {
+            ScrollContext::SearchResults
+        } else if self.explore_page_opt.is_some() {
+            ScrollContext::ExplorePage
+        } else {
+            ScrollContext::NavPage
+        }
+    }
+
+    fn update_scroll(&mut self) -> Command<Message> {
+        let scroll_context = self.scroll_context();
+        // Clear unused scroll contexts
+        for remove_context in scroll_context.unused_contexts() {
+            self.scroll_views.remove(remove_context);
+        }
         scrollable::scroll_to(
             self.scrollable_id.clone(),
-            scrollable::AbsoluteOffset::default(),
+            match self.scroll_views.get(&scroll_context) {
+                Some(viewport) => viewport.absolute_offset(),
+                None => scrollable::AbsoluteOffset::default(),
+            },
         )
     }
 
@@ -1520,6 +1561,7 @@ impl Application for App {
             pending_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
             scrollable_id: widget::Id::unique(),
+            scroll_views: HashMap::new(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
@@ -1549,7 +1591,7 @@ impl Application for App {
             // Close search if open
             self.search_active = false;
             if self.search_results.take().is_some() {
-                return self.set_scroll();
+                return self.update_scroll();
             }
         }
         Command::none()
@@ -1563,8 +1605,8 @@ impl Application for App {
         self.selected_opt = None;
         self.nav_model.activate(id);
         let mut commands = Vec::with_capacity(2);
-        //TODO: preserve scroll per page?
-        commands.push(self.set_scroll());
+        self.scroll_views.clear();
+        commands.push(self.update_scroll());
         if let Some(categories) = self
             .nav_model
             .active_data::<NavPage>()
@@ -1619,7 +1661,7 @@ impl Application for App {
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
-                return self.set_scroll();
+                return self.update_scroll();
             }
             Message::Config(config) => {
                 if config != self.config {
@@ -1634,7 +1676,7 @@ impl Application for App {
             }
             Message::ExplorePage(explore_page_opt) => {
                 self.explore_page_opt = explore_page_opt;
-                return self.set_scroll();
+                return self.update_scroll();
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
@@ -1689,6 +1731,9 @@ impl Application for App {
                     *progress = new_progress;
                 }
             }
+            Message::ScrollView(viewport) => {
+                self.scroll_views.insert(self.scroll_context(), viewport);
+            }
             Message::SearchActivate => {
                 self.selected_opt = None;
                 self.search_active = true;
@@ -1698,7 +1743,7 @@ impl Application for App {
                 self.search_active = false;
                 self.search_input.clear();
                 if self.search_results.take().is_some() {
-                    return self.set_scroll();
+                    return self.update_scroll();
                 }
             }
             Message::SearchInput(input) => {
@@ -1713,7 +1758,7 @@ impl Application for App {
             Message::SearchResults(input, results) => {
                 if input == self.search_input {
                     self.search_results = Some((input, results));
-                    return self.set_scroll();
+                    return self.update_scroll();
                 } else {
                     log::warn!(
                         "received {} results for {:?} after search changed to {:?}",
@@ -1777,7 +1822,7 @@ impl Application for App {
             }
             Message::SelectNone => {
                 self.selected_opt = None;
-                //TODO: scroll to top
+                return self.update_scroll();
             }
             Message::SelectCategoryResult(result_i) => {
                 if let Some((_, results)) = &self.category_results {
@@ -1970,6 +2015,7 @@ impl Application for App {
                 .center_x(),
             )
             .id(self.scrollable_id.clone())
+            .on_scroll(Message::ScrollView)
             .into()
         })
         .into();
