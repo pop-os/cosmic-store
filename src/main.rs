@@ -37,6 +37,9 @@ mod backend;
 use config::{AppTheme, Config, CONFIG_VERSION};
 mod config;
 
+use editors_choice::EDITORS_CHOICE;
+mod editors_choice;
+
 use icon_cache::{icon_cache_handle, icon_cache_icon};
 mod icon_cache;
 
@@ -55,20 +58,6 @@ const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
 const MAX_GRID_WIDTH: f32 = 1600.0;
 const SYSTEM_ID: &'static str = "__SYSTEM__";
-
-const EDITORS_CHOICE: &'static [&'static str] = &[
-    "com.slack.Slack",
-    "org.telegram.desktop",
-    "org.gnome.meld",
-    "com.valvesoftware.Steam",
-    "net.lutris.Lutris",
-    "com.mattermost.Desktop",
-    "com.visualstudio.code",
-    "com.spotify.Client",
-    "virt-manager",
-    "org.signal.Signal",
-    "org.chromium.Chromium",
-];
 
 /// Runs application with these settings
 #[rustfmt::skip]
