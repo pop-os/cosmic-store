@@ -53,7 +53,7 @@ mod stats;
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
-const MAX_GRID_WIDTH: f32 = 1440.0;
+const MAX_GRID_WIDTH: f32 = 1600.0;
 const SYSTEM_ID: &'static str = "__SYSTEM__";
 
 const EDITORS_CHOICE: &'static [&'static str] = &[
