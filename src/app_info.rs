@@ -103,6 +103,13 @@ pub enum AppIcon {
     Local(String, Option<u32>, Option<u32>, Option<u32>),
 }
 
+// Replaced Release due to skip_field not supported in bitcode
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub struct AppRelease {
+    pub timestamp: i64,
+    //TODO: add more fields
+}
+
 // Replaced Screenshot due to skip_field not supported in bitcode
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppScreenshot {
@@ -123,6 +130,7 @@ pub struct AppInfo {
     pub desktop_ids: Vec<String>,
     pub flatpak_refs: Vec<String>,
     pub icons: Vec<AppIcon>,
+    pub releases: Vec<AppRelease>,
     pub screenshots: Vec<AppScreenshot>,
     pub monthly_downloads: u64,
 }
@@ -213,6 +221,15 @@ impl AppInfo {
                 )),
             })
             .collect();
+        let releases = component
+            .releases
+            .into_iter()
+            .filter_map(|release| {
+                Some(AppRelease {
+                    timestamp: release.date?.timestamp(),
+                })
+            })
+            .collect();
         let mut screenshots = Vec::new();
         for screenshot in component.screenshots.into_iter() {
             //TODO: better handle multiple images per screenshot
@@ -243,6 +260,7 @@ impl AppInfo {
             desktop_ids,
             flatpak_refs,
             icons,
+            releases,
             screenshots,
             monthly_downloads,
         }

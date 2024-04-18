@@ -203,6 +203,7 @@ impl Packagekit {
                     desktop_ids: Vec::new(),
                     flatpak_refs: Vec::new(),
                     icons: Vec::new(),
+                    releases: Vec::new(),
                     screenshots: Vec::new(),
                     monthly_downloads: 0,
                 }),

@@ -719,6 +719,16 @@ impl App {
                                 .position(|choice_id| match_id(choice_id, &id))
                                 .map(|x| x as i64),
                             ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
+                            ExplorePage::RecentlyUpdated => {
+                                let mut min_weight = 0;
+                                for release in info.releases.iter() {
+                                    let weight = -release.timestamp;
+                                    if weight < min_weight {
+                                        min_weight = weight;
+                                    }
+                                }
+                                Some(min_weight)
+                            }
                             _ => {
                                 for category in explore_page.categories() {
                                     //TODO: contains doesn't work due to type mismatch
