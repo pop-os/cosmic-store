@@ -1087,7 +1087,8 @@ impl App {
                     .spacing(space_m)
                     .width(Length::Fill);
                 column = column.push(
-                    widget::button::standard(fl!("back"))
+                    //TODO: describe where we are going back to
+                    widget::button::text(fl!("back"))
                         .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
                         .on_press(Message::SelectNone),
                 );
@@ -1156,6 +1157,53 @@ impl App {
                     ])
                     .align_items(Alignment::Center)
                     .spacing(space_m),
+                );
+                column = column.push(
+                    widget::column::with_children(vec![
+                        widget::divider::horizontal::default().into(),
+                        widget::row::with_children(vec![
+                            widget::column::with_children(vec![
+                                widget::text::heading(&selected.info.source_name).into(),
+                                widget::text::body(fl!("source")).into(),
+                            ])
+                            .align_items(Alignment::Center)
+                            .width(Length::Fill)
+                            .into(),
+                            widget::divider::vertical::default()
+                                .height(Length::Fixed(32.0))
+                                .into(),
+                            widget::column::with_children(vec![
+                                if selected.info.developer_name.is_empty() {
+                                    widget::text::heading(fl!(
+                                        "app-developers",
+                                        app = selected.info.name.as_str()
+                                    ))
+                                    .into()
+                                } else {
+                                    widget::text::heading(&selected.info.developer_name).into()
+                                },
+                                widget::text::body(fl!("developer")).into(),
+                            ])
+                            .align_items(Alignment::Center)
+                            .width(Length::Fill)
+                            .into(),
+                            widget::divider::vertical::default()
+                                .height(Length::Fixed(32.0))
+                                .into(),
+                            widget::column::with_children(vec![
+                                widget::text::heading(selected.info.monthly_downloads.to_string())
+                                    .into(),
+                                //TODO: description of what this means?
+                                widget::text::body(fl!("monthly-downloads")).into(),
+                            ])
+                            .align_items(Alignment::Center)
+                            .width(Length::Fill)
+                            .into(),
+                        ])
+                        .into(),
+                        widget::divider::horizontal::default().into(),
+                    ])
+                    .spacing(space_xxs),
                 );
                 //TODO: proper image scroller
                 if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {

@@ -197,6 +197,7 @@ impl Packagekit {
                     origin_opt: None,
                     name,
                     summary,
+                    developer_name: String::new(),
                     description,
                     pkgnames,
                     categories: Vec::new(),

@@ -126,6 +126,7 @@ pub struct AppInfo {
     pub origin_opt: Option<String>,
     pub name: String,
     pub summary: String,
+    pub developer_name: String,
     pub description: String,
     pub pkgnames: Vec<String>,
     pub categories: Vec<String>,
@@ -149,6 +150,10 @@ impl AppInfo {
         let name = get_translatable(&component.name, locale);
         let summary = component
             .summary
+            .as_ref()
+            .map_or("", |x| get_translatable(x, locale));
+        let developer_name = component
+            .developer_name
             .as_ref()
             .map_or("", |x| get_translatable(x, locale));
         let description_markup = component
@@ -275,6 +280,7 @@ impl AppInfo {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
+            developer_name: developer_name.to_string(),
             description,
             pkgnames: component.pkgname.map_or(Vec::new(), |x| vec![x]),
             categories,

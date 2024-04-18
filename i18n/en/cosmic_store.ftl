@@ -39,6 +39,12 @@ music-and-video-apps = Music & Video Apps
 apps-for-learning = Apps for Learning
 utilities = Utilities
 
+# Details Page
+source = Source
+developer = Developer
+app-developers = {$app} Developers
+monthly-downloads = Monthly Downloads
+
 # Context Pages
 
 ## Settings
