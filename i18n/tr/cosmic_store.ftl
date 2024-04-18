@@ -1,8 +1,8 @@
 cosmic-app-store = COSMIC Uygulama Mağazası
 back = Geri
 cancel = İptal
-install = Yükle
-no-installed-applications = Yüklü uygulama yok
+install = Kur
+no-installed-applications = Kurulu uygulama yok
 no-updates = Güncelleme mevcut değil
 no-results = "{$search}" için sonuç bulunamadı
 open = Aç
