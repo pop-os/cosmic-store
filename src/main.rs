@@ -125,7 +125,7 @@ pub struct Flags {
 pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
-    CategoryResults(Category, Vec<SearchResult>),
+    CategoryResults(&'static [Category], Vec<SearchResult>),
     Config(Config),
     DialogCancel,
     ExplorePage(Option<ExplorePage>),
@@ -208,11 +208,6 @@ impl Category {
             Self::Utility => "Utility",
         }
     }
-
-    fn title(&self) -> String {
-        //TODO: nice titles for categories
-        self.id().to_string()
-    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
@@ -265,21 +260,16 @@ impl NavPage {
     }
 
     // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
-    fn category(&self) -> Option<Category> {
+    fn categories(&self) -> Option<&'static [Category]> {
         match self {
-            /*TODO: Categories:
-            Science
-            Settings
-            System
-            */
-            Self::Create => Some(Category::Graphics),
-            Self::Work => Some(Category::Office),
-            Self::Develop => Some(Category::Development),
-            Self::Learn => Some(Category::Education),
-            Self::Game => Some(Category::Game),
-            Self::Relax => Some(Category::AudioVideo),
-            Self::Socialize => Some(Category::Network),
-            Self::Utilities => Some(Category::Utility),
+            Self::Create => Some(&[Category::AudioVideo, Category::Graphics]),
+            Self::Work => Some(&[Category::Development, Category::Office, Category::Science]),
+            Self::Develop => Some(&[Category::Development]),
+            Self::Learn => Some(&[Category::Education]),
+            Self::Game => Some(&[Category::Game]),
+            Self::Relax => Some(&[Category::AudioVideo]),
+            Self::Socialize => Some(&[Category::Network]),
+            Self::Utilities => Some(&[Category::Settings, Category::System, Category::Utility]),
             _ => None,
         }
     }
@@ -307,6 +297,15 @@ pub enum ExplorePage {
     PopularApps,
     NewApps,
     RecentlyUpdated,
+    DevelopmentTools,
+    ScientificTools,
+    ProductivityApps,
+    GraphicsAndPhotographyTools,
+    SocialNetworkingApps,
+    Games,
+    MusicAndVideoApps,
+    AppsForLearning,
+    Utilities,
 }
 
 impl ExplorePage {
@@ -316,6 +315,15 @@ impl ExplorePage {
             Self::PopularApps,
             Self::NewApps,
             Self::RecentlyUpdated,
+            Self::DevelopmentTools,
+            Self::ScientificTools,
+            Self::ProductivityApps,
+            Self::GraphicsAndPhotographyTools,
+            Self::SocialNetworkingApps,
+            Self::Games,
+            Self::MusicAndVideoApps,
+            Self::AppsForLearning,
+            Self::Utilities,
         ]
     }
 
@@ -325,6 +333,30 @@ impl ExplorePage {
             Self::PopularApps => fl!("popular-apps"),
             Self::NewApps => fl!("new-apps"),
             Self::RecentlyUpdated => fl!("recently-updated"),
+            Self::DevelopmentTools => fl!("development-tools"),
+            Self::ScientificTools => fl!("scientific-tools"),
+            Self::ProductivityApps => fl!("productivity-apps"),
+            Self::GraphicsAndPhotographyTools => fl!("graphics-and-photography-tools"),
+            Self::SocialNetworkingApps => fl!("social-networking-apps"),
+            Self::Games => fl!("games"),
+            Self::MusicAndVideoApps => fl!("music-and-video-apps"),
+            Self::AppsForLearning => fl!("apps-for-learning"),
+            Self::Utilities => fl!("utilities"),
+        }
+    }
+
+    fn categories(&self) -> &'static [Category] {
+        match self {
+            Self::DevelopmentTools => &[Category::Development],
+            Self::ScientificTools => &[Category::Science],
+            Self::ProductivityApps => &[Category::Office],
+            Self::GraphicsAndPhotographyTools => &[Category::Graphics],
+            Self::SocialNetworkingApps => &[Category::Network],
+            Self::Games => &[Category::Game],
+            Self::MusicAndVideoApps => &[Category::AudioVideo],
+            Self::AppsForLearning => &[Category::Education],
+            Self::Utilities => &[Category::Settings, Category::System, Category::Utility],
+            _ => &[],
         }
     }
 }
@@ -520,7 +552,7 @@ pub struct App {
     updates: Option<Vec<(&'static str, Package)>>,
     waiting_installed: Vec<(&'static str, String, String)>,
     waiting_updates: Vec<(&'static str, String, String)>,
-    category_results: Option<(Category, Vec<SearchResult>)>,
+    category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -620,28 +652,29 @@ impl App {
         results
     }
 
-    fn category(&self, category: Category) -> Command<Message> {
+    fn categories(&self, categories: &'static [Category]) -> Command<Message> {
         let backends = self.backends.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let results = Self::generic_search(&backends, |_id, info| {
-                        //TODO: contains doesn't work due to type mismatch
-                        if info.categories.iter().any(|x| x == category.id()) {
-                            Some(-(info.monthly_downloads as i64))
-                        } else {
-                            None
+                        for category in categories {
+                            //TODO: contains doesn't work due to type mismatch
+                            if info.categories.iter().any(|x| x == category.id()) {
+                                return Some(-(info.monthly_downloads as i64));
+                            }
                         }
+                        None
                     });
                     let duration = start.elapsed();
                     log::info!(
-                        "searched for category {:?} in {:?}, found {} results",
-                        category,
+                        "searched for categories {:?} in {:?}, found {} results",
+                        categories,
                         duration,
                         results.len()
                     );
-                    message::app(Message::CategoryResults(category, results))
+                    message::app(Message::CategoryResults(categories, results))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -664,7 +697,15 @@ impl App {
                                 .position(|choice_id| match_id(choice_id, &id))
                                 .map(|x| x as i64),
                             ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
-                            _ => None,
+                            _ => {
+                                for category in explore_page.categories() {
+                                    //TODO: contains doesn't work due to type mismatch
+                                    if info.categories.iter().any(|x| x == category.id()) {
+                                        return Some(-(info.monthly_downloads as i64));
+                                    }
+                                }
+                                None
+                            }
                         }
                     });
                     let duration = start.elapsed();
@@ -1388,7 +1429,7 @@ impl App {
                         column = column.push(widget::text::title2(nav_page.title()));
                         //TODO: ensure category matches?
                         match &self.category_results {
-                            Some((_category, results)) => {
+                            Some((_, results)) => {
                                 //TODO: paging or dynamic load
                                 let results_len = cmp::min(results.len(), 256);
 
@@ -1524,12 +1565,12 @@ impl Application for App {
         let mut commands = Vec::with_capacity(2);
         //TODO: preserve scroll per page?
         commands.push(self.set_scroll());
-        if let Some(category) = self
+        if let Some(categories) = self
             .nav_model
             .active_data::<NavPage>()
-            .and_then(|nav_page| nav_page.category())
+            .and_then(|nav_page| nav_page.categories())
         {
-            commands.push(self.category(category));
+            commands.push(self.categories(categories));
         }
         Command::batch(commands)
     }
@@ -1570,16 +1611,14 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                return Command::batch([
-                    self.update_installed(),
-                    self.update_updates(),
-                    self.explore_results(ExplorePage::EditorsChoice),
-                    self.explore_results(ExplorePage::PopularApps),
-                    //TODO: add more explore pages
-                ]);
+                let mut commands = vec![self.update_installed(), self.update_updates()];
+                for explore_page in ExplorePage::all() {
+                    commands.push(self.explore_results(*explore_page));
+                }
+                return Command::batch(commands);
             }
-            Message::CategoryResults(category, results) => {
-                self.category_results = Some((category, results));
+            Message::CategoryResults(categories, results) => {
+                self.category_results = Some((categories, results));
                 return self.set_scroll();
             }
             Message::Config(config) => {
@@ -1741,7 +1780,7 @@ impl Application for App {
                 //TODO: scroll to top
             }
             Message::SelectCategoryResult(result_i) => {
-                if let Some((_category, results)) = &self.category_results {
+                if let Some((_, results)) = &self.category_results {
                     match results.get(result_i) {
                         Some(result) => {
                             return self.select(Selected {

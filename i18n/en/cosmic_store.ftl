@@ -29,6 +29,15 @@ editors-choice = Editor's Choice
 popular-apps = Popular Apps
 new-apps = New Apps
 recently-updated = Recently Updated
+development-tools = Development Tools
+scientific-tools = Scientific Tools
+productivity-apps = Productivity Apps
+graphics-and-photography-tools = Graphics & Photography Tools
+social-networking-apps = Social Networking Apps
+games = Games
+music-and-video-apps = Music & Video Apps
+apps-for-learning = Apps for Learning
+utilities = Utilities
 
 # Context Pages
 
