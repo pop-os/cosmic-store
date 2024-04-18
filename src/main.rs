@@ -722,9 +722,11 @@ impl App {
                             ExplorePage::RecentlyUpdated => {
                                 let mut min_weight = 0;
                                 for release in info.releases.iter() {
-                                    let weight = -release.timestamp;
-                                    if weight < min_weight {
-                                        min_weight = weight;
+                                    if let Some(timestamp) = release.timestamp {
+                                        let weight = -timestamp;
+                                        if weight < min_weight {
+                                            min_weight = weight;
+                                        }
                                     }
                                 }
                                 Some(min_weight)
@@ -1016,6 +1018,7 @@ impl App {
             space_s,
             space_xs,
             space_xxs,
+            space_xxxs,
             ..
         } = spacing;
         let grid_width = (size.width - 2.0 * space_s as f32)
@@ -1200,10 +1203,33 @@ impl App {
                     }
                     column = column.push(row);
                 }
-                //TODO: parse markup in description
                 column =
                     column.push(widget::text::body(&selected.info.description).width(Length::Fill));
-                //TODO: description, releases, etc.
+
+                for release in selected.info.releases.iter() {
+                    let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
+                    //TODO: translate
+                    release_col = release_col
+                        .push(widget::text::title4(format!("Version {}", release.version)));
+                    if let Some(timestamp) = release.timestamp {
+                        if let Some(utc) =
+                            chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
+                        {
+                            let local = chrono::DateTime::<chrono::Local>::from(utc);
+                            release_col = release_col.push(widget::text::body(format!(
+                                "{}",
+                                local.format("%b %-d, %-Y")
+                            )));
+                        }
+                    }
+                    if let Some(description) = &release.description {
+                        release_col = release_col.push(widget::text::body(description));
+                    }
+                    column = column.push(release_col);
+                    //TODO: show more releases, or make sure this is the latest?
+                    break;
+                }
+
                 column.into()
             }
             None => match &self.search_results {

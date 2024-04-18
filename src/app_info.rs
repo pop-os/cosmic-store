@@ -106,8 +106,10 @@ pub enum AppIcon {
 // Replaced Release due to skip_field not supported in bitcode
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppRelease {
-    pub timestamp: i64,
-    //TODO: add more fields
+    pub timestamp: Option<i64>,
+    pub version: String,
+    pub description: Option<String>,
+    pub url: Option<String>,
 }
 
 // Replaced Screenshot due to skip_field not supported in bitcode
@@ -207,7 +209,7 @@ impl AppInfo {
                     width,
                     height,
                     scale,
-                } => Some(AppIcon::Remote(url.to_string(), width, height, scale)),
+                } => Some(AppIcon::Remote(url.into(), width, height, scale)),
                 Icon::Local {
                     path,
                     width,
@@ -225,8 +227,27 @@ impl AppInfo {
             .releases
             .into_iter()
             .filter_map(|release| {
+                let description = release.description.as_ref().and_then(|x| {
+                    match convert_markup(get_markup_translatable(x, locale)) {
+                        Ok(ok) => Some(ok),
+                        Err(err) => {
+                            //TODO: better handling of release description
+                            log::info!(
+                                "failed to parse description of release {:?} of {:?} from {:?}: {}",
+                                release.version,
+                                component.id,
+                                origin_opt,
+                                err
+                            );
+                            None
+                        }
+                    }
+                });
                 Some(AppRelease {
-                    timestamp: release.date?.timestamp(),
+                    timestamp: release.date.map(|date| date.timestamp()),
+                    version: release.version,
+                    description,
+                    url: release.url.map(|url| url.into()),
                 })
             })
             .collect();
@@ -241,7 +262,7 @@ impl AppInfo {
                             .as_ref()
                             .map_or("", |x| get_translatable(x, locale))
                             .to_string(),
-                        url: image.url.to_string(),
+                        url: image.url.into(),
                     });
                     break;
                 }

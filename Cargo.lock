@@ -1076,6 +1076,7 @@ dependencies = [
  "appstream",
  "atomicwrites 0.4.3",
  "bitcode",
+ "chrono",
  "dirs 5.0.1",
  "env_logger",
  "flate2",

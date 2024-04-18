@@ -1,7 +1,7 @@
 use appstream::{
-    enums::{ComponentKind, Icon, ImageKind, Launchable},
+    enums::{ComponentKind, Icon, ImageKind, Launchable, ReleaseKind, ReleaseUrgency},
     url::Url,
-    xmltree, Component, Image, ParseError, Screenshot,
+    xmltree, Component, Image, MarkupTranslatableString, ParseError, Release, Screenshot,
 };
 use cosmic::widget;
 use flate2::read::GzDecoder;
@@ -761,6 +761,70 @@ impl AppstreamCache {
                                             path
                                         );
                                     }
+                                }
+                            }
+                        }
+
+                        if let Some(releases) = value["Releases"].as_sequence() {
+                            for release_value in releases {
+                                if let Some(release) = release_value.as_mapping() {
+                                    //TODO: read more fields
+                                    let component_release = Release {
+                                        date: release
+                                            .get("unix-timestamp")
+                                            .and_then(|x| x.as_i64())
+                                            .and_then(|timestamp| {
+                                                chrono::DateTime::<chrono::Utc>::from_timestamp(
+                                                    timestamp, 0,
+                                                )
+                                            }),
+                                        date_eol: None,
+                                        version: release
+                                            .get("version")
+                                            .and_then(|x| x.as_str())
+                                            .unwrap_or_default()
+                                            .to_string(),
+                                        description: release
+                                            .get("description")
+                                            .and_then(|x| x.as_mapping())
+                                            .map(|x| {
+                                                //TODO: more efficient way to convert this
+                                                let mut items = BTreeMap::new();
+                                                for (key, value) in
+                                                    x.into_iter().filter_map(|(key, value)| {
+                                                        Some((key.as_str()?, value.as_str()?))
+                                                    })
+                                                {
+                                                    items
+                                                        .insert(key.to_string(), value.to_string());
+                                                }
+                                                MarkupTranslatableString(items)
+                                            }),
+                                        kind: release
+                                            .get("type")
+                                            .and_then(|x| x.as_str())
+                                            .and_then(|x| match x {
+                                                "stable" => Some(ReleaseKind::Stable),
+                                                "development" => Some(ReleaseKind::Development),
+                                                _ => None,
+                                            })
+                                            .unwrap_or_default(),
+                                        sizes: Vec::new(),
+                                        urgency: release
+                                            .get("urgency")
+                                            .and_then(|x| x.as_str())
+                                            .and_then(|x| match x {
+                                                "low" => Some(ReleaseUrgency::Low),
+                                                "medium" => Some(ReleaseUrgency::Medium),
+                                                "high" => Some(ReleaseUrgency::High),
+                                                "critical" => Some(ReleaseUrgency::Critical),
+                                                _ => None,
+                                            })
+                                            .unwrap_or_default(),
+                                        artifacts: Vec::new(),
+                                        url: None,
+                                    };
+                                    component.releases.push(component_release)
                                 }
                             }
                         }
