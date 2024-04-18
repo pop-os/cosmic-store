@@ -15,5 +15,12 @@ Homepage: https://github.com/pop-os/cosmic-store
 
 Package: cosmic-store
 Architecture: amd64 arm64
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends:
+    appstream-data-pop,
+    apt-config-icons,
+    apt-config-icons-hidpi,
+    apt-config-icons-large,
+    apt-config-icons-large-hidpi,
+    ${misc:Depends},
+    ${shlibs:Depends}
 Description: Cosmic App Store
