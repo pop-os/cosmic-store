@@ -1200,6 +1200,7 @@ impl App {
                             .width(Length::Fill)
                             .into(),
                         ])
+                        .align_items(Alignment::Center)
                         .into(),
                         widget::divider::horizontal::default().into(),
                     ])
