@@ -329,7 +329,35 @@ impl ExplorePage {
     }
 }
 
+pub struct GridMetrics {
+    pub cols: usize,
+    pub item_width: usize,
+    pub column_spacing: u16,
+}
+
+impl GridMetrics {
+    pub fn new(width: usize, min_width: usize, column_spacing: u16) -> Self {
+        let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+        let cols_m1 = width_m1 / (min_width + column_spacing as usize);
+        let cols = cols_m1 + 1;
+        let item_width = width
+            .checked_sub(cols_m1 * column_spacing as usize)
+            .unwrap_or(0)
+            .checked_div(cols)
+            .unwrap_or(0);
+        Self {
+            cols,
+            item_width,
+            column_spacing,
+        }
+    }
+}
+
 impl Package {
+    pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
+        GridMetrics::new(width, 360 + 2 * spacing.space_s as usize, spacing.space_xxs)
+    }
+
     pub fn card_view<'a>(
         &'a self,
         controls: Vec<Element<'a, Message>>,
@@ -390,25 +418,21 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
+    pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
+        GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
+    }
+
     pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
         results: &'a [Self],
         spacing: cosmic_theme::Spacing,
         width: usize,
         callback: F,
     ) -> Element<'a, Message> {
-        let column_spacing = spacing.space_xxs;
-        let (cols, item_width) = {
-            let min_width = 240 + 2 * spacing.space_s as usize;
-            let width_m1 = width.checked_sub(min_width).unwrap_or(0);
-            let cols_m1 = width_m1 / (min_width + column_spacing as usize);
-            let cols = cols_m1 + 1;
-            let item_width = width
-                .checked_sub(cols_m1 * column_spacing as usize)
-                .unwrap_or(0)
-                .checked_div(cols)
-                .unwrap_or(0);
-            (cols, item_width)
-        };
+        let GridMetrics {
+            cols,
+            item_width,
+            column_spacing,
+        } = Self::grid_metrics(&spacing, width);
 
         let mut grid = widget::grid();
         let mut col = 0;
@@ -1176,8 +1200,18 @@ impl App {
                                     //TODO: ensure explore_page matches
                                     match self.explore_results.get(&explore_page) {
                                         Some(results) => {
+                                            let GridMetrics { cols, .. } =
+                                                SearchResult::grid_metrics(&spacing, grid_width);
+
+                                            let max_results = match cols {
+                                                1 => 4,
+                                                2 => 8,
+                                                3 => 9,
+                                                _ => cols * 2,
+                                            };
+
                                             //TODO: adjust results length based on app size?
-                                            let results_len = cmp::min(results.len(), 8);
+                                            let results_len = cmp::min(results.len(), max_results);
 
                                             if results.is_empty() {
                                                 //TODO: no results message?
@@ -1217,20 +1251,11 @@ impl App {
                                         column.push(widget::text(fl!("no-installed-applications")));
                                 }
 
-                                let column_spacing = spacing.space_xxs;
-                                let (cols, item_width) = {
-                                    let min_width = 360 + 2 * spacing.space_s as usize;
-                                    let width_m1 = grid_width.checked_sub(min_width).unwrap_or(0);
-                                    let cols_m1 = width_m1 / (min_width + column_spacing as usize);
-                                    let cols = cols_m1 + 1;
-                                    let item_width = grid_width
-                                        .checked_sub(cols_m1 * column_spacing as usize)
-                                        .unwrap_or(0)
-                                        .checked_div(cols)
-                                        .unwrap_or(0);
-                                    (cols, item_width)
-                                };
-
+                                let GridMetrics {
+                                    cols,
+                                    item_width,
+                                    column_spacing,
+                                } = Package::grid_metrics(&spacing, grid_width);
                                 let mut grid = widget::grid();
                                 let mut col = 0;
                                 for (installed_i, (_backend_name, package)) in
@@ -1281,20 +1306,11 @@ impl App {
                                     ]));
                                 }
 
-                                let column_spacing = spacing.space_xxs;
-                                let (cols, item_width) = {
-                                    let min_width = 360 + 2 * spacing.space_s as usize;
-                                    let width_m1 = grid_width.checked_sub(min_width).unwrap_or(0);
-                                    let cols_m1 = width_m1 / (min_width + column_spacing as usize);
-                                    let cols = cols_m1 + 1;
-                                    let item_width = grid_width
-                                        .checked_sub(cols_m1 * column_spacing as usize)
-                                        .unwrap_or(0)
-                                        .checked_div(cols)
-                                        .unwrap_or(0);
-                                    (cols, item_width)
-                                };
-
+                                let GridMetrics {
+                                    cols,
+                                    item_width,
+                                    column_spacing,
+                                } = Package::grid_metrics(&spacing, grid_width);
                                 let mut grid = widget::grid();
                                 let mut col = 0;
                                 for (updates_i, (backend_name, package)) in
