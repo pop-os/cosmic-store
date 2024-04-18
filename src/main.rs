@@ -53,6 +53,7 @@ mod stats;
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
+const MAX_GRID_WIDTH: f32 = 1296.0;
 const SYSTEM_ID: &'static str = "__SYSTEM__";
 
 const EDITORS_CHOICE: &'static [&'static str] = &[
@@ -920,8 +921,11 @@ impl App {
             space_xxs,
             ..
         } = spacing;
-
-        let content: Element<_> = match &self.selected_opt {
+        let grid_width = (size.width - 2.0 * space_s as f32)
+            .floor()
+            .max(0.0)
+            .min(MAX_GRID_WIDTH) as usize;
+        match &self.selected_opt {
             Some(selected) => {
                 //TODO: more efficient checks
                 let mut waiting_refresh = false;
@@ -1103,9 +1107,7 @@ impl App {
                 column =
                     column.push(widget::text::body(&selected.info.description).width(Length::Fill));
                 //TODO: description, releases, etc.
-                widget::scrollable(column)
-                    .id(self.scrollable_id.clone())
-                    .into()
+                column.into()
             }
             None => match &self.search_results {
                 Some((input, results)) => {
@@ -1124,12 +1126,10 @@ impl App {
                     column = column.push(SearchResult::grid_view(
                         &results[..results_len],
                         spacing,
-                        (size.width - 2.0 * space_s as f32).floor() as usize,
+                        grid_width,
                         |result_i| Message::SelectSearchResult(result_i),
                     ));
-                    widget::scrollable(column)
-                        .id(self.scrollable_id.clone())
-                        .into()
+                    column.into()
                 }
                 None => match self
                     .nav_model
@@ -1161,7 +1161,7 @@ impl App {
                                         column = column.push(SearchResult::grid_view(
                                             &results[..results_len],
                                             spacing,
-                                            (size.width - 2.0 * space_s as f32).floor() as usize,
+                                            grid_width,
                                             move |result_i| {
                                                 Message::SelectExploreResult(explore_page, result_i)
                                             },
@@ -1171,9 +1171,7 @@ impl App {
                                         //TODO: loading message?
                                     }
                                 }
-                                widget::scrollable(column)
-                                    .id(self.scrollable_id.clone())
-                                    .into()
+                                column.into()
                             }
                             None => {
                                 let explore_pages = ExplorePage::all();
@@ -1197,6 +1195,7 @@ impl App {
                                     //TODO: ensure explore_page matches
                                     match self.explore_results.get(&explore_page) {
                                         Some(results) => {
+                                            //TODO: adjust results length based on app size?
                                             let results_len = cmp::min(results.len(), 8);
 
                                             if results.is_empty() {
@@ -1206,8 +1205,7 @@ impl App {
                                             column = column.push(SearchResult::grid_view(
                                                 &results[..results_len],
                                                 spacing,
-                                                (size.width - 2.0 * space_s as f32).floor()
-                                                    as usize,
+                                                grid_width,
                                                 |result_i| {
                                                     Message::SelectExploreResult(
                                                         *explore_page,
@@ -1221,9 +1219,7 @@ impl App {
                                         }
                                     }
                                 }
-                                widget::scrollable(column)
-                                    .id(self.scrollable_id.clone())
-                                    .into()
+                                column.into()
                             }
                         }
                     }
@@ -1240,14 +1236,13 @@ impl App {
                                         column.push(widget::text(fl!("no-installed-applications")));
                                 }
 
-                                let width = (size.width - 2.0 * space_s as f32).floor() as usize;
                                 let column_spacing = spacing.space_xxs;
                                 let (cols, item_width) = {
                                     let min_width = 360 + 2 * spacing.space_s as usize;
-                                    let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+                                    let width_m1 = grid_width.checked_sub(min_width).unwrap_or(0);
                                     let cols_m1 = width_m1 / (min_width + column_spacing as usize);
                                     let cols = cols_m1 + 1;
-                                    let item_width = width
+                                    let item_width = grid_width
                                         .checked_sub(cols_m1 * column_spacing as usize)
                                         .unwrap_or(0)
                                         .checked_div(cols)
@@ -1283,9 +1278,7 @@ impl App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
+                        column.into()
                     }
                     //TODO: reduce duplication
                     NavPage::Updates => {
@@ -1307,14 +1300,13 @@ impl App {
                                     ]));
                                 }
 
-                                let width = (size.width - 2.0 * space_s as f32).floor() as usize;
                                 let column_spacing = spacing.space_xxs;
                                 let (cols, item_width) = {
                                     let min_width = 360 + 2 * spacing.space_s as usize;
-                                    let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+                                    let width_m1 = grid_width.checked_sub(min_width).unwrap_or(0);
                                     let cols_m1 = width_m1 / (min_width + column_spacing as usize);
                                     let cols = cols_m1 + 1;
-                                    let item_width = width
+                                    let item_width = grid_width
                                         .checked_sub(cols_m1 * column_spacing as usize)
                                         .unwrap_or(0)
                                         .checked_div(cols)
@@ -1388,9 +1380,7 @@ impl App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
+                        column.into()
                     }
                     //TODO: reduce duplication
                     nav_page => {
@@ -1412,7 +1402,7 @@ impl App {
                                 column = column.push(SearchResult::grid_view(
                                     &results[..results_len],
                                     spacing,
-                                    (size.width - 2.0 * space_s as f32).floor() as usize,
+                                    grid_width,
                                     |result_i| Message::SelectCategoryResult(result_i),
                                 ));
                             }
@@ -1420,17 +1410,11 @@ impl App {
                                 //TODO: loading message?
                             }
                         }
-                        widget::scrollable(column)
-                            .id(self.scrollable_id.clone())
-                            .into()
+                        column.into()
                     }
                 },
             },
-        };
-
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
+        }
     }
 }
 
@@ -1939,7 +1923,21 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
-        widget::responsive(move |size| self.view_responsive(size)).into()
+        let content: Element<_> = widget::responsive(move |size| {
+            widget::scrollable(
+                widget::container(
+                    widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
+                )
+                .center_x(),
+            )
+            .id(self.scrollable_id.clone())
+            .into()
+        })
+        .into();
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
