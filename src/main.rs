@@ -1021,10 +1021,7 @@ impl App {
             space_xxxs,
             ..
         } = spacing;
-        let grid_width = (size.width - 2.0 * space_s as f32)
-            .floor()
-            .max(0.0)
-            .min(MAX_GRID_WIDTH) as usize;
+        let grid_width = (size.width - 2.0 * space_s as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
             Some(selected) => {
                 //TODO: more efficient checks
@@ -2092,7 +2089,8 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
-        let content: Element<_> = widget::responsive(move |size| {
+        let content: Element<_> = widget::responsive(move |mut size| {
+            size.width = size.width.min(MAX_GRID_WIDTH);
             widget::scrollable(
                 widget::container(
                     widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
