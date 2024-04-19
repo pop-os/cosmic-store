@@ -903,19 +903,12 @@ impl App {
         )
     }
 
-    fn select(
-        &mut self,
+    fn selected_sources(
+        &self,
         backend_name: &'static str,
-        id: AppId,
-        icon: widget::icon::Handle,
-        info: Arc<AppInfo>,
-    ) -> Command<Message> {
-        log::info!(
-            "selected {:?} from backend {:?} and source {:?}",
-            id,
-            backend_name,
-            info.source_id
-        );
+        id: &AppId,
+        info: &AppInfo,
+    ) -> Vec<SelectedSource> {
         let mut sources = Vec::new();
         match self.apps.get(&id) {
             Some(infos) => {
@@ -929,6 +922,23 @@ impl App {
                 sources.push(SelectedSource::new(backend_name, &info, installed));
             }
         }
+        sources
+    }
+
+    fn select(
+        &mut self,
+        backend_name: &'static str,
+        id: AppId,
+        icon: widget::icon::Handle,
+        info: Arc<AppInfo>,
+    ) -> Command<Message> {
+        log::info!(
+            "selected {:?} from backend {:?} and source {:?}",
+            id,
+            backend_name,
+            info.source_id
+        );
+        let sources = self.selected_sources(backend_name, &id, &info);
         self.selected_opt = Some(Selected {
             backend_name,
             id,
@@ -1048,9 +1058,24 @@ impl App {
             }
         }
         self.apps = Arc::new(apps);
+
+        // Update selected sources
+        {
+            let sources_opt = if let Some(selected) = &self.selected_opt {
+                Some(self.selected_sources(selected.backend_name, &selected.id, &selected.info))
+            } else {
+                None
+            };
+            if let Some(sources) = sources_opt {
+                if let Some(selected) = &mut self.selected_opt {
+                    selected.sources = sources;
+                }
+            }
+        }
+
         let duration = start.elapsed();
         log::info!(
-            "populated app cache with {} ids in {:?}",
+            "updated app cache with {} ids in {:?}",
             self.apps.len(),
             duration
         );
