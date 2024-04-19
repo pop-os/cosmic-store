@@ -6,7 +6,7 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{AppInfo, AppstreamCache, OperationKind, SYSTEM_ID};
+use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
 
 #[allow(dead_code)]
 struct TransactionPackage {
@@ -145,7 +145,7 @@ impl Packagekit {
             match appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
                     for id in ids.iter() {
-                        match appstream_cache.infos.get(id.trim_end_matches(".desktop")) {
+                        match appstream_cache.infos.get(&id) {
                             Some(info) => {
                                 packages.push(Package {
                                     id: id.clone(),
@@ -156,7 +156,7 @@ impl Packagekit {
                                 });
                             }
                             None => {
-                                log::warn!("failed to find info {}", id);
+                                log::warn!("failed to find info {:?}", id);
                             }
                         }
                     }
@@ -186,7 +186,7 @@ impl Packagekit {
             }
             //TODO: translate
             packages.push(Package {
-                id: SYSTEM_ID.to_string(),
+                id: AppId::system(),
                 icon: widget::icon::from_name("package-x-generic")
                     .size(128)
                     .handle(),
@@ -243,7 +243,7 @@ impl Backend for Packagekit {
     fn operation(
         &self,
         kind: OperationKind,
-        package_id: &str,
+        package_id: &AppId,
         info: &AppInfo,
         mut f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
@@ -252,7 +252,7 @@ impl Backend for Packagekit {
             package_names.push(pkgname.as_str());
         }
         if package_names.is_empty() {
-            return Err(format!("{} missing package name", package_id).into());
+            return Err(format!("{:?} missing package name", package_id).into());
         }
         let tx_packages = {
             let tx = self.transaction()?;

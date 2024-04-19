@@ -1,8 +1,10 @@
 use std::{collections::HashMap, sync::OnceLock, time::Instant};
 
+use crate::AppId;
+
 static STATS: OnceLock<HashMap<String, u64>> = OnceLock::new();
 
-pub fn monthly_downloads(id: &str) -> Option<u64> {
+pub fn monthly_downloads(id: &AppId) -> Option<u64> {
     let stats = STATS.get_or_init(|| {
         let start = Instant::now();
         match bitcode::decode::<HashMap<String, u64>>(include_bytes!(
@@ -19,5 +21,5 @@ pub fn monthly_downloads(id: &str) -> Option<u64> {
             }
         }
     });
-    stats.get(id.trim_end_matches(".desktop")).copied()
+    stats.get(id.normalized()).copied()
 }

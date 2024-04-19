@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{AppInfo, AppstreamCache, OperationKind};
+use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -18,7 +18,7 @@ mod packagekit;
 
 #[derive(Clone, Debug)]
 pub struct Package {
-    pub id: String,
+    pub id: AppId,
     pub icon: widget::icon::Handle,
     pub info: Arc<AppInfo>,
     pub version: String,
@@ -33,7 +33,7 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn operation(
         &self,
         kind: OperationKind,
-        package_id: &str,
+        package_id: &AppId,
         info: &AppInfo,
         f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>>;

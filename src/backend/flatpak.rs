@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::{Backend, Package};
-use crate::{AppInfo, AppstreamCache, OperationKind};
+use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
@@ -77,7 +77,8 @@ impl Flatpak {
     }
 
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
-        let id = r.name()?;
+        let id_raw = r.name()?;
+        let id = AppId::new(&id_raw);
         let origin = r.origin()?;
         for appstream_cache in self.appstream_caches.iter() {
             if &appstream_cache.source_id != &origin {
@@ -86,7 +87,7 @@ impl Flatpak {
             }
 
             //TODO: better matching of .desktop suffix
-            let info = match appstream_cache.infos.get(id.trim_end_matches(".desktop")) {
+            let info = match appstream_cache.infos.get(&id) {
                 Some(some) => some,
                 None => continue,
             };
@@ -100,7 +101,7 @@ impl Flatpak {
             }
 
             return Some(Package {
-                id: id.to_string(),
+                id: id.clone(),
                 icon: appstream_cache.icon(info),
                 info: info.clone(),
                 version: r.appdata_version().unwrap_or_default().to_string(),
@@ -108,7 +109,7 @@ impl Flatpak {
             });
         }
 
-        log::warn!("failed to find info for {} from {}", id, origin);
+        log::warn!("failed to find info for {:?} from {}", id, origin);
         None
     }
 }
@@ -156,7 +157,7 @@ impl Backend for Flatpak {
     fn operation(
         &self,
         kind: OperationKind,
-        id: &str,
+        id: &AppId,
         info: &AppInfo,
         callback: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
@@ -223,7 +224,7 @@ impl Backend for Flatpak {
                         ) {
                             Ok(_) => {}
                             Err(err) => {
-                                log::info!("failed to find {} in {}: {}", id, remote_name, err);
+                                log::info!("failed to find {:?} in {}: {}", id, remote_name, err);
                                 continue;
                             }
                         };
@@ -254,7 +255,7 @@ impl Backend for Flatpak {
                     ) {
                         Ok(_) => {}
                         Err(err) => {
-                            log::info!("failed to find {} installed locally: {}", id, err);
+                            log::info!("failed to find {:?} installed locally: {}", id, err);
                             continue;
                         }
                     };
@@ -284,7 +285,7 @@ impl Backend for Flatpak {
                     ) {
                         Ok(_) => {}
                         Err(err) => {
-                            log::info!("failed to find {} installed locally: {}", id, err);
+                            log::info!("failed to find {:?} installed locally: {}", id, err);
                             continue;
                         }
                     };
@@ -296,6 +297,6 @@ impl Backend for Flatpak {
                 }
             }
         }
-        Err(format!("package {id} not found").into())
+        Err(format!("package {id:?} not found").into())
     }
 }

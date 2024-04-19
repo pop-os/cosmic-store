@@ -25,6 +25,9 @@ use std::{
     time::{self, Instant},
 };
 
+use app_id::AppId;
+mod app_id;
+
 use app_info::{AppIcon, AppInfo};
 mod app_info;
 
@@ -60,7 +63,6 @@ const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
 const MAX_GRID_WIDTH: f32 = 1600.0;
-const SYSTEM_ID: &'static str = "__SYSTEM__";
 
 /// Runs application with these settings
 #[rustfmt::skip]
@@ -99,11 +101,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-//TODO: make app ID a newtype
-fn match_id(a: &str, b: &str) -> bool {
-    a.trim_end_matches(".desktop") == b.trim_end_matches(".desktop")
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     SearchActivate,
@@ -117,7 +114,7 @@ impl Action {
     }
 }
 
-pub type Apps = HashMap<String, Vec<(&'static str, Arc<AppInfo>, bool)>>;
+pub type Apps = HashMap<AppId, Vec<(&'static str, Arc<AppInfo>, bool)>>;
 
 #[derive(Clone, Debug)]
 pub struct Flags {
@@ -138,7 +135,7 @@ pub enum Message {
     Installed(Vec<(&'static str, Package)>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
-    Operation(OperationKind, &'static str, String, Arc<AppInfo>),
+    Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
     PendingComplete(u64),
     PendingError(u64, String),
     PendingProgress(u64, f32),
@@ -450,7 +447,7 @@ impl Package {
 #[derive(Clone, Debug)]
 pub struct SearchResult {
     backend_name: &'static str,
-    id: String,
+    id: AppId,
     icon: widget::icon::Handle,
     // Info from selected source
     info: Arc<AppInfo>,
@@ -575,7 +572,7 @@ impl AsRef<str> for SelectedSource {
 #[derive(Clone, Debug)]
 pub struct Selected {
     backend_name: &'static str,
-    id: String,
+    id: AppId,
     icon: widget::icon::Handle,
     info: Arc<AppInfo>,
     screenshot_images: HashMap<usize, widget::image::Handle>,
@@ -607,8 +604,8 @@ pub struct App {
     search_input: String,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
-    waiting_installed: Vec<(&'static str, String, String)>,
-    waiting_updates: Vec<(&'static str, String, String)>,
+    waiting_installed: Vec<(&'static str, String, AppId)>,
+    waiting_updates: Vec<(&'static str, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
@@ -669,7 +666,7 @@ impl App {
         self.pending_operations.insert(id, (operation, 0.0));
     }
 
-    fn generic_search<F: Fn(&str, &AppInfo) -> Option<i64> + Send + Sync>(
+    fn generic_search<F: Fn(&AppId, &AppInfo) -> Option<i64> + Send + Sync>(
         apps: &Apps,
         backends: &Backends,
         filter_map: F,
@@ -772,7 +769,7 @@ impl App {
                         match explore_page {
                             ExplorePage::EditorsChoice => EDITORS_CHOICE
                                 .iter()
-                                .position(|choice_id| match_id(choice_id, &id))
+                                .position(|choice_id| choice_id == &id.normalized())
                                 .map(|x| x as i64),
                             ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
                             ExplorePage::RecentlyUpdated => {
@@ -909,7 +906,7 @@ impl App {
     fn select(
         &mut self,
         backend_name: &'static str,
-        id: String,
+        id: AppId,
         icon: widget::icon::Handle,
         info: Arc<AppInfo>,
     ) -> Command<Message> {
@@ -993,13 +990,13 @@ impl App {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
 
-    fn is_installed(&self, backend_name: &'static str, source_id: &str, id: &str) -> bool {
+    fn is_installed(&self, backend_name: &'static str, source_id: &str, id: &AppId) -> bool {
         let mut is_installed = false;
         if let Some(installed) = &self.installed {
             for (installed_backend_name, package) in installed {
                 if installed_backend_name == &backend_name
                     && &package.info.source_id == &source_id
-                    && match_id(&package.id, &id)
+                    && &package.id == id
                 {
                     is_installed = true;
                     break;
@@ -1082,9 +1079,9 @@ impl App {
                         log::info!("loaded installed from {} in {:?}", backend_name, duration);
                     }
                     installed.sort_by(|a, b| {
-                        if a.1.id == SYSTEM_ID {
+                        if a.1.id.is_system() {
                             cmp::Ordering::Less
-                        } else if b.1.id == SYSTEM_ID {
+                        } else if b.1.id.is_system() {
                             cmp::Ordering::Greater
                         } else {
                             lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
@@ -1122,9 +1119,9 @@ impl App {
                         log::info!("loaded updates from {} in {:?}", backend_name, duration);
                     }
                     updates.sort_by(|a, b| {
-                        if a.1.id == SYSTEM_ID {
+                        if a.1.id.is_system() {
                             cmp::Ordering::Less
-                        } else if b.1.id == SYSTEM_ID {
+                        } else if b.1.id.is_system() {
                             cmp::Ordering::Greater
                         } else {
                             lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
@@ -1189,7 +1186,7 @@ impl App {
                 {
                     if backend_name == &selected.backend_name
                         && source_id == &selected.info.source_id
-                        && match_id(package_id, &selected.id)
+                        && package_id == &selected.id
                     {
                         waiting_refresh = true;
                         break;
@@ -1200,7 +1197,7 @@ impl App {
                     for (backend_name, package) in installed {
                         if backend_name == &selected.backend_name
                             && &package.info.source_id == &selected.info.source_id
-                            && match_id(&package.id, &selected.id)
+                            && &package.id == &selected.id
                         {
                             is_installed = true;
                             break;
@@ -1212,7 +1209,7 @@ impl App {
                     for (backend_name, package) in updates {
                         if backend_name == &selected.backend_name
                             && &package.info.source_id == &selected.info.source_id
-                            && match_id(&package.id, &selected.id)
+                            && &package.id == &selected.id
                         {
                             update_opt = Some(Message::Operation(
                                 OperationKind::Update,
@@ -1228,7 +1225,7 @@ impl App {
                 for (_id, (op, progress)) in self.pending_operations.iter() {
                     if op.backend_name == selected.backend_name
                         && &op.info.source_id == &selected.info.source_id
-                        && match_id(&op.package_id, &selected.id)
+                        && &op.package_id == &selected.id
                     {
                         progress_opt = Some(*progress);
                         break;
@@ -1281,7 +1278,7 @@ impl App {
                                 .into(),
                         );
                     }
-                    if selected.id != SYSTEM_ID {
+                    if !selected.id.is_system() {
                         buttons.push(
                             widget::button::destructive(fl!("uninstall"))
                                 .on_press(Message::Operation(
@@ -1655,7 +1652,7 @@ impl App {
                                     {
                                         if other_backend_name == backend_name
                                             && source_id == &package.info.source_id
-                                            && match_id(package_id, &package.id)
+                                            && package_id == &package.id
                                         {
                                             waiting_refresh = true;
                                             break;
@@ -1665,7 +1662,7 @@ impl App {
                                     for (_id, (op, progress)) in self.pending_operations.iter() {
                                         if &op.backend_name == backend_name
                                             && &op.info.source_id == &package.info.source_id
-                                            && match_id(&op.package_id, &package.id)
+                                            && &op.package_id == &package.id
                                         {
                                             progress_opt = Some(*progress);
                                             break;

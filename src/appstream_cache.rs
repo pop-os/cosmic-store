@@ -18,7 +18,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{stats, AppIcon, AppInfo};
+use crate::{stats, AppIcon, AppId, AppInfo};
 
 const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
@@ -49,8 +49,8 @@ pub struct AppstreamCache {
     pub path_tags: BTreeMap<String, AppstreamCacheTag>,
     pub icons_paths: Vec<String>,
     pub locale: String,
-    pub infos: HashMap<String, Arc<AppInfo>>,
-    pub pkgnames: HashMap<String, HashSet<String>>,
+    pub infos: HashMap<AppId, Arc<AppInfo>>,
+    pub pkgnames: HashMap<String, HashSet<AppId>>,
 }
 
 impl AppstreamCache {
@@ -429,7 +429,7 @@ impl AppstreamCache {
                 match self.infos.insert(id.clone(), info) {
                     Some(_old) => {
                         //TODO: merge based on priority
-                        log::debug!("found duplicate info {}", id);
+                        log::debug!("found duplicate info {:?}", id);
                     }
                     None => {}
                 }
@@ -546,7 +546,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
+    ) -> Result<Vec<(AppId, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
@@ -571,7 +571,7 @@ impl AppstreamCache {
                                     return None;
                                 }
 
-                                let id = component.id.0.trim_end_matches(".desktop").to_string();
+                                let id = AppId::new(&component.id.0);
                                 let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                                 return Some((
                                     id,
@@ -614,7 +614,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<Vec<(String, Arc<AppInfo>)>, Box<dyn Error>> {
+    ) -> Result<Vec<(AppId, Arc<AppInfo>)>, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         let mut origin_opt = None;
@@ -879,7 +879,7 @@ impl AppstreamCache {
                             }
                         }
 
-                        let id = component.id.0.trim_end_matches(".desktop").to_string();
+                        let id = AppId::new(&component.id.0);
                         let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                         infos.push((
                             id,
