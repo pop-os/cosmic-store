@@ -117,7 +117,7 @@ impl Action {
     }
 }
 
-pub type Apps = HashMap<String, Vec<(&'static str, Arc<AppInfo>)>>;
+pub type Apps = HashMap<String, Vec<(&'static str, Arc<AppInfo>, bool)>>;
 
 #[derive(Clone, Debug)]
 pub struct Flags {
@@ -551,6 +551,20 @@ pub struct SelectedSource {
     source_name: String,
 }
 
+impl SelectedSource {
+    fn new(backend_name: &'static str, info: &AppInfo, installed: bool) -> Self {
+        SelectedSource {
+            backend_name,
+            source_id: info.source_id.clone(),
+            source_name: if installed {
+                fl!("source-installed", source = info.source_name.as_str())
+            } else {
+                info.source_name.clone()
+            },
+        }
+    }
+}
+
 // For use in dropdown widget
 impl AsRef<str> for SelectedSource {
     fn as_ref(&self) -> &str {
@@ -664,7 +678,7 @@ impl App {
             .par_iter()
             .filter_map(|(id, infos)| {
                 let mut best_result: Option<SearchResult> = None;
-                for (backend_name, info) in infos.iter() {
+                for (backend_name, info, _installed) in infos.iter() {
                     if let Some(weight) = filter_map(id, info) {
                         //TODO: optimize
                         let Some(backend) = backends.get(backend_name) else {
@@ -899,24 +913,23 @@ impl App {
         icon: widget::icon::Handle,
         info: Arc<AppInfo>,
     ) -> Command<Message> {
+        log::info!(
+            "selected {:?} from backend {:?} and source {:?}",
+            id,
+            backend_name,
+            info.source_id
+        );
         let mut sources = Vec::new();
         match self.apps.get(&id) {
             Some(infos) => {
-                for (backend_name, info) in infos.iter() {
-                    sources.push(SelectedSource {
-                        backend_name,
-                        source_id: info.source_id.clone(),
-                        source_name: info.source_name.clone(),
-                    });
+                for (backend_name, info, installed) in infos.iter() {
+                    sources.push(SelectedSource::new(backend_name, &info, *installed));
                 }
             }
             None => {
                 //TODO: warning?
-                sources.push(SelectedSource {
-                    backend_name,
-                    source_id: info.source_id.clone(),
-                    source_name: info.source_name.clone(),
-                });
+                let installed = self.is_installed(backend_name, &info.source_id, &id);
+                sources.push(SelectedSource::new(backend_name, &info, installed));
             }
         }
         self.selected_opt = Some(Selected {
@@ -980,6 +993,22 @@ impl App {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
 
+    fn is_installed(&self, backend_name: &'static str, source_id: &str, id: &str) -> bool {
+        let mut is_installed = false;
+        if let Some(installed) = &self.installed {
+            for (installed_backend_name, package) in installed {
+                if installed_backend_name == &backend_name
+                    && &package.info.source_id == &source_id
+                    && match_id(&package.id, &id)
+                {
+                    is_installed = true;
+                    break;
+                }
+            }
+        }
+        is_installed
+    }
+
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
@@ -988,19 +1017,29 @@ impl App {
             for appstream_cache in backend.info_caches() {
                 for (id, info) in appstream_cache.infos.iter() {
                     let entry = apps.entry(id.clone()).or_insert_with(|| Vec::new());
-                    entry.push((backend_name, info.clone()));
+                    entry.push((
+                        backend_name,
+                        info.clone(),
+                        self.is_installed(backend_name, &info.source_id, id),
+                    ));
                     entry.sort_by(|a, b| {
-                        // Sort by highest priority first to lowest priority
-                        let a_priority = priority(a.0, &a.1.source_id, id);
-                        let b_priority = priority(b.0, &b.1.source_id, id);
-                        match b_priority.cmp(&a_priority) {
+                        // Sort with installed first
+                        match b.2.cmp(&a.2) {
                             cmp::Ordering::Equal => {
-                                match lexical_sort::natural_lexical_cmp(
-                                    &a.1.source_id,
-                                    &b.1.source_id,
-                                ) {
+                                // Sort by highest priority first to lowest priority
+                                let a_priority = priority(a.0, &a.1.source_id, id);
+                                let b_priority = priority(b.0, &b.1.source_id, id);
+                                match b_priority.cmp(&a_priority) {
                                     cmp::Ordering::Equal => {
-                                        lexical_sort::natural_lexical_cmp(&a.0, &b.0)
+                                        match lexical_sort::natural_lexical_cmp(
+                                            &a.1.source_id,
+                                            &b.1.source_id,
+                                        ) {
+                                            cmp::Ordering::Equal => {
+                                                lexical_sort::natural_lexical_cmp(&a.0, &b.0)
+                                            }
+                                            ordering => ordering,
+                                        }
                                     }
                                     ordering => ordering,
                                 }
@@ -1864,12 +1903,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                self.update_apps();
-                let mut commands = vec![self.update_installed(), self.update_updates()];
-                for explore_page in ExplorePage::all() {
-                    commands.push(self.explore_results(*explore_page));
-                }
-                return Command::batch(commands);
+                return Command::batch([self.update_installed(), self.update_updates()]);
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
@@ -1896,6 +1930,13 @@ impl Application for App {
             Message::Installed(installed) => {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
+
+                self.update_apps();
+                let mut commands = Vec::new();
+                for explore_page in ExplorePage::all() {
+                    commands.push(self.explore_results(*explore_page));
+                }
+                return Command::batch(commands);
             }
             Message::Key(modifiers, key) => {
                 for (key_bind, action) in self.key_binds.iter() {

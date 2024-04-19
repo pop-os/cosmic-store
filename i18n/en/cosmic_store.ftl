@@ -40,6 +40,7 @@ apps-for-learning = Apps for Learning
 utilities = Utilities
 
 # Details Page
+source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers
 monthly-downloads = Monthly Downloads
