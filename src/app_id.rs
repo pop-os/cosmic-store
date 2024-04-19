@@ -2,10 +2,7 @@ use std::hash::{Hash, Hasher};
 
 /// Normalize app IDs
 fn normalize_id(id_raw: &str) -> &str {
-    match id_raw.trim_end_matches(".desktop") {
-        "firefox" => "org.mozilla.firefox",
-        id => id,
-    }
+    id_raw.trim_end_matches(".desktop")
 }
 
 #[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
