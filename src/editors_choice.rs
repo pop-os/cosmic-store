@@ -1,6 +1,6 @@
 pub const EDITORS_CHOICE: &'static [&'static str] = &[
     "com.slack.Slack",
-    "org.telegram.desktop",
+    "org.telegram",
     "org.gnome.meld",
     "com.valvesoftware.Steam",
     "net.lutris.Lutris",
