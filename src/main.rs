@@ -764,6 +764,7 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
+                    let now = chrono::Utc::now().timestamp();
                     let results = Self::generic_search(&apps, &backends, |id, info| {
                         //TODO: use explore_page
                         match explore_page {
@@ -782,9 +783,13 @@ impl App {
                                 let mut min_weight = 0;
                                 for release in info.releases.iter() {
                                     if let Some(timestamp) = release.timestamp {
-                                        let weight = -timestamp;
-                                        if weight < min_weight {
-                                            min_weight = weight;
+                                        if timestamp < now {
+                                            let weight = -timestamp;
+                                            if weight < min_weight {
+                                                min_weight = weight;
+                                            }
+                                        } else {
+                                            log::info!("{:?} has release timestamp {} which is past the present {}", id, timestamp, now);
                                         }
                                     }
                                 }
