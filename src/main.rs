@@ -51,6 +51,9 @@ mod localize;
 use operation::{Operation, OperationKind};
 mod operation;
 
+use priority::priority;
+mod priority;
+
 mod stats;
 
 const ICON_SIZE_SEARCH: u16 = 48;
@@ -114,6 +117,8 @@ impl Action {
     }
 }
 
+pub type Apps = HashMap<String, Vec<(&'static str, Arc<AppInfo>)>>;
+
 #[derive(Clone, Debug)]
 pub struct Flags {
     config_handler: Option<cosmic_config::Config>,
@@ -151,6 +156,7 @@ pub enum Message {
     SelectSearchResult(usize),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
+    SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     UpdateAll,
@@ -446,6 +452,7 @@ pub struct SearchResult {
     backend_name: &'static str,
     id: String,
     icon: widget::icon::Handle,
+    // Info from selected source
     info: Arc<AppInfo>,
     weight: i64,
 }
@@ -540,6 +547,20 @@ impl ScrollContext {
 }
 
 #[derive(Clone, Debug)]
+pub struct SelectedSource {
+    backend_name: &'static str,
+    source_id: String,
+    source_name: String,
+}
+
+// For use in dropdown widget
+impl AsRef<str> for SelectedSource {
+    fn as_ref(&self) -> &str {
+        &self.source_name
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Selected {
     backend_name: &'static str,
     id: String,
@@ -547,6 +568,7 @@ pub struct Selected {
     info: Arc<AppInfo>,
     screenshot_images: HashMap<usize, widget::image::Handle>,
     screenshot_shown: usize,
+    sources: Vec<SelectedSource>,
 }
 
 /// The [`App`] stores application-specific state.
@@ -556,6 +578,7 @@ pub struct App {
     config: Config,
     locale: String,
     app_themes: Vec<String>,
+    apps: Arc<Apps>,
     backends: Backends,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
@@ -635,31 +658,50 @@ impl App {
     }
 
     fn generic_search<F: Fn(&str, &AppInfo) -> Option<i64> + Send + Sync>(
+        apps: &Apps,
         backends: &Backends,
         filter_map: F,
     ) -> Vec<SearchResult> {
-        let mut results = Vec::<SearchResult>::new();
-        //TODO: par_iter?
-        for (backend_name, backend) in backends.iter() {
-            //TODO: par_iter?
-            for appstream_cache in backend.info_caches() {
-                let mut backend_results = appstream_cache
-                    .infos
-                    .par_iter()
-                    .filter_map(|(id, info)| {
-                        let weight = filter_map(id, info)?;
-                        Some(SearchResult {
+        let mut results: Vec<SearchResult> = apps
+            .par_iter()
+            .filter_map(|(id, infos)| {
+                let mut best_result: Option<SearchResult> = None;
+                for (backend_name, info) in infos.iter() {
+                    if let Some(weight) = filter_map(id, info) {
+                        //TODO: optimize
+                        let Some(backend) = backends.get(backend_name) else {
+                            continue;
+                        };
+                        let appstream_caches = backend.info_caches();
+                        let Some(appstream_cache) = appstream_caches
+                            .iter()
+                            .find(|x| x.source_id == info.source_id)
+                        else {
+                            continue;
+                        };
+                        //TODO: put all infos into search result
+                        let result = SearchResult {
                             backend_name,
                             id: id.clone(),
                             icon: appstream_cache.icon(info),
                             info: info.clone(),
                             weight,
-                        })
-                    })
-                    .collect();
-                results.append(&mut backend_results);
-            }
-        }
+                        };
+                        best_result = match best_result {
+                            Some(other_result) => {
+                                if result.weight < other_result.weight {
+                                    Some(result)
+                                } else {
+                                    Some(other_result)
+                                }
+                            }
+                            None => Some(result),
+                        };
+                    }
+                }
+                best_result
+            })
+            .collect();
         results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => {
                 match lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name) {
@@ -675,12 +717,13 @@ impl App {
     }
 
     fn categories(&self, categories: &'static [Category]) -> Command<Message> {
+        let apps = self.apps.clone();
         let backends = self.backends.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |_id, info| {
+                    let results = Self::generic_search(&apps, &backends, |_id, info| {
                         for category in categories {
                             //TODO: contains doesn't work due to type mismatch
                             if info.categories.iter().any(|x| x == category.id()) {
@@ -706,12 +749,13 @@ impl App {
     }
 
     fn explore_results(&self, explore_page: ExplorePage) -> Command<Message> {
+        let apps = self.apps.clone();
         let backends = self.backends.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |id, info| {
+                    let results = Self::generic_search(&apps, &backends, |id, info| {
                         //TODO: use explore_page
                         match explore_page {
                             ExplorePage::EditorsChoice => EDITORS_CHOICE
@@ -771,12 +815,13 @@ impl App {
                 return Command::none();
             }
         };
+        let apps = self.apps.clone();
         let backends = self.backends.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&backends, |_id, info| {
+                    let results = Self::generic_search(&apps, &backends, |_id, info| {
                         //TODO: improve performance
                         let stats_weight = |weight: i64| {
                             //TODO: make sure no overflows
@@ -849,8 +894,42 @@ impl App {
         )
     }
 
-    fn select(&mut self, selected: Selected) -> Command<Message> {
-        self.selected_opt = Some(selected);
+    fn select(
+        &mut self,
+        backend_name: &'static str,
+        id: String,
+        icon: widget::icon::Handle,
+        info: Arc<AppInfo>,
+    ) -> Command<Message> {
+        let mut sources = Vec::new();
+        match self.apps.get(&id) {
+            Some(infos) => {
+                for (backend_name, info) in infos.iter() {
+                    sources.push(SelectedSource {
+                        backend_name,
+                        source_id: info.source_id.clone(),
+                        source_name: info.source_name.clone(),
+                    });
+                }
+            }
+            None => {
+                //TODO: warning?
+                sources.push(SelectedSource {
+                    backend_name,
+                    source_id: info.source_id.clone(),
+                    source_name: info.source_name.clone(),
+                });
+            }
+        }
+        self.selected_opt = Some(Selected {
+            backend_name,
+            id,
+            icon,
+            info,
+            screenshot_images: HashMap::new(),
+            screenshot_shown: 0,
+            sources,
+        });
         self.update_scroll()
     }
 
@@ -901,6 +980,46 @@ impl App {
 
     fn update_config(&mut self) -> Command<Message> {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
+    }
+
+    fn update_apps(&mut self) {
+        let start = Instant::now();
+        let mut apps = Apps::new();
+        //TODO: par_iter?
+        for (backend_name, backend) in self.backends.iter() {
+            for appstream_cache in backend.info_caches() {
+                for (id, info) in appstream_cache.infos.iter() {
+                    let entry = apps.entry(id.clone()).or_insert_with(|| Vec::new());
+                    entry.push((backend_name, info.clone()));
+                    entry.sort_by(|a, b| {
+                        // Sort by highest priority first to lowest priority
+                        let a_priority = priority(a.0, &a.1.source_id, id);
+                        let b_priority = priority(b.0, &b.1.source_id, id);
+                        match b_priority.cmp(&a_priority) {
+                            cmp::Ordering::Equal => {
+                                match lexical_sort::natural_lexical_cmp(
+                                    &a.1.source_id,
+                                    &b.1.source_id,
+                                ) {
+                                    cmp::Ordering::Equal => {
+                                        lexical_sort::natural_lexical_cmp(&a.0, &b.0)
+                                    }
+                                    ordering => ordering,
+                                }
+                            }
+                            ordering => ordering,
+                        }
+                    });
+                }
+            }
+        }
+        self.apps = Arc::new(apps);
+        let duration = start.elapsed();
+        log::info!(
+            "populated app cache with {} ids in {:?}",
+            self.apps.len(),
+            duration
+        );
     }
 
     fn update_installed(&self) -> Command<Message> {
@@ -1079,6 +1198,16 @@ impl App {
                     }
                 }
 
+                let mut selected_source = None;
+                for (i, source) in selected.sources.iter().enumerate() {
+                    if source.backend_name == selected.backend_name
+                        && &source.source_id == &selected.info.source_id
+                    {
+                        selected_source = Some(i);
+                        break;
+                    }
+                }
+
                 let mut column = widget::column::with_capacity(2)
                     .padding([0, space_s])
                     .spacing(space_m)
@@ -1159,10 +1288,12 @@ impl App {
                     widget::column::with_children(vec![
                         widget::divider::horizontal::default().into(),
                         widget::row::with_children(vec![
-                            widget::column::with_children(vec![
-                                widget::text::heading(&selected.info.source_name).into(),
-                                widget::text::body(fl!("source")).into(),
-                            ])
+                            widget::column::with_children(vec![widget::dropdown(
+                                &selected.sources,
+                                selected_source,
+                                Message::SelectedSource,
+                            )
+                            .into()])
                             .align_items(Alignment::Center)
                             .width(Length::Fill)
                             .into(),
@@ -1249,8 +1380,7 @@ impl App {
                     }
                     column = column.push(row);
                 }
-                column =
-                    column.push(widget::text::body(&selected.info.description).width(Length::Fill));
+                column = column.push(widget::text::body(&selected.info.description));
 
                 for release in selected.info.releases.iter() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
@@ -1633,6 +1763,7 @@ impl Application for App {
             config: flags.config,
             locale,
             app_themes,
+            apps: Arc::new(Apps::new()),
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
@@ -1735,6 +1866,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
+                self.update_apps();
                 let mut commands = vec![self.update_installed(), self.update_updates()];
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));
@@ -1862,14 +1994,12 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            return self.select(Selected {
+                            return self.select(
                                 backend_name,
-                                id: package.id,
-                                icon: package.icon,
-                                info: package.info,
-                                screenshot_images: HashMap::new(),
-                                screenshot_shown: 0,
-                            });
+                                package.id,
+                                package.icon,
+                                package.info,
+                            );
                         }
                         None => {
                             log::error!(
@@ -1887,14 +2017,12 @@ impl Application for App {
                         .map(|(backend_name, package)| (backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
-                            return self.select(Selected {
+                            return self.select(
                                 backend_name,
-                                id: package.id,
-                                icon: package.icon,
-                                info: package.info,
-                                screenshot_images: HashMap::new(),
-                                screenshot_shown: 0,
-                            });
+                                package.id,
+                                package.icon,
+                                package.info,
+                            );
                         }
                         None => {
                             log::error!("failed to find updates package with index {}", updates_i);
@@ -1910,14 +2038,12 @@ impl Application for App {
                 if let Some((_, results)) = &self.category_results {
                     match results.get(result_i) {
                         Some(result) => {
-                            return self.select(Selected {
-                                backend_name: result.backend_name,
-                                id: result.id.clone(),
-                                icon: result.icon.clone(),
-                                info: result.info.clone(),
-                                screenshot_images: HashMap::new(),
-                                screenshot_shown: 0,
-                            })
+                            return self.select(
+                                result.backend_name,
+                                result.id.clone(),
+                                result.icon.clone(),
+                                result.info.clone(),
+                            )
                         }
                         None => {
                             log::error!("failed to find category result with index {}", result_i);
@@ -1929,14 +2055,12 @@ impl Application for App {
                 if let Some(results) = self.explore_results.get(&explore_page) {
                     match results.get(result_i) {
                         Some(result) => {
-                            return self.select(Selected {
-                                backend_name: result.backend_name,
-                                id: result.id.clone(),
-                                icon: result.icon.clone(),
-                                info: result.info.clone(),
-                                screenshot_images: HashMap::new(),
-                                screenshot_shown: 0,
-                            })
+                            return self.select(
+                                result.backend_name,
+                                result.id.clone(),
+                                result.icon.clone(),
+                                result.info.clone(),
+                            )
                         }
                         None => {
                             log::error!(
@@ -1952,14 +2076,12 @@ impl Application for App {
                 if let Some((_input, results)) = &self.search_results {
                     match results.get(result_i) {
                         Some(result) => {
-                            return self.select(Selected {
-                                backend_name: result.backend_name,
-                                id: result.id.clone(),
-                                icon: result.icon.clone(),
-                                info: result.info.clone(),
-                                screenshot_images: HashMap::new(),
-                                screenshot_shown: 0,
-                            })
+                            return self.select(
+                                result.backend_name,
+                                result.id.clone(),
+                                result.icon.clone(),
+                                result.info.clone(),
+                            )
                         }
                         None => {
                             log::error!("failed to find search result with index {}", result_i);
@@ -1981,6 +2103,36 @@ impl Application for App {
             Message::SelectedScreenshotShown(i) => {
                 if let Some(selected) = &mut self.selected_opt {
                     selected.screenshot_shown = i;
+                }
+            }
+            Message::SelectedSource(i) => {
+                //TODO: show warnings if anything is not found?
+                let mut next_ids = None;
+                if let Some(selected) = &self.selected_opt {
+                    if let Some(source) = selected.sources.get(i) {
+                        next_ids = Some((
+                            source.backend_name,
+                            source.source_id.clone(),
+                            selected.id.clone(),
+                        ));
+                    }
+                }
+                //TODO: can this be simplified?
+                if let Some((backend_name, source_id, id)) = next_ids {
+                    if let Some(backend) = self.backends.get(backend_name) {
+                        for appstream_cache in backend.info_caches() {
+                            if appstream_cache.source_id == source_id {
+                                if let Some(info) = appstream_cache.infos.get(&id) {
+                                    return self.select(
+                                        backend_name,
+                                        id,
+                                        appstream_cache.icon(info),
+                                        info.clone(),
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Message::SystemThemeModeChange(_theme_mode) => {

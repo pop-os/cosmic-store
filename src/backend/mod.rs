@@ -1,6 +1,12 @@
 use cosmic::widget;
 use rayon::prelude::*;
-use std::{collections::HashMap, error::Error, fmt, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, HashMap},
+    error::Error,
+    fmt,
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::{AppInfo, AppstreamCache, OperationKind};
 
@@ -33,7 +39,8 @@ pub trait Backend: fmt::Debug + Send + Sync {
     ) -> Result<(), Box<dyn Error>>;
 }
 
-pub type Backends = HashMap<&'static str, Arc<dyn Backend>>;
+// BTreeMap for stable sort order
+pub type Backends = BTreeMap<&'static str, Arc<dyn Backend>>;
 
 pub fn backends(locale: &str) -> Backends {
     let mut backends = Backends::new();
