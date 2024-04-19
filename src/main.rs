@@ -772,7 +772,13 @@ impl App {
                                 .position(|choice_id| choice_id == &id.normalized())
                                 .map(|x| x as i64),
                             ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
+                            ExplorePage::NewApps => {
+                                //TODO
+                                None
+                            }
                             ExplorePage::RecentlyUpdated => {
+                                // Finds the newest release and sorts from newest to oldest
+                                //TODO: appstream release info is often incomplete
                                 let mut min_weight = 0;
                                 for release in info.releases.iter() {
                                     if let Some(timestamp) = release.timestamp {
@@ -1539,20 +1545,9 @@ impl App {
                                         .spacing(space_xxs)
                                         .width(Length::Fill);
                                 for explore_page in explore_pages.iter() {
-                                    column = column.push(widget::row::with_children(vec![
-                                        widget::text::title4(explore_page.title()).into(),
-                                        widget::horizontal_space(Length::Fill).into(),
-                                        widget::button::text(fl!("see-all"))
-                                            .trailing_icon(icon_cache_handle(
-                                                "go-next-symbolic",
-                                                16,
-                                            ))
-                                            .on_press(Message::ExplorePage(Some(*explore_page)))
-                                            .into(),
-                                    ]));
                                     //TODO: ensure explore_page matches
                                     match self.explore_results.get(&explore_page) {
-                                        Some(results) => {
+                                        Some(results) if !results.is_empty() => {
                                             let GridMetrics { cols, .. } =
                                                 SearchResult::grid_metrics(&spacing, grid_width);
 
@@ -1566,9 +1561,19 @@ impl App {
                                             //TODO: adjust results length based on app size?
                                             let results_len = cmp::min(results.len(), max_results);
 
-                                            if results.is_empty() {
-                                                //TODO: no results message?
-                                            }
+                                            column = column.push(widget::row::with_children(vec![
+                                                widget::text::title4(explore_page.title()).into(),
+                                                widget::horizontal_space(Length::Fill).into(),
+                                                widget::button::text(fl!("see-all"))
+                                                    .trailing_icon(icon_cache_handle(
+                                                        "go-next-symbolic",
+                                                        16,
+                                                    ))
+                                                    .on_press(Message::ExplorePage(Some(
+                                                        *explore_page,
+                                                    )))
+                                                    .into(),
+                                            ]));
 
                                             column = column.push(SearchResult::grid_view(
                                                 &results[..results_len],
@@ -1582,9 +1587,7 @@ impl App {
                                                 },
                                             ));
                                         }
-                                        None => {
-                                            //TODO: loading message?
-                                        }
+                                        _ => {}
                                     }
                                 }
                                 column.into()
