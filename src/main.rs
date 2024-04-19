@@ -509,8 +509,6 @@ impl SearchResult {
                     widget::text::caption(&self.info.summary)
                         .height(Length::Fixed(28.0))
                         .into(),
-                    //TODO: Combine origins
-                    widget::text::caption(&self.info.source_name).into(),
                 ])
                 .into(),
             ])
@@ -519,7 +517,7 @@ impl SearchResult {
         )
         .center_y()
         .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(62.0 + (spacing.space_xxs as f32) * 2.0))
+        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .style(theme::Container::Card)
         .into()
