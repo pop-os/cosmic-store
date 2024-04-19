@@ -391,7 +391,7 @@ impl GridMetrics {
 
 impl Package {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
-        GridMetrics::new(width, 360 + 2 * spacing.space_s as usize, spacing.space_xxs)
+        GridMetrics::new(width, 320 + 2 * spacing.space_s as usize, spacing.space_xxs)
     }
 
     pub fn card_view<'a>(
@@ -400,7 +400,7 @@ impl Package {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        let mut height = 88.0 + 2.0 * spacing.space_xxs as f32;
+        let mut height = 74.0 + 2.0 * spacing.space_xxs as f32;
         let mut column = widget::column::with_children(vec![
             widget::text::body(&self.info.name)
                 .height(Length::Fixed(20.0))
@@ -410,7 +410,6 @@ impl Package {
                 .into(),
             //TODO: combine origins
             widget::text::caption(&self.info.source_name).into(),
-            widget::text::caption(&self.version).into(),
         ]);
         if !controls.is_empty() {
             column = column
