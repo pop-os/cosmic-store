@@ -43,7 +43,7 @@ utilities = Utilities
 source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers
-monthly-downloads = Monthly Downloads
+monthly-downloads = Flathub Monthly Downloads
 
 # Context Pages
 

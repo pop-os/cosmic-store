@@ -1,5 +1,9 @@
 use std::{collections::HashMap, error::Error, fs};
 
+use app_id::AppId;
+#[path = "../../src/app_id.rs"]
+mod app_id;
+
 #[derive(serde::Deserialize)]
 pub struct Stats {
     refs: HashMap<String, HashMap<String, (u64, u64)>>,
@@ -19,12 +23,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let month = 3;
     let days = 31;
 
-    let mut ref_downloads = HashMap::<String, u64>::new();
+    let mut ref_downloads = HashMap::<AppId, u64>::new();
     for day in 1..=days {
         let stats = stats(year, month, day).await?;
         for (id, archs) in stats.refs {
             for (_arch, (downloads, _updates)) in archs {
-                *ref_downloads.entry(id.clone()).or_insert(0) += downloads;
+                *ref_downloads.entry(AppId::new(&id)).or_insert(0) += downloads;
             }
         }
     }
