@@ -2,14 +2,14 @@ cosmic-app-store = COSMIC App Store
 back = Zurück
 cancel = Abbrechen
 install = Installieren
-no-installed-applications = Keine installierten Anwendungen
+no-installed-applications = Keine installierte Anwendungen
 no-updates = Keine Updates verfügbar
 no-results = Keine Resultate für "{$search}"
 open = Öffnen
 see-all = Alle sehen
 uninstall = Deinstallieren
 update = Aktualisieren
-update-all = Alle aktulisieren
+update-all = Alle aktualisieren
 
 # Nav Pages
 explore = Erkunden
@@ -36,7 +36,7 @@ graphics-and-photography-tools = Grafik- und Fotografie Tools
 social-networking-apps = Apps für soziale Netzwerke
 games = Spiele
 music-and-video-apps = Musik & Video Apps
-apps-for-learning = Apps fürs lernen
+apps-for-learning = Apps fürs Lernen
 utilities = Dienstprogramme
 
 # Details Page
