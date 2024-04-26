@@ -1353,16 +1353,21 @@ impl App {
                     .align_items(Alignment::Center)
                     .spacing(space_m),
                 );
+
                 column = column.push(
                     widget::column::with_children(vec![
                         widget::divider::horizontal::default().into(),
                         widget::row::with_children(vec![
-                            widget::column::with_children(vec![widget::dropdown(
-                                &selected.sources,
-                                selected_source,
-                                Message::SelectedSource,
-                            )
-                            .into()])
+                            widget::column::with_children(vec![if selected.sources.len() == 1 {
+                                widget::text(selected.sources[0].as_ref()).into()
+                            } else {
+                                widget::dropdown(
+                                    &selected.sources,
+                                    selected_source,
+                                    Message::SelectedSource,
+                                )
+                                .into()
+                            }])
                             .align_items(Alignment::Center)
                             .width(Length::Fill)
                             .into(),
