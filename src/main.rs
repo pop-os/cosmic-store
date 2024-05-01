@@ -1874,7 +1874,7 @@ impl Application for App {
             selected_opt: None,
         };
 
-        let command = Command::batch([app.update_title(), app.update_backends(true)]);
+        let command = Command::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
 
