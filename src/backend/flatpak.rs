@@ -115,7 +115,18 @@ impl Flatpak {
 }
 
 impl Backend for Flatpak {
-    fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
+    fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>> {
+        if refresh {
+            //TODO: should we support system installations?
+            let inst = Installation::new_user(Cancellable::NONE)?;
+            for remote in inst.list_remotes(Cancellable::NONE)? {
+                let Some(remote_name) = remote.name() else {
+                    continue;
+                };
+                inst.update_remote_sync(&remote_name, Cancellable::NONE)?;
+            }
+        }
+
         for appstream_cache in self.appstream_caches.iter_mut() {
             appstream_cache.reload();
         }

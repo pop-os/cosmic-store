@@ -20,7 +20,9 @@ use std::{
     any::TypeId,
     cmp,
     collections::{BTreeMap, HashMap, VecDeque},
-    env, process,
+    env,
+    future::pending,
+    process,
     sync::Arc,
     time::{self, Instant},
 };
@@ -128,6 +130,7 @@ pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
     CategoryResults(&'static [Category], Vec<SearchResult>),
+    CheckUpdates,
     Config(Config),
     DialogCancel,
     ExplorePage(Option<ExplorePage>),
@@ -988,15 +991,23 @@ impl App {
         )
     }
 
-    fn update_backends(&self) -> Command<Message> {
+    fn update_backends(&mut self, refresh: bool) -> Command<Message> {
         let locale = self.locale.clone();
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let backends = backend::backends(&locale);
+                    let backends = backend::backends(&locale, refresh);
                     let duration = start.elapsed();
-                    log::info!("loaded backends in {:?}", duration);
+                    log::info!(
+                        "loaded backends {} in {:?}",
+                        if refresh {
+                            "with refreshing"
+                        } else {
+                            "without refreshing"
+                        },
+                        duration
+                    );
                     message::app(Message::Backends(backends))
                 })
                 .await
@@ -1662,6 +1673,10 @@ impl App {
                             Some(updates) => {
                                 if updates.is_empty() {
                                     column = column.push(widget::text(fl!("no-updates")));
+                                    column = column.push(
+                                        widget::button::standard(fl!("check-for-updates"))
+                                            .on_press(Message::CheckUpdates),
+                                    );
                                 } else {
                                     column = column.push(widget::row::with_children(vec![
                                         widget::button::standard(fl!("update-all"))
@@ -1739,7 +1754,7 @@ impl App {
                                 );
                             }
                             None => {
-                                //TODO: loading message?
+                                column = column.push(widget::text(fl!("checking-for-updates")));
                             }
                         }
                         column.into()
@@ -1859,7 +1874,7 @@ impl Application for App {
             selected_opt: None,
         };
 
-        let command = Command::batch([app.update_title(), app.update_backends()]);
+        let command = Command::batch([app.update_title(), app.update_backends(true)]);
         (app, command)
     }
 
@@ -1942,6 +1957,10 @@ impl Application for App {
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
                 return self.update_scroll();
+            }
+            Message::CheckUpdates => {
+                self.updates = None;
+                return self.update_backends(true);
             }
             Message::Config(config) => {
                 if config != self.config {
@@ -2414,10 +2433,7 @@ impl Application for App {
                             .await;
                     }
                 }
-
-                loop {
-                    tokio::time::sleep(time::Duration::new(1, 0)).await;
-                }
+                pending().await
             }));
         }
 
@@ -2453,9 +2469,7 @@ impl Application for App {
                                 log::warn!("failed to request screenshot from {}: {}", url, err);
                             }
                         }
-                        loop {
-                            tokio::time::sleep(time::Duration::new(1, 0)).await;
-                        }
+                        pending().await
                     },
                 ));
             }

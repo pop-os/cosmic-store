@@ -217,7 +217,15 @@ impl Packagekit {
 }
 
 impl Backend for Packagekit {
-    fn load_caches(&mut self) -> Result<(), Box<dyn Error>> {
+    fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>> {
+        if refresh {
+            let tx = self.transaction()?;
+            tx.set_hints(&["interactive=true"])?;
+            //TODO: force refresh?
+            let force = false;
+            tx.refresh_cache(force)?;
+        }
+
         for appstream_cache in self.appstream_caches.iter_mut() {
             appstream_cache.reload();
         }

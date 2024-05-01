@@ -26,7 +26,7 @@ pub struct Package {
 }
 
 pub trait Backend: fmt::Debug + Send + Sync {
-    fn load_caches(&mut self) -> Result<(), Box<dyn Error>>;
+    fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>>;
     fn info_caches(&self) -> &[AppstreamCache];
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
@@ -42,7 +42,7 @@ pub trait Backend: fmt::Debug + Send + Sync {
 // BTreeMap for stable sort order
 pub type Backends = BTreeMap<&'static str, Arc<dyn Backend>>;
 
-pub fn backends(locale: &str) -> Backends {
+pub fn backends(locale: &str, refresh: bool) -> Backends {
     let mut backends = Backends::new();
 
     #[cfg(feature = "flatpak")]
@@ -77,7 +77,7 @@ pub fn backends(locale: &str) -> Backends {
 
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
-        match Arc::get_mut(backend).unwrap().load_caches() {
+        match Arc::get_mut(backend).unwrap().load_caches(refresh) {
             Ok(()) => {
                 let duration = start.elapsed();
                 log::info!("loaded {} backend caches in {:?}", backend_name, duration);
