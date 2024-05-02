@@ -1968,9 +1968,13 @@ impl Application for App {
             Message::CheckUpdates => {
                 //TODO: this only checks updates if they have already been checked
                 if self.updates.take().is_some() {
-                    return self.update_backends(true);
+                    if self.pending_operations.is_empty() {
+                        return self.update_backends(true);
+                    } else {
+                        log::warn!("cannot check for updates, operations are in progress");
+                    }
                 } else {
-                    log::warn!("Already checking for updates");
+                    log::warn!("already checking for updates");
                 }
             }
             Message::Config(config) => {
