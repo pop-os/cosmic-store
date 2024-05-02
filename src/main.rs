@@ -1913,6 +1913,13 @@ impl Application for App {
         {
             commands.push(self.categories(categories));
         }
+        match self.nav_model.active_data::<NavPage>() {
+            Some(NavPage::Updates) => {
+                // Refresh when going to updates page
+                commands.push(self.update(Message::CheckUpdates));
+            }
+            _ => {}
+        }
         Command::batch(commands)
     }
 
@@ -1959,8 +1966,12 @@ impl Application for App {
                 return self.update_scroll();
             }
             Message::CheckUpdates => {
-                self.updates = None;
-                return self.update_backends(true);
+                //TODO: this only checks updates if they have already been checked
+                if self.updates.take().is_some() {
+                    return self.update_backends(true);
+                } else {
+                    log::warn!("Already checking for updates");
+                }
             }
             Message::Config(config) => {
                 if config != self.config {
