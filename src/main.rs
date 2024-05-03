@@ -24,7 +24,7 @@ use std::{
     future::pending,
     process,
     sync::Arc,
-    time::{self, Instant},
+    time::Instant,
 };
 
 use app_id::AppId;
@@ -1365,60 +1365,72 @@ impl App {
                     .spacing(space_m),
                 );
 
-                column = column.push(
-                    widget::column::with_children(vec![
-                        widget::divider::horizontal::default().into(),
-                        widget::row::with_children(vec![
-                            widget::column::with_children(vec![if selected.sources.len() == 1 {
-                                widget::text(selected.sources[0].as_ref()).into()
-                            } else {
-                                widget::dropdown(
-                                    &selected.sources,
-                                    selected_source,
-                                    Message::SelectedSource,
-                                )
-                                .into()
-                            }])
-                            .align_items(Alignment::Center)
-                            .width(Length::Fill)
-                            .into(),
-                            widget::divider::vertical::default()
-                                .height(Length::Fixed(32.0))
-                                .into(),
-                            widget::column::with_children(vec![
-                                if selected.info.developer_name.is_empty() {
-                                    widget::text::heading(fl!(
-                                        "app-developers",
-                                        app = selected.info.name.as_str()
-                                    ))
-                                    .into()
-                                } else {
-                                    widget::text::heading(&selected.info.developer_name).into()
-                                },
-                                widget::text::body(fl!("developer")).into(),
-                            ])
-                            .align_items(Alignment::Center)
-                            .width(Length::Fill)
-                            .into(),
-                            widget::divider::vertical::default()
-                                .height(Length::Fixed(32.0))
-                                .into(),
-                            widget::column::with_children(vec![
-                                widget::text::heading(selected.info.monthly_downloads.to_string())
-                                    .into(),
-                                //TODO: description of what this means?
-                                widget::text::body(fl!("monthly-downloads")).into(),
-                            ])
-                            .align_items(Alignment::Center)
-                            .width(Length::Fill)
-                            .into(),
+                let sources_widget = widget::column::with_children(vec![if selected.sources.len()
+                    == 1
+                {
+                    widget::text(selected.sources[0].as_ref()).into()
+                } else {
+                    widget::dropdown(&selected.sources, selected_source, Message::SelectedSource)
+                        .into()
+                }])
+                .align_items(Alignment::Center)
+                .width(Length::Fill);
+                let developers_widget = widget::column::with_children(vec![
+                    if selected.info.developer_name.is_empty() {
+                        widget::text::heading(fl!(
+                            "app-developers",
+                            app = selected.info.name.as_str()
+                        ))
+                        .into()
+                    } else {
+                        widget::text::heading(&selected.info.developer_name).into()
+                    },
+                    widget::text::body(fl!("developer")).into(),
+                ])
+                .align_items(Alignment::Center)
+                .width(Length::Fill);
+                let downloads_widget = widget::column::with_children(vec![
+                    widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
+                    //TODO: description of what this means?
+                    widget::text::body(fl!("monthly-downloads")).into(),
+                ])
+                .align_items(Alignment::Center)
+                .width(Length::Fill);
+                if grid_width < 416 {
+                    column = column.push(
+                        widget::column::with_children(vec![
+                            widget::divider::horizontal::default().into(),
+                            sources_widget.into(),
+                            widget::divider::horizontal::default().into(),
+                            developers_widget.into(),
+                            widget::divider::horizontal::default().into(),
+                            downloads_widget.into(),
+                            widget::divider::horizontal::default().into(),
                         ])
-                        .align_items(Alignment::Center)
-                        .into(),
-                        widget::divider::horizontal::default().into(),
-                    ])
-                    .spacing(space_xxs),
-                );
+                        .spacing(space_xxs),
+                    );
+                } else {
+                    column = column.push(
+                        widget::column::with_children(vec![
+                            widget::divider::horizontal::default().into(),
+                            widget::row::with_children(vec![
+                                sources_widget.into(),
+                                widget::divider::vertical::default()
+                                    .height(Length::Fixed(32.0))
+                                    .into(),
+                                developers_widget.into(),
+                                widget::divider::vertical::default()
+                                    .height(Length::Fixed(32.0))
+                                    .into(),
+                                downloads_widget.into(),
+                            ])
+                            .align_items(Alignment::Center)
+                            .into(),
+                            widget::divider::horizontal::default().into(),
+                        ])
+                        .spacing(space_xxs),
+                    );
+                }
                 //TODO: proper image scroller
                 if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
                     //TODO: get proper image dimensions
