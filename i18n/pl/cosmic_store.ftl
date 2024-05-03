@@ -1,10 +1,12 @@
 cosmic-app-store = Sklep z Apkami COSMIC
 back = Powrót
 cancel = Anuluj
+check-for-updates = Sprawdź uaktualnienia
+checking-for-updates = Sprawdzam uaktualnienia...
 install = Zainstaluj
-no-installed-applications = Brak zainstalowanych aplikacji
-no-updates = Brak dostępnych aktualizacji
-no-results = Brak wyników dla "{$search}"
+no-installed-applications = Brak zainstalowanycha aplikacji.
+no-updates = Wszystkie zainstalowane aplikacje są aktualne.
+no-results = Brak wyników dla "{$search}".
 open = Otwórz
 see-all = Zobacz wszystkie
 uninstall = Odinstaluj
