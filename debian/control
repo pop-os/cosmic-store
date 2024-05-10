@@ -21,6 +21,7 @@ Depends:
     apt-config-icons-hidpi,
     apt-config-icons-large,
     apt-config-icons-large-hidpi,
+    cosmic-icons,
     ${misc:Depends},
     ${shlibs:Depends}
 Description: Cosmic App Store
