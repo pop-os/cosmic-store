@@ -34,6 +34,10 @@ bitcode = { version = "0.6", features = ["serde"] }
 dirs = "5"
 # flatpak feature
 libflatpak = { version = "0.4", optional = true }
+# logind feature (for inhibiting suspend/restart/shutdown)
+logind-zbus = { version = "3.1.2", optional = true }
+nix = { version = "0.26", features = ["user"], optional = true }
+zbus = { version = "3.14.1", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
 
@@ -48,8 +52,9 @@ version = "0.2.1"
 features = ["serde"]
 
 [features]
-default = ["flatpak", "packagekit", "wgpu"]
+default = ["flatpak", "logind", "packagekit", "wgpu"]
 flatpak = ["dep:libflatpak"]
+logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 packagekit = ["dep:packagekit-zbus"]
 wgpu = ["libcosmic/wgpu"]
 

@@ -53,6 +53,8 @@ mod key_bind;
 
 mod localize;
 
+mod logind;
+
 use operation::{Operation, OperationKind};
 mod operation;
 
@@ -2420,6 +2422,9 @@ impl Application for App {
             let backend_opt = self.backends.get(op.backend_name).map(|x| x.clone());
             let op = op.clone();
             subscriptions.push(subscription::channel(id, 16, move |msg_tx| async move {
+                //TODO: just get inhibits once?
+                let _inhibits = logind::inhibit().await;
+
                 let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                 let res = match backend_opt {
                     Some(backend) => {
