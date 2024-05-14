@@ -2476,22 +2476,52 @@ impl Application for App {
                     Some(backend) => {
                         let msg_tx = msg_tx.clone();
                         tokio::task::spawn_blocking(move || {
-                            backend
-                                .operation(
-                                    op.kind,
-                                    &op.package_id,
-                                    &op.info,
-                                    Box::new(move |progress| -> () {
-                                        let _ = futures::executor::block_on(async {
-                                            msg_tx
-                                                .lock()
-                                                .await
-                                                .send(Message::PendingProgress(id, progress))
-                                                .await
-                                        });
-                                    }),
-                                )
-                                .map_err(|err| err.to_string())
+                            let notification_opt = Arc::new(tokio::sync::Mutex::new(
+                                match notify_rust::Notification::new()
+                                    .summary(&format!("{:?} {}", op.kind, op.info.name))
+                                    .timeout(notify_rust::Timeout::Never)
+                                    .show()
+                                {
+                                    Ok(ok) => Some(ok),
+                                    Err(err) => {
+                                        log::warn!("failed to create notification: {}", err);
+                                        None
+                                    }
+                                },
+                            ));
+
+                            let res = {
+                                let notification_opt = notification_opt.clone();
+                                backend
+                                    .operation(
+                                        op.kind,
+                                        &op.package_id,
+                                        &op.info,
+                                        Box::new(move |progress| -> () {
+                                            let _ = futures::executor::block_on(async {
+                                                msg_tx
+                                                    .lock()
+                                                    .await
+                                                    .send(Message::PendingProgress(id, progress))
+                                                    .await
+                                            });
+
+                                            if let Some(notification) =
+                                                &mut *notification_opt.blocking_lock()
+                                            {
+                                                notification.body(&format!("{:.0}%", progress));
+                                                notification.update();
+                                            }
+                                        }),
+                                    )
+                                    .map_err(|err| err.to_string())
+                            };
+
+                            if let Some(notification) = notification_opt.blocking_lock().take() {
+                                notification.close();
+                            }
+
+                            res
                         })
                         .await
                         .unwrap()
