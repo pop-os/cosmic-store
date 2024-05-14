@@ -11,7 +11,8 @@ use cosmic::{
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
         widget::scrollable,
-        window, Alignment, Length, Limits, Size,
+        window::{self, Event as WindowEvent},
+        Alignment, Length, Limits, Size,
     },
     theme, widget, Application, ApplicationExt, Element,
 };
@@ -95,6 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut settings = Settings::default();
     settings = settings.theme(config.app_theme.theme());
     settings = settings.size_limits(Limits::NONE.min_width(360.0).min_height(180.0));
+    settings = settings.exit_on_close(false);
 
     let flags = Flags {
         config_handler,
@@ -593,6 +595,7 @@ pub struct App {
     app_themes: Vec<String>,
     apps: Arc<Apps>,
     backends: Backends,
+    closing: bool,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
     explore_page_opt: Option<ExplorePage>,
@@ -617,6 +620,13 @@ pub struct App {
 }
 
 impl App {
+    fn maybe_exit(&self) {
+        if self.closing && self.pending_operations.is_empty() {
+            // Exit if window is closed and there are no pending operations
+            process::exit(0);
+        }
+    }
+
     fn open_desktop_id(&self, mut desktop_id: String) -> Command<Message> {
         Command::perform(
             async move {
@@ -1185,7 +1195,7 @@ impl App {
     }
 
     fn update_title(&mut self) -> Command<Message> {
-        self.set_window_title(fl!("cosmic-app-store"))
+        self.set_window_title(fl!("cosmic-app-store"), window::Id::MAIN)
     }
 
     fn settings(&self) -> Element<Message> {
@@ -1865,6 +1875,7 @@ impl Application for App {
             app_themes,
             apps: Arc::new(Apps::new()),
             backends: Backends::new(),
+            closing: false,
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
             explore_page_opt: None,
@@ -1894,6 +1905,10 @@ impl Application for App {
 
     fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
         Some(&self.nav_model)
+    }
+
+    fn on_app_exit(&mut self) -> Option<Message> {
+        Some(Message::WindowClose)
     }
 
     fn on_escape(&mut self) -> Command<Message> {
@@ -2052,6 +2067,7 @@ impl Application for App {
                     ));
                     //TODO: self.complete_operations.insert(id, op);
                 }
+                self.maybe_exit();
                 return Command::batch([self.update_installed(), self.update_updates()]);
             }
             Message::PendingError(id, err) => {
@@ -2291,6 +2307,8 @@ impl Application for App {
                 self.waiting_updates.clear();
             }
             Message::WindowClose => {
+                self.closing = true;
+                self.maybe_exit();
                 return window::close(window::Id::MAIN);
             }
             Message::WindowNew => match env::current_exe() {
@@ -2390,6 +2408,7 @@ impl Application for App {
                 Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => {
                     Some(Message::Key(modifiers, key))
                 }
+                Event::Window(_id, WindowEvent::CloseRequested) => Some(Message::WindowClose),
                 _ => None,
             }),
             cosmic_config::config_subscription(

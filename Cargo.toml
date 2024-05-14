@@ -44,8 +44,7 @@ packagekit-zbus = { version = "0.1", optional = true }
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
-features = ["desktop", "tokio", "winit"]
-#path = "../libcosmic"
+features = ["desktop", "multi-window", "tokio", "winit"]
 
 [dependencies.smol_str]
 version = "0.2.1"
@@ -64,3 +63,8 @@ debug = true
 
 [workspace]
 members = ["flathub-stats"]
+
+# [patch.'https://github.com/pop-os/libcosmic.git']
+# libcosmic = { path = "../libcosmic" }
+# cosmic-config = { path = "../libcosmic/cosmic-config" }
+# cosmic-theme = { path = "../libcosmic/cosmic-theme" }
