@@ -39,7 +39,6 @@ social-networking-apps = Social Networking Apps
 games = Games
 music-and-video-apps = Music & Video Apps
 apps-for-learning = Apps for Learning
-utilities = Utilities
 
 # Details Page
 source-installed = {$source} (installed)

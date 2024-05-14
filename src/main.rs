@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    app::{message, Command, Core, Settings},
+    app::{message, Command, Core, CosmicFlags, DbusActivationMessage, Settings},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
@@ -102,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config_handler,
         config,
     };
-    cosmic::app::run::<App>(settings, flags)?;
+    cosmic::app::run_single_instance::<App>(settings, flags)?;
 
     Ok(())
 }
@@ -126,6 +126,12 @@ pub type Apps = HashMap<AppId, Vec<(&'static str, Arc<AppInfo>, bool)>>;
 pub struct Flags {
     config_handler: Option<cosmic_config::Config>,
     config: Config,
+}
+
+//TODO
+impl CosmicFlags for Flags {
+    type SubCommand = String;
+    type Args = Vec<String>;
 }
 
 /// Messages that are used specifically by our [`App`].
@@ -595,7 +601,6 @@ pub struct App {
     app_themes: Vec<String>,
     apps: Arc<Apps>,
     backends: Backends,
-    closing: bool,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
     explore_page_opt: Option<ExplorePage>,
@@ -609,6 +614,7 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
+    window_id_opt: Option<window::Id>,
     installed: Option<Vec<(&'static str, Package)>>,
     updates: Option<Vec<(&'static str, Package)>>,
     waiting_installed: Vec<(&'static str, String, AppId)>,
@@ -621,7 +627,7 @@ pub struct App {
 
 impl App {
     fn maybe_exit(&self) {
-        if self.closing && self.pending_operations.is_empty() {
+        if self.window_id_opt.is_none() && self.pending_operations.is_empty() {
             // Exit if window is closed and there are no pending operations
             process::exit(0);
         }
@@ -1195,7 +1201,7 @@ impl App {
     }
 
     fn update_title(&mut self) -> Command<Message> {
-        self.set_window_title(fl!("cosmic-app-store"), window::Id::MAIN)
+        self.set_window_title(fl!("cosmic-app-store"), self.main_window_id())
     }
 
     fn settings(&self) -> Element<Message> {
@@ -1875,7 +1881,6 @@ impl Application for App {
             app_themes,
             apps: Arc::new(Apps::new()),
             backends: Backends::new(),
-            closing: false,
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
             explore_page_opt: None,
@@ -1889,6 +1894,7 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
+            window_id_opt: Some(window::Id::MAIN),
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),
@@ -1903,8 +1909,28 @@ impl Application for App {
         (app, command)
     }
 
+    fn main_window_id(&self) -> window::Id {
+        self.window_id_opt.unwrap_or(window::Id::MAIN)
+    }
+
     fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
         Some(&self.nav_model)
+    }
+
+    fn dbus_activation(&mut self, msg: DbusActivationMessage) -> Command<Message> {
+        //TODO: parse msg
+        log::info!("{:?}", msg);
+        if self.window_id_opt.is_none() {
+            let (window_id, command) = window::spawn(window::Settings {
+                min_size: Some(Size::new(360.0, 180.0)),
+                decorations: false,
+                exit_on_close_request: false,
+                ..Default::default()
+            });
+            self.window_id_opt = Some(window_id);
+            return command;
+        }
+        Command::none()
     }
 
     fn on_app_exit(&mut self) -> Option<Message> {
@@ -2307,9 +2333,10 @@ impl Application for App {
                 self.waiting_updates.clear();
             }
             Message::WindowClose => {
-                self.closing = true;
-                self.maybe_exit();
-                return window::close(window::Id::MAIN);
+                if let Some(window_id) = self.window_id_opt.take() {
+                    self.maybe_exit();
+                    return window::close(window_id);
+                }
             }
             Message::WindowNew => match env::current_exe() {
                 Ok(exe) => match process::Command::new(&exe).spawn() {
