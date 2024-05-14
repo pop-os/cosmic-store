@@ -13,6 +13,10 @@ uninstall = Uninstall
 update = Update
 update-all = Update all
 
+# Uninstall Dialog
+uninstall-app = Uninstall {$name}
+uninstall-app-warning = Are you sure you want to uninstall {$name}?
+
 # Nav Pages
 explore = Explore
 create = Create

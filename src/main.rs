@@ -143,6 +143,8 @@ pub enum Message {
     CheckUpdates,
     Config(Config),
     DialogCancel,
+    DialogConfirm,
+    DialogPage(DialogPage),
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     Installed(Vec<(&'static str, Package)>),
@@ -191,6 +193,7 @@ impl ContextPage {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogPage {
     FailedOperation(u64),
+    Uninstall(&'static str, AppId, Arc<AppInfo>),
 }
 
 // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
@@ -1345,12 +1348,11 @@ impl App {
                     if !selected.id.is_system() {
                         buttons.push(
                             widget::button::destructive(fl!("uninstall"))
-                                .on_press(Message::Operation(
-                                    OperationKind::Uninstall,
+                                .on_press(Message::DialogPage(DialogPage::Uninstall(
                                     selected.backend_name,
                                     selected.id.clone(),
                                     selected.info.clone(),
-                                ))
+                                )))
                                 .into(),
                         );
                     }
@@ -2043,6 +2045,20 @@ impl Application for App {
             Message::DialogCancel => {
                 self.dialog_pages.pop_front();
             }
+            Message::DialogConfirm => match self.dialog_pages.pop_front() {
+                Some(DialogPage::Uninstall(backend_name, id, info)) => {
+                    return self.update(Message::Operation(
+                        OperationKind::Uninstall,
+                        backend_name,
+                        id,
+                        info,
+                    ));
+                }
+                _ => {}
+            },
+            Message::DialogPage(dialog_page) => {
+                self.dialog_pages.push_back(dialog_page);
+            }
             Message::ExplorePage(explore_page_opt) => {
                 self.explore_page_opt = explore_page_opt;
                 return self.update_scroll();
@@ -2381,6 +2397,18 @@ impl Application for App {
                     .icon(widget::icon::from_name("dialog-error").size(64))
                     //TODO: retry action
                     .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
+            DialogPage::Uninstall(_backend_name, _id, info) => {
+                widget::dialog(fl!("uninstall-app", name = info.name.as_str()))
+                    .body(fl!("uninstall-app-warning", name = info.name.as_str()))
+                    .icon(widget::icon::from_name(Self::APP_ID).size(64))
+                    .primary_action(
+                        widget::button::destructive(fl!("uninstall"))
+                            .on_press(Message::DialogConfirm),
+                    )
+                    .secondary_action(
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
