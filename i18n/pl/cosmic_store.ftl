@@ -13,6 +13,10 @@ uninstall = Odinstaluj
 update = Zaktualizuj
 update-all = Zaktualizuj wszystkie
 
+# Uninstall Dialog
+uninstall-app = Odinstaluj {$name}
+uninstall-app-warning = Czy na pewno chcesz odinstalować {$name}?
+
 # Nav Pages
 explore = Odkrywanie
 create = Twórcze
@@ -39,7 +43,6 @@ social-networking-apps = Apki Mediów Społecznościowych
 games = Gry
 music-and-video-apps = Apki Muzyczne i Wideo
 apps-for-learning = Apki do Nauki
-utilities = Apki Użytkowe
 
 # Details Page
 source-installed = {$source} (zainstalowane)
