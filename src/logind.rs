@@ -3,7 +3,6 @@ use std::os::fd::OwnedFd;
 #[cfg(feature = "logind")]
 pub async fn inhibit() -> zbus::Result<Vec<OwnedFd>> {
     use logind_zbus::manager::{InhibitType, ManagerProxy};
-    use std::os::fd::{FromRawFd, IntoRawFd};
 
     let connection = zbus::Connection::system().await?;
     let manager = ManagerProxy::new(&connection).await?;
@@ -18,7 +17,7 @@ pub async fn inhibit() -> zbus::Result<Vec<OwnedFd>> {
             .call("Inhibit", &(what, who, why, mode))
             .await?;
         // Have to convert to std type to avoid leaking zbus dependency
-        fds.push(unsafe { OwnedFd::from_raw_fd(fd.into_raw_fd()) });
+        fds.push(fd.into());
     }
     log::info!("{:?}", fds);
     Ok(fds)
