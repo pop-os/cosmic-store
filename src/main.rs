@@ -157,6 +157,7 @@ pub enum Message {
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     Installed(Vec<(&'static str, Package)>),
+    InstalledResults(Vec<SearchResult>),
     Key(Modifiers, Key),
     OpenDesktopId(String),
     Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
@@ -415,6 +416,45 @@ impl GridMetrics {
     }
 }
 
+fn package_card_view<'a>(
+    info: &'a AppInfo,
+    icon: &'a widget::icon::Handle,
+    controls: Vec<Element<'a, Message>>,
+    spacing: &cosmic_theme::Spacing,
+    width: usize,
+) -> Element<'a, Message> {
+    let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
+    let column = widget::column::with_children(vec![
+        widget::text::body(&info.name)
+            .height(Length::Fixed(20.0))
+            .into(),
+        widget::text::caption(&info.summary)
+            .height(Length::Fixed(28.0))
+            .into(),
+        widget::vertical_space(Length::Fixed(spacing.space_xxs.into())).into(),
+        widget::row::with_children(controls)
+            .height(Length::Fixed(32.0))
+            .spacing(spacing.space_xs)
+            .into(),
+    ]);
+    widget::container(
+        widget::row::with_children(vec![
+            widget::icon::icon(icon.clone())
+                .size(ICON_SIZE_PACKAGE)
+                .into(),
+            column.into(),
+        ])
+        .align_items(Alignment::Center)
+        .spacing(spacing.space_s),
+    )
+    .center_y()
+    .width(Length::Fixed(width as f32))
+    .height(Length::Fixed(height))
+    .padding([spacing.space_xxs, spacing.space_s])
+    .style(theme::Container::Card)
+    .into()
+}
+
 impl Package {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(width, 320 + 2 * spacing.space_s as usize, spacing.space_xxs)
@@ -426,36 +466,7 @@ impl Package {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
-        let column = widget::column::with_children(vec![
-            widget::text::body(&self.info.name)
-                .height(Length::Fixed(20.0))
-                .into(),
-            widget::text::caption(&self.info.summary)
-                .height(Length::Fixed(28.0))
-                .into(),
-            widget::vertical_space(Length::Fixed(spacing.space_xxs.into())).into(),
-            widget::row::with_children(controls)
-                .height(Length::Fixed(32.0))
-                .spacing(spacing.space_xs)
-                .into(),
-        ]);
-        widget::container(
-            widget::row::with_children(vec![
-                widget::icon::icon(self.icon.clone())
-                    .size(ICON_SIZE_PACKAGE)
-                    .into(),
-                column.into(),
-            ])
-            .align_items(Alignment::Center)
-            .spacing(spacing.space_s),
-        )
-        .center_y()
-        .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(height))
-        .padding([spacing.space_xxs, spacing.space_s])
-        .style(theme::Container::Card)
-        .into()
+        package_card_view(&self.info, &self.icon, controls, spacing, width)
     }
 }
 
@@ -629,6 +640,7 @@ pub struct App {
     waiting_updates: Vec<(&'static str, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
+    installed_results: Option<Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
@@ -694,7 +706,7 @@ impl App {
         self.pending_operations.insert(id, (operation, 0.0));
     }
 
-    fn generic_search<F: Fn(&AppId, &AppInfo) -> Option<i64> + Send + Sync>(
+    fn generic_search<F: Fn(&AppId, &AppInfo, bool) -> Option<i64> + Send + Sync>(
         apps: &Apps,
         backends: &Backends,
         filter_map: F,
@@ -703,8 +715,8 @@ impl App {
             .par_iter()
             .filter_map(|(id, infos)| {
                 let mut best_result: Option<SearchResult> = None;
-                for (backend_name, info, _installed) in infos.iter() {
-                    if let Some(weight) = filter_map(id, info) {
+                for (backend_name, info, installed) in infos.iter() {
+                    if let Some(weight) = filter_map(id, info, *installed) {
                         //TODO: optimize
                         let Some(backend) = backends.get(backend_name) else {
                             continue;
@@ -760,15 +772,16 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |_id, info| {
-                        for category in categories {
-                            //TODO: contains doesn't work due to type mismatch
-                            if info.categories.iter().any(|x| x == category.id()) {
-                                return Some(-(info.monthly_downloads as i64));
+                    let results =
+                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            for category in categories {
+                                //TODO: contains doesn't work due to type mismatch
+                                if info.categories.iter().any(|x| x == category.id()) {
+                                    return Some(-(info.monthly_downloads as i64));
+                                }
                             }
-                        }
-                        None
-                    });
+                            None
+                        });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for categories {:?} in {:?}, found {} results",
@@ -793,8 +806,7 @@ impl App {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let now = chrono::Utc::now().timestamp();
-                    let results = Self::generic_search(&apps, &backends, |id, info| {
-                        //TODO: use explore_page
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
                         match explore_page {
                             ExplorePage::EditorsChoice => EDITORS_CHOICE
                                 .iter()
@@ -850,6 +862,36 @@ impl App {
         )
     }
 
+    fn installed_results(&self) -> Command<Message> {
+        let apps = self.apps.clone();
+        let backends = self.backends.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let results =
+                        Self::generic_search(&apps, &backends, |_id, _info, installed| {
+                            if installed {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        });
+                    let duration = start.elapsed();
+                    log::info!(
+                        "searched for installed in {:?}, found {} results",
+                        duration,
+                        results.len()
+                    );
+                    message::app(Message::InstalledResults(results))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
     fn search(&self) -> Command<Message> {
         let input = self.search_input.clone();
         let pattern = regex::escape(&input);
@@ -869,63 +911,64 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |_id, info| {
-                        //TODO: improve performance
-                        let stats_weight = |weight: i64| {
-                            //TODO: make sure no overflows
-                            (weight << 56) - (info.monthly_downloads as i64)
-                        };
-                        //TODO: fuzzy match (nucleus-matcher?)
-                        match regex.find(&info.name) {
-                            Some(mat) => {
-                                if mat.range().start == 0 {
-                                    if mat.range().end == info.name.len() {
-                                        // Name equals search phrase
-                                        Some(stats_weight(0))
-                                    } else {
-                                        // Name starts with search phrase
-                                        Some(stats_weight(1))
-                                    }
-                                } else {
-                                    // Name contains search phrase
-                                    Some(stats_weight(2))
-                                }
-                            }
-                            None => match regex.find(&info.summary) {
+                    let results =
+                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            //TODO: improve performance
+                            let stats_weight = |weight: i64| {
+                                //TODO: make sure no overflows
+                                (weight << 56) - (info.monthly_downloads as i64)
+                            };
+                            //TODO: fuzzy match (nucleus-matcher?)
+                            match regex.find(&info.name) {
                                 Some(mat) => {
                                     if mat.range().start == 0 {
-                                        if mat.range().end == info.summary.len() {
-                                            // Summary equals search phrase
-                                            Some(stats_weight(3))
+                                        if mat.range().end == info.name.len() {
+                                            // Name equals search phrase
+                                            Some(stats_weight(0))
                                         } else {
-                                            // Summary starts with search phrase
-                                            Some(stats_weight(4))
+                                            // Name starts with search phrase
+                                            Some(stats_weight(1))
                                         }
                                     } else {
-                                        // Summary contains search phrase
-                                        Some(stats_weight(5))
+                                        // Name contains search phrase
+                                        Some(stats_weight(2))
                                     }
                                 }
-                                None => match regex.find(&info.description) {
+                                None => match regex.find(&info.summary) {
                                     Some(mat) => {
                                         if mat.range().start == 0 {
                                             if mat.range().end == info.summary.len() {
-                                                // Description equals search phrase
-                                                Some(stats_weight(6))
+                                                // Summary equals search phrase
+                                                Some(stats_weight(3))
                                             } else {
-                                                // Description starts with search phrase
-                                                Some(stats_weight(7))
+                                                // Summary starts with search phrase
+                                                Some(stats_weight(4))
                                             }
                                         } else {
-                                            // Description contains search phrase
-                                            Some(stats_weight(8))
+                                            // Summary contains search phrase
+                                            Some(stats_weight(5))
                                         }
                                     }
-                                    None => None,
+                                    None => match regex.find(&info.description) {
+                                        Some(mat) => {
+                                            if mat.range().start == 0 {
+                                                if mat.range().end == info.summary.len() {
+                                                    // Description equals search phrase
+                                                    Some(stats_weight(6))
+                                                } else {
+                                                    // Description starts with search phrase
+                                                    Some(stats_weight(7))
+                                                }
+                                            } else {
+                                                // Description contains search phrase
+                                                Some(stats_weight(8))
+                                            }
+                                        }
+                                        None => None,
+                                    },
                                 },
-                            },
-                        }
-                    });
+                            }
+                        });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1225,15 +1268,18 @@ impl App {
                         async move {
                             tokio::task::spawn_blocking(move || {
                                 let start = Instant::now();
-                                let results =
-                                    Self::generic_search(&apps, &backends, |id, _info| {
+                                let results = Self::generic_search(
+                                    &apps,
+                                    &backends,
+                                    |id, _info, _installed| {
                                         //TODO: fuzzy search with lower weight?
                                         if id == &component_id {
                                             Some(0)
                                         } else {
                                             None
                                         }
-                                    });
+                                    },
+                                );
                                 let duration = start.elapsed();
                                 log::info!(
                                     "searched for ID {:?} in {:?}, found {} results",
@@ -1714,7 +1760,7 @@ impl App {
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(NavPage::Installed.title()));
-                        match &self.installed {
+                        match &self.installed_results {
                             Some(installed) => {
                                 if installed.is_empty() {
                                     column =
@@ -1728,15 +1774,13 @@ impl App {
                                 } = Package::grid_metrics(&spacing, grid_width);
                                 let mut grid = widget::grid();
                                 let mut col = 0;
-                                for (installed_i, (_backend_name, package)) in
-                                    installed.iter().enumerate()
-                                {
+                                for (installed_i, result) in installed.iter().enumerate() {
                                     if col >= cols {
                                         grid = grid.insert_row();
                                         col = 0;
                                     }
                                     let mut buttons = Vec::with_capacity(1);
-                                    if let Some(desktop_id) = package.info.desktop_ids.first() {
+                                    if let Some(desktop_id) = result.info.desktop_ids.first() {
                                         buttons.push(
                                             widget::button::standard(fl!("open"))
                                                 .on_press(Message::OpenDesktopId(
@@ -1744,11 +1788,17 @@ impl App {
                                                 ))
                                                 .into(),
                                         );
+                                    } else {
+                                        buttons.push(widget::vertical_space(Length::Shrink).into());
                                     }
                                     grid = grid.push(
-                                        widget::mouse_area(
-                                            package.card_view(buttons, &spacing, item_width),
-                                        )
+                                        widget::mouse_area(package_card_view(
+                                            &result.info,
+                                            &result.icon,
+                                            buttons,
+                                            &spacing,
+                                            item_width,
+                                        ))
                                         .on_press(Message::SelectInstalled(installed_i)),
                                     );
                                     col += 1;
@@ -1974,6 +2024,7 @@ impl Application for App {
             waiting_updates: Vec::new(),
             category_results: None,
             explore_results: HashMap::new(),
+            installed_results: None,
             search_results: None,
             selected_opt: None,
         };
@@ -2144,10 +2195,14 @@ impl Application for App {
                 self.update_apps();
                 let mut commands = Vec::new();
                 commands.push(self.update_subcommand());
+                commands.push(self.installed_results());
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));
                 }
                 return Command::batch(commands);
+            }
+            Message::InstalledResults(installed_results) => {
+                self.installed_results = Some(installed_results);
             }
             Message::Key(modifiers, key) => {
                 for (key_bind, action) in self.key_binds.iter() {
@@ -2241,25 +2296,19 @@ impl Application for App {
             Message::Select(backend_name, id, icon, info) => {
                 return self.select(backend_name, id, icon, info);
             }
-            Message::SelectInstalled(installed_i) => {
-                if let Some(installed) = &self.installed {
-                    match installed
-                        .get(installed_i)
-                        .map(|(backend_name, package)| (backend_name, package.clone()))
-                    {
-                        Some((backend_name, package)) => {
+            Message::SelectInstalled(result_i) => {
+                if let Some(results) = &self.installed_results {
+                    match results.get(result_i) {
+                        Some(result) => {
                             return self.select(
-                                backend_name,
-                                package.id,
-                                package.icon,
-                                package.info,
-                            );
+                                result.backend_name,
+                                result.id.clone(),
+                                result.icon.clone(),
+                                result.info.clone(),
+                            )
                         }
                         None => {
-                            log::error!(
-                                "failed to find installed package with index {}",
-                                installed_i
-                            );
+                            log::error!("failed to find installed result with index {}", result_i);
                         }
                     }
                 }
