@@ -111,7 +111,7 @@ impl Flatpak {
             });
         }
 
-        log::warn!("failed to find info for {:?} from {}", id, origin);
+        log::debug!("failed to find info for {:?} from {}", id, origin);
         None
     }
 
