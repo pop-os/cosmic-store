@@ -8,6 +8,7 @@ Build-Depends:
     just (>= 1.13.0),
     libflatpak-dev,
     libssl-dev,
+    libxkbcommon-dev,
     pkg-config,
     rust-all,
 Standards-Version: 4.6.2
