@@ -619,9 +619,13 @@ pub struct App {
     search_id: widget::Id,
     search_input: String,
     window_id_opt: Option<window::Id>,
+    //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
+    //TODO: use hashset?
     updates: Option<Vec<(&'static str, Package)>>,
+    //TODO: use hashset?
     waiting_installed: Vec<(&'static str, String, AppId)>,
+    //TODO: use hashset?
     waiting_updates: Vec<(&'static str, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
@@ -1059,6 +1063,7 @@ impl App {
         is_installed
     }
 
+    //TODO: run in background
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
@@ -1147,9 +1152,11 @@ impl App {
                         log::info!("loaded installed from {} in {:?}", backend_name, duration);
                     }
                     installed.sort_by(|a, b| {
-                        if a.1.id.is_system() {
+                        let a_is_system = a.1.id.is_system();
+                        let b_is_system = b.1.id.is_system();
+                        if a_is_system && !b_is_system {
                             cmp::Ordering::Less
-                        } else if b.1.id.is_system() {
+                        } else if b_is_system && !a_is_system {
                             cmp::Ordering::Greater
                         } else {
                             lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
@@ -1321,18 +1328,11 @@ impl App {
                         break;
                     }
                 }
-                let mut is_installed = false;
-                if let Some(installed) = &self.installed {
-                    for (backend_name, package) in installed {
-                        if backend_name == &selected.backend_name
-                            && &package.info.source_id == &selected.info.source_id
-                            && &package.id == &selected.id
-                        {
-                            is_installed = true;
-                            break;
-                        }
-                    }
-                }
+                let is_installed = self.is_installed(
+                    selected.backend_name,
+                    &selected.info.source_id,
+                    &selected.id,
+                );
                 let mut update_opt = None;
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
