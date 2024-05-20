@@ -17,11 +17,26 @@ async fn stats(year: u16, month: u8, day: u8) -> Result<Stats, Box<dyn Error>> {
     Ok(stats)
 }
 
+fn leap_year(year: u16) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let year = 2024;
-    let month = 3;
-    let days = 31;
+    let month = 4;
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if leap_year(year) {
+                29
+            } else {
+                28
+            }
+        }
+        _ => panic!("invalid month {}", month),
+    };
 
     let mut ref_downloads = HashMap::<AppId, u64>::new();
     for day in 1..=days {
