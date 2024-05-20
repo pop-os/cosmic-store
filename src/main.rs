@@ -426,30 +426,20 @@ impl Package {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        let mut height = 74.0 + 2.0 * spacing.space_xxs as f32;
-        let mut column = widget::column::with_children(vec![
+        let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
+        let column = widget::column::with_children(vec![
             widget::text::body(&self.info.name)
                 .height(Length::Fixed(20.0))
                 .into(),
             widget::text::caption(&self.info.summary)
                 .height(Length::Fixed(28.0))
                 .into(),
-            //TODO: combine origins
-            widget::text::caption(&self.info.source_name).into(),
+            widget::vertical_space(Length::Fixed(spacing.space_xxs.into())).into(),
+            widget::row::with_children(controls)
+                .height(Length::Fixed(32.0))
+                .spacing(spacing.space_xs)
+                .into(),
         ]);
-        if !controls.is_empty() {
-            column = column
-                .push(widget::vertical_space(Length::Fixed(
-                    spacing.space_xxs.into(),
-                )))
-                .push(
-                    widget::row::with_children(controls)
-                        .height(Length::Fixed(32.0))
-                        .spacing(spacing.space_xs),
-                );
-            height += spacing.space_xxs as f32 + 32.0;
-        }
-
         widget::container(
             widget::row::with_children(vec![
                 widget::icon::icon(self.icon.clone())
@@ -1745,12 +1735,20 @@ impl App {
                                         grid = grid.insert_row();
                                         col = 0;
                                     }
+                                    let mut buttons = Vec::with_capacity(1);
+                                    if let Some(desktop_id) = package.info.desktop_ids.first() {
+                                        buttons.push(
+                                            widget::button::standard(fl!("open"))
+                                                .on_press(Message::OpenDesktopId(
+                                                    desktop_id.clone(),
+                                                ))
+                                                .into(),
+                                        );
+                                    }
                                     grid = grid.push(
-                                        widget::mouse_area(package.card_view(
-                                            vec![],
-                                            &spacing,
-                                            item_width,
-                                        ))
+                                        widget::mouse_area(
+                                            package.card_view(buttons, &spacing, item_width),
+                                        )
                                         .on_press(Message::SelectInstalled(installed_i)),
                                     );
                                     col += 1;
