@@ -76,6 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     localize::localize();
 
+    //TODO: more advanced argument parsing
+    let subcommand_opt = env::args().nth(1);
+
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
             let config = match Config::get_entry(&config_handler) {
@@ -99,6 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     settings = settings.exit_on_close(false);
 
     let flags = Flags {
+        subcommand_opt,
         config_handler,
         config,
     };
@@ -124,6 +128,7 @@ pub type Apps = HashMap<AppId, Vec<(&'static str, Arc<AppInfo>, bool)>>;
 
 #[derive(Clone, Debug)]
 pub struct Flags {
+    subcommand_opt: Option<String>,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
 }
@@ -132,6 +137,10 @@ pub struct Flags {
 impl CosmicFlags for Flags {
     type SubCommand = String;
     type Args = Vec<String>;
+
+    fn action(&self) -> Option<&String> {
+        self.subcommand_opt.as_ref()
+    }
 }
 
 /// Messages that are used specifically by our [`App`].
@@ -160,6 +169,7 @@ pub enum Message {
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>),
     SearchSubmit,
+    Select(&'static str, AppId, widget::icon::Handle, Arc<AppInfo>),
     SelectInstalled(usize),
     SelectUpdates(usize),
     SelectNone,
@@ -598,6 +608,7 @@ pub struct Selected {
 /// The [`App`] stores application-specific state.
 pub struct App {
     core: Core,
+    subcommand_opt: Option<String>,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
     locale: String,
@@ -1201,6 +1212,67 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn update_subcommand(&mut self) -> Command<Message> {
+        match self.subcommand_opt.take() {
+            Some(subcommand) => match subcommand.strip_prefix("appstream:") {
+                Some(component_id_raw) => {
+                    // Handler for appstream:component-id as described in:
+                    // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
+                    let apps = self.apps.clone();
+                    let backends = self.backends.clone();
+                    //TODO: url decode?
+                    let component_id = AppId::new(component_id_raw.trim_start_matches('/'));
+                    Command::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                let start = Instant::now();
+                                let results =
+                                    Self::generic_search(&apps, &backends, |id, _info| {
+                                        //TODO: fuzzy search with lower weight?
+                                        if id == &component_id {
+                                            Some(0)
+                                        } else {
+                                            None
+                                        }
+                                    });
+                                let duration = start.elapsed();
+                                log::info!(
+                                    "searched for ID {:?} in {:?}, found {} results",
+                                    component_id,
+                                    duration,
+                                    results.len()
+                                );
+                                if let Some(result) = results.first() {
+                                    message::app(Message::Select(
+                                        result.backend_name,
+                                        result.id.clone(),
+                                        result.icon.clone(),
+                                        result.info.clone(),
+                                    ))
+                                } else {
+                                    message::none()
+                                }
+                            })
+                            .await
+                            .unwrap_or(message::none())
+                        },
+                        |x| x,
+                    )
+                }
+                None => {
+                    // Search for term
+                    self.search_active = true;
+                    self.search_input = subcommand.clone();
+                    return self.search();
+                }
+            },
+            None => {
+                // No subcommand, do nothing
+                Command::none()
+            }
+        }
     }
 
     fn update_title(&mut self) -> Command<Message> {
@@ -1877,6 +1949,7 @@ impl Application for App {
 
         let mut app = App {
             core,
+            subcommand_opt: flags.subcommand_opt,
             config_handler: flags.config_handler,
             config: flags.config,
             locale,
@@ -2072,6 +2145,7 @@ impl Application for App {
 
                 self.update_apps();
                 let mut commands = Vec::new();
+                commands.push(self.update_subcommand());
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));
                 }
@@ -2165,6 +2239,9 @@ impl Application for App {
                 if !self.search_input.is_empty() {
                     return self.search();
                 }
+            }
+            Message::Select(backend_name, id, icon, info) => {
+                return self.select(backend_name, id, icon, info);
             }
             Message::SelectInstalled(installed_i) => {
                 if let Some(installed) = &self.installed {

@@ -1,10 +1,11 @@
 #TODO: more build-out, desktop actions, translations?
 [Desktop Entry]
 Name=COSMIC App Store
-Exec=cosmic-store
+Exec=cosmic-store %u
 Terminal=false
 Type=Application
 StartupNotify=true
 Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;
+MimeType=x-scheme-handler/appstream;
