@@ -1,8 +1,10 @@
-use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, RefKind, Transaction};
+use cosmic::widget;
+use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, Transaction};
 use std::{
     cell::Cell,
     collections::HashMap,
     error::Error,
+    fmt::Write,
     sync::{Arc, Mutex},
 };
 
@@ -76,7 +78,7 @@ impl Flatpak {
         Ok(Self { appstream_caches })
     }
 
-    fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: R) -> Option<Package> {
+    fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: &R) -> Option<Package> {
         let id_raw = r.name()?;
         let id = AppId::new(&id_raw);
         let origin = r.origin()?;
@@ -112,6 +114,73 @@ impl Flatpak {
         log::warn!("failed to find info for {:?} from {}", id, origin);
         None
     }
+
+    fn refs_to_packages<R: InstalledRefExt + RefExt>(&self, rs: Vec<R>) -> Vec<Package> {
+        let mut packages = Vec::new();
+        let mut system_packages = Vec::new();
+        for r in rs {
+            match self.ref_to_package(&r) {
+                Some(package) => {
+                    packages.push(package);
+                }
+                None => {
+                    system_packages.push((
+                        r.format_ref().unwrap_or_default().to_string(),
+                        r.appdata_version()
+                            .or(r.branch())
+                            .unwrap_or_default()
+                            .to_string(),
+                    ));
+                }
+            }
+        }
+
+        if !system_packages.is_empty() {
+            //TODO: use correct appstream cache, or do not bother to specify it
+            let appstream_cache = &self.appstream_caches[0];
+            let name = "System Packages".to_string();
+            let summary = format!(
+                "{} package{}",
+                system_packages.len(),
+                if system_packages.len() == 1 { "" } else { "s" }
+            );
+            let mut description = String::new();
+            let mut flatpak_refs = Vec::with_capacity(system_packages.len());
+            for (flatpak_ref, version) in system_packages {
+                let _ = writeln!(description, " * {}: {}", flatpak_ref, version);
+                flatpak_refs.push(flatpak_ref);
+            }
+            //TODO: translate
+            packages.push(Package {
+                id: AppId::system(),
+                icon: widget::icon::from_name("package-x-generic")
+                    .size(128)
+                    .handle(),
+                //TODO: fill in more AppInfo fields
+                info: Arc::new(AppInfo {
+                    source_id: appstream_cache.source_id.clone(),
+                    source_name: appstream_cache.source_name.clone(),
+                    origin_opt: None,
+                    name,
+                    summary,
+                    developer_name: String::new(),
+                    description,
+                    pkgnames: Vec::new(),
+                    categories: Vec::new(),
+                    desktop_ids: Vec::new(),
+                    flatpak_refs,
+                    icons: Vec::new(),
+                    releases: Vec::new(),
+                    screenshots: Vec::new(),
+                    monthly_downloads: 0,
+                }),
+                version: String::new(),
+                extra: HashMap::new(),
+            });
+        }
+
+        packages
+    }
 }
 
 impl Backend for Flatpak {
@@ -140,28 +209,15 @@ impl Backend for Flatpak {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        let mut packages = Vec::new();
-        //TODO: show non-desktop items?
-        for r in inst.list_installed_refs_by_kind(RefKind::App, Cancellable::NONE)? {
-            if let Some(package) = self.ref_to_package(r) {
-                packages.push(package);
-            }
-        }
+        let packages = self.refs_to_packages(inst.list_installed_refs(Cancellable::NONE)?);
         Ok(packages)
     }
 
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         //TODO: should we support system installations?
         let inst = Installation::new_user(Cancellable::NONE)?;
-        let mut packages = Vec::new();
-        for r in inst.list_installed_refs_for_update(Cancellable::NONE)? {
-            // Only show apps
-            if r.kind() == RefKind::App {
-                if let Some(package) = self.ref_to_package(r) {
-                    packages.push(package);
-                }
-            }
-        }
+        let packages =
+            self.refs_to_packages(inst.list_installed_refs_for_update(Cancellable::NONE)?);
         Ok(packages)
     }
 

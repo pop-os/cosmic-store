@@ -124,7 +124,13 @@ impl Action {
     }
 }
 
-pub type Apps = HashMap<AppId, Vec<(&'static str, Arc<AppInfo>, bool)>>;
+pub struct AppEntry {
+    backend_name: &'static str,
+    info: Arc<AppInfo>,
+    installed: bool,
+}
+
+pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
 #[derive(Clone, Debug)]
 pub struct Flags {
@@ -715,7 +721,12 @@ impl App {
             .par_iter()
             .filter_map(|(id, infos)| {
                 let mut best_result: Option<SearchResult> = None;
-                for (backend_name, info, installed) in infos.iter() {
+                for AppEntry {
+                    backend_name,
+                    info,
+                    installed,
+                } in infos.iter()
+                {
                     if let Some(weight) = filter_map(id, info, *installed) {
                         //TODO: optimize
                         let Some(backend) = backends.get(backend_name) else {
@@ -869,14 +880,13 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, _info, installed| {
-                            if installed {
-                                Some(0)
-                            } else {
-                                None
-                            }
-                        });
+                    let results = Self::generic_search(&apps, &backends, |id, _info, installed| {
+                        if installed {
+                            Some(if id.is_system() { -1 } else { 0 })
+                        } else {
+                            None
+                        }
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for installed in {:?}, found {} results",
@@ -994,7 +1004,12 @@ impl App {
         let mut sources = Vec::new();
         match self.apps.get(&id) {
             Some(infos) => {
-                for (backend_name, info, installed) in infos.iter() {
+                for AppEntry {
+                    backend_name,
+                    info,
+                    installed,
+                } in infos.iter()
+                {
                     sources.push(SelectedSource::new(backend_name, &info, *installed));
                 }
             }
@@ -1091,63 +1106,81 @@ impl App {
     }
 
     fn is_installed(&self, backend_name: &'static str, source_id: &str, id: &AppId) -> bool {
-        let mut is_installed = false;
         if let Some(installed) = &self.installed {
             for (installed_backend_name, package) in installed {
                 if installed_backend_name == &backend_name
                     && &package.info.source_id == &source_id
                     && &package.id == id
                 {
-                    is_installed = true;
-                    break;
+                    return true;
                 }
             }
         }
-        is_installed
+        false
     }
 
     //TODO: run in background
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
+
+        let entry_sort = |a: &AppEntry, b: &AppEntry, id: &AppId| {
+            // Sort with installed first
+            match b.installed.cmp(&a.installed) {
+                cmp::Ordering::Equal => {
+                    // Sort by highest priority first to lowest priority
+                    let a_priority = priority(a.backend_name, &a.info.source_id, id);
+                    let b_priority = priority(b.backend_name, &b.info.source_id, id);
+                    match b_priority.cmp(&a_priority) {
+                        cmp::Ordering::Equal => {
+                            match lexical_sort::natural_lexical_cmp(
+                                &a.info.source_id,
+                                &b.info.source_id,
+                            ) {
+                                cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(
+                                    &a.backend_name,
+                                    &b.backend_name,
+                                ),
+                                ordering => ordering,
+                            }
+                        }
+                        ordering => ordering,
+                    }
+                }
+                ordering => ordering,
+            }
+        };
+
         //TODO: par_iter?
         for (backend_name, backend) in self.backends.iter() {
             for appstream_cache in backend.info_caches() {
                 for (id, info) in appstream_cache.infos.iter() {
                     let entry = apps.entry(id.clone()).or_insert_with(|| Vec::new());
-                    entry.push((
+                    entry.push(AppEntry {
                         backend_name,
-                        info.clone(),
-                        self.is_installed(backend_name, &info.source_id, id),
-                    ));
-                    entry.sort_by(|a, b| {
-                        // Sort with installed first
-                        match b.2.cmp(&a.2) {
-                            cmp::Ordering::Equal => {
-                                // Sort by highest priority first to lowest priority
-                                let a_priority = priority(a.0, &a.1.source_id, id);
-                                let b_priority = priority(b.0, &b.1.source_id, id);
-                                match b_priority.cmp(&a_priority) {
-                                    cmp::Ordering::Equal => {
-                                        match lexical_sort::natural_lexical_cmp(
-                                            &a.1.source_id,
-                                            &b.1.source_id,
-                                        ) {
-                                            cmp::Ordering::Equal => {
-                                                lexical_sort::natural_lexical_cmp(&a.0, &b.0)
-                                            }
-                                            ordering => ordering,
-                                        }
-                                    }
-                                    ordering => ordering,
-                                }
-                            }
-                            ordering => ordering,
-                        }
+                        info: info.clone(),
+                        installed: self.is_installed(backend_name, &info.source_id, id),
                     });
+                    entry.sort_by(|a, b| entry_sort(a, b, id));
                 }
             }
         }
+
+        // Manually insert system apps
+        if let Some(installed) = &self.installed {
+            for (backend_name, package) in installed {
+                if package.id.is_system() {
+                    let entry = apps.entry(package.id.clone()).or_insert_with(|| Vec::new());
+                    entry.push(AppEntry {
+                        backend_name,
+                        info: package.info.clone(),
+                        installed: true,
+                    });
+                    entry.sort_by(|a, b| entry_sort(a, b, &package.id));
+                }
+            }
+        }
+
         self.apps = Arc::new(apps);
 
         // Update selected sources
@@ -2420,6 +2453,7 @@ impl Application for App {
                         ));
                     }
                 }
+
                 //TODO: can this be simplified?
                 if let Some((backend_name, source_id, id)) = next_ids {
                     if let Some(backend) = self.backends.get(backend_name) {
@@ -2433,6 +2467,23 @@ impl Application for App {
                                         info.clone(),
                                     );
                                 }
+                            }
+                        }
+                    }
+
+                    // Search for installed item if appstream cache had no info (for system packages)
+                    if let Some(installed) = &self.installed {
+                        for (installed_backend_name, package) in installed {
+                            if installed_backend_name == &backend_name
+                                && &package.info.source_id == &source_id
+                                && &package.id == &id
+                            {
+                                return self.select(
+                                    backend_name,
+                                    id,
+                                    package.icon.clone(),
+                                    package.info.clone(),
+                                );
                             }
                         }
                     }
