@@ -266,6 +266,7 @@ impl Backend for Flatpak {
         });
         match kind {
             OperationKind::Install => {
+                //TODO: install all refs?
                 for r_str in info.flatpak_refs.iter() {
                     let r = match Ref::parse(r_str) {
                         Ok(ok) => ok,
@@ -329,9 +330,9 @@ impl Backend for Flatpak {
 
                     log::info!("uninstalling flatpak {}", r_str);
                     tx.add_uninstall(&r_str)?;
-                    tx.run(Cancellable::NONE)?;
-                    return Ok(());
                 }
+                tx.run(Cancellable::NONE)?;
+                return Ok(());
             }
             OperationKind::Update => {
                 //TODO: deduplicate code
@@ -359,9 +360,9 @@ impl Backend for Flatpak {
 
                     log::info!("updating flatpak {}", r_str);
                     tx.add_update(&r_str, &[], None)?;
-                    tx.run(Cancellable::NONE)?;
-                    return Ok(());
                 }
+                tx.run(Cancellable::NONE)?;
+                return Ok(());
             }
         }
         Err(format!("package {id:?} not found").into())
