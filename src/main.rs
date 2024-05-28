@@ -1293,7 +1293,6 @@ impl App {
                             //TODO: this is nasty
                             let notification_mutex = Arc::try_unwrap(notification_arc).unwrap();
                             let notification = notification_mutex.into_inner().unwrap();
-                            //TODO: make this a command, it blocks!
                             notification.close();
                         })
                         .await
@@ -1311,7 +1310,6 @@ impl App {
             for (_, (_, progress)) in self.pending_operations.iter() {
                 total_progress += progress;
             }
-            //TODO: is divide by zero possible?
             total_progress /= self.pending_operations.len() as f32;
             let notification_arc = notification_arc.clone();
             return Command::perform(
