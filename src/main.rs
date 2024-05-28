@@ -24,7 +24,7 @@ use std::{
     env,
     future::pending,
     process,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -165,6 +165,8 @@ pub enum Message {
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
     Key(Modifiers, Key),
+    MaybeExit,
+    Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
     Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
     PendingComplete(u64),
@@ -627,6 +629,7 @@ pub struct App {
     explore_page_opt: Option<ExplorePage>,
     key_binds: HashMap<KeyBind, Action>,
     nav_model: widget::nav_bar::Model,
+    notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, f32)>,
     failed_operations: BTreeMap<u64, (Operation, String)>,
@@ -652,13 +655,6 @@ pub struct App {
 }
 
 impl App {
-    fn maybe_exit(&self) {
-        if self.window_id_opt.is_none() && self.pending_operations.is_empty() {
-            // Exit if window is closed and there are no pending operations
-            process::exit(0);
-        }
-    }
-
     fn open_desktop_id(&self, mut desktop_id: String) -> Command<Message> {
         Command::perform(
             async move {
@@ -1285,6 +1281,58 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn update_notification(&mut self) -> Command<Message> {
+        // Handle closing notification if there are no operations
+        if self.pending_operations.is_empty() {
+            if let Some(notification_arc) = self.notification_opt.take() {
+                return Command::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            //TODO: this is nasty
+                            let notification_mutex = Arc::try_unwrap(notification_arc).unwrap();
+                            let notification = notification_mutex.into_inner().unwrap();
+                            //TODO: make this a command, it blocks!
+                            notification.close();
+                        })
+                        .await
+                        .unwrap();
+                        message::app(Message::MaybeExit)
+                    },
+                    |x| x,
+                );
+            }
+        }
+
+        // Handle updating notification progress
+        if let Some(notification_arc) = &self.notification_opt {
+            let mut total_progress = 0.0;
+            for (_, (_, progress)) in self.pending_operations.iter() {
+                total_progress += progress;
+            }
+            //TODO: is divide by zero possible?
+            total_progress /= self.pending_operations.len() as f32;
+            let notification_arc = notification_arc.clone();
+            return Command::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let mut notification = notification_arc.lock().unwrap();
+                        notification.summary(&fl!(
+                            "notification-progress",
+                            progress = (total_progress as i32)
+                        ));
+                        notification.update();
+                    })
+                    .await
+                    .unwrap();
+                    message::none()
+                },
+                |x| x,
+            );
+        }
+
+        Command::none()
     }
 
     fn handle_appstream_url(&mut self, path: &str) -> Command<Message> {
@@ -2093,6 +2141,7 @@ impl Application for App {
             explore_page_opt: None,
             key_binds: key_binds(),
             nav_model,
+            notification_opt: None,
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
@@ -2295,6 +2344,15 @@ impl Application for App {
                     }
                 }
             }
+            Message::MaybeExit => {
+                if self.window_id_opt.is_none() && self.pending_operations.is_empty() {
+                    // Exit if window is closed and there are no pending operations
+                    process::exit(0);
+                }
+            }
+            Message::Notification(notification) => {
+                self.notification_opt = Some(notification);
+            }
             Message::OpenDesktopId(desktop_id) => {
                 return self.open_desktop_id(desktop_id);
             }
@@ -2320,8 +2378,11 @@ impl Application for App {
                     ));
                     //TODO: self.complete_operations.insert(id, op);
                 }
-                self.maybe_exit();
-                return Command::batch([self.update_installed(), self.update_updates()]);
+                return Command::batch([
+                    self.update_notification(),
+                    self.update_installed(),
+                    self.update_updates(),
+                ]);
             }
             Message::PendingError(id, err) => {
                 log::warn!("operation {id} failed: {err}");
@@ -2334,6 +2395,7 @@ impl Application for App {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
                     *progress = new_progress;
                 }
+                return self.update_notification();
             }
             Message::ScrollView(viewport) => {
                 self.scroll_views.insert(self.scroll_context(), viewport);
@@ -2576,8 +2638,10 @@ impl Application for App {
             }
             Message::WindowClose => {
                 if let Some(window_id) = self.window_id_opt.take() {
-                    self.maybe_exit();
-                    return window::close(window_id);
+                    return Command::batch([
+                        window::close(window_id),
+                        Command::perform(async move { message::app(Message::MaybeExit) }, |x| x),
+                    ]);
                 }
             }
             Message::WindowNew => match env::current_exe() {
@@ -2716,66 +2780,80 @@ impl Application for App {
             }),
         ];
 
+        if !self.pending_operations.is_empty() {
+            struct InhibitSubscription;
+            subscriptions.push(subscription::channel(
+                TypeId::of::<InhibitSubscription>(),
+                1,
+                move |_msg_tx| async move {
+                    let _inhibits = logind::inhibit().await;
+                    pending().await
+                },
+            ));
+
+            if self.window_id_opt.is_none() {
+                struct NotificationSubscription;
+                subscriptions.push(subscription::channel(
+                    TypeId::of::<NotificationSubscription>(),
+                    1,
+                    move |msg_tx| async move {
+                        let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
+                        tokio::task::spawn_blocking(move || match notify_rust::Notification::new()
+                            .summary(&fl!("notification-progress", progress = 0))
+                            .timeout(notify_rust::Timeout::Never)
+                            .show()
+                        {
+                            Ok(notification) => {
+                                let _ = futures::executor::block_on(async {
+                                    msg_tx
+                                        .lock()
+                                        .await
+                                        .send(Message::Notification(Arc::new(Mutex::new(
+                                            notification,
+                                        ))))
+                                        .await
+                                });
+                            }
+                            Err(err) => {
+                                log::warn!("failed to create notification: {}", err);
+                            }
+                        })
+                        .await
+                        .unwrap();
+
+                        pending().await
+                    },
+                ));
+            }
+        }
+
         for (id, (op, _)) in self.pending_operations.iter() {
             //TODO: use recipe?
             let id = *id;
             let backend_opt = self.backends.get(op.backend_name).map(|x| x.clone());
             let op = op.clone();
             subscriptions.push(subscription::channel(id, 16, move |msg_tx| async move {
-                //TODO: just get inhibits once?
-                let _inhibits = logind::inhibit().await;
-
                 let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                 let res = match backend_opt {
                     Some(backend) => {
                         let msg_tx = msg_tx.clone();
                         tokio::task::spawn_blocking(move || {
-                            let notification_opt = Arc::new(tokio::sync::Mutex::new(
-                                match notify_rust::Notification::new()
-                                    .summary(&format!("{:?} {}", op.kind, op.info.name))
-                                    .timeout(notify_rust::Timeout::Never)
-                                    .show()
-                                {
-                                    Ok(ok) => Some(ok),
-                                    Err(err) => {
-                                        log::warn!("failed to create notification: {}", err);
-                                        None
-                                    }
-                                },
-                            ));
-
-                            let res = {
-                                let notification_opt = notification_opt.clone();
-                                backend
-                                    .operation(
-                                        op.kind,
-                                        &op.package_id,
-                                        &op.info,
-                                        Box::new(move |progress| -> () {
-                                            let _ = futures::executor::block_on(async {
-                                                msg_tx
-                                                    .lock()
-                                                    .await
-                                                    .send(Message::PendingProgress(id, progress))
-                                                    .await
-                                            });
-
-                                            if let Some(notification) =
-                                                &mut *notification_opt.blocking_lock()
-                                            {
-                                                notification.body(&format!("{:.0}%", progress));
-                                                notification.update();
-                                            }
-                                        }),
-                                    )
-                                    .map_err(|err| err.to_string())
-                            };
-
-                            if let Some(notification) = notification_opt.blocking_lock().take() {
-                                notification.close();
-                            }
-
-                            res
+                            backend
+                                .operation(
+                                    op.kind,
+                                    &op.package_id,
+                                    &op.info,
+                                    Box::new(move |progress| -> () {
+                                        let _ = futures::executor::block_on(async {
+                                            msg_tx
+                                                .lock()
+                                                .await
+                                                .send(Message::PendingProgress(id, progress))
+                                                .await
+                                        });
+                                    }),
+                                )
+                                .map_err(|err| err.to_string())
                         })
                         .await
                         .unwrap()

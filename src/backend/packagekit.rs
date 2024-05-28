@@ -205,7 +205,7 @@ impl Packagekit {
                     screenshots: Vec::new(),
                     monthly_downloads: 0,
                 }),
-                version: String::new(),
+                version: version_opt.unwrap_or("").to_string(),
                 extra: HashMap::new(),
             });
         }
