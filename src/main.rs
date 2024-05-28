@@ -2399,7 +2399,6 @@ impl Application for App {
                 self.scroll_views.insert(self.scroll_context(), viewport);
             }
             Message::SearchActivate => {
-                self.selected_opt = None;
                 self.search_active = true;
                 return widget::text_input::focus(self.search_id.clone());
             }
@@ -2421,6 +2420,8 @@ impl Application for App {
             }
             Message::SearchResults(input, results) => {
                 if input == self.search_input {
+                    // Clear selected item so search results can be shown
+                    self.selected_opt = None;
                     self.search_results = Some((input, results));
                     return self.update_scroll();
                 } else {
