@@ -1287,57 +1287,108 @@ impl App {
         )
     }
 
-    fn update_subcommand(&mut self) -> Command<Message> {
-        match self.subcommand_opt.take() {
-            Some(subcommand) => match subcommand.strip_prefix("appstream:") {
-                Some(component_id_raw) => {
-                    // Handler for appstream:component-id as described in:
-                    // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
-                    let apps = self.apps.clone();
-                    let backends = self.backends.clone();
-                    //TODO: url decode?
-                    let component_id = AppId::new(component_id_raw.trim_start_matches('/'));
-                    Command::perform(
-                        async move {
-                            tokio::task::spawn_blocking(move || {
-                                let start = Instant::now();
-                                let results = Self::generic_search(
-                                    &apps,
-                                    &backends,
-                                    |id, _info, _installed| {
-                                        //TODO: fuzzy search with lower weight?
-                                        if id == &component_id {
-                                            Some(0)
-                                        } else {
-                                            None
-                                        }
-                                    },
-                                );
-                                let duration = start.elapsed();
-                                log::info!(
-                                    "searched for ID {:?} in {:?}, found {} results",
-                                    component_id,
-                                    duration,
-                                    results.len()
-                                );
-                                if let Some(result) = results.first() {
-                                    message::app(Message::Select(
-                                        result.backend_name,
-                                        result.id.clone(),
-                                        result.icon.clone(),
-                                        result.info.clone(),
-                                    ))
-                                } else {
-                                    message::none()
+    fn handle_appstream_url(&mut self, path: &str) -> Command<Message> {
+        // Handler for appstream:component-id as described in:
+        // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
+        let apps = self.apps.clone();
+        let backends = self.backends.clone();
+        let component_id = AppId::new(path.trim_start_matches('/'));
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let results =
+                        Self::generic_search(&apps, &backends, |id, _info, _installed| {
+                            //TODO: fuzzy search with lower weight?
+                            if id == &component_id {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        });
+                    let duration = start.elapsed();
+                    log::info!(
+                        "searched for ID {:?} in {:?}, found {} results",
+                        component_id,
+                        duration,
+                        results.len()
+                    );
+                    if let Some(result) = results.first() {
+                        message::app(Message::Select(
+                            result.backend_name,
+                            result.id.clone(),
+                            result.icon.clone(),
+                            result.info.clone(),
+                        ))
+                    } else {
+                        message::none()
+                    }
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn handle_file_url(&mut self, path: &str) -> Command<Message> {
+        let path = path.to_string();
+        let backends = self.backends.clone();
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let mut packages = Vec::new();
+                    for (backend_name, backend) in backends.iter() {
+                        match backend.file_packages(&path) {
+                            Ok(backend_packages) => {
+                                for package in backend_packages {
+                                    packages.push((backend_name, package));
                                 }
-                            })
-                            .await
-                            .unwrap_or(message::none())
-                        },
-                        |x| x,
-                    )
-                }
-                None => {
+                            }
+                            Err(err) => {
+                                log::warn!(
+                                    "failed to file {:?} using backend {:?}: {}",
+                                    path,
+                                    backend_name,
+                                    err
+                                );
+                            }
+                        }
+                    }
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded file {:?} in {:?}, found {} packages",
+                        path,
+                        duration,
+                        packages.len()
+                    );
+                    log::warn!("TODO: do something with {:?}", packages);
+                    message::none()
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn handle_subcommand(&mut self) -> Command<Message> {
+        match self.subcommand_opt.take() {
+            Some(subcommand) => match reqwest::Url::parse(&subcommand) {
+                Ok(url) => match url.scheme() {
+                    "appstream" => {
+                        return self.handle_appstream_url(url.path());
+                    }
+                    "file" => {
+                        return self.handle_file_url(url.path());
+                    }
+                    scheme => {
+                        log::warn!("unsupported URL scheme {scheme}");
+                        Command::none()
+                    }
+                },
+                Err(_) => {
                     // Search for term
                     self.search_active = true;
                     self.search_input = subcommand.clone();
@@ -2227,7 +2278,7 @@ impl Application for App {
 
                 self.update_apps();
                 let mut commands = Vec::new();
-                commands.push(self.update_subcommand());
+                commands.push(self.handle_subcommand());
                 commands.push(self.installed_results());
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));

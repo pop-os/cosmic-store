@@ -1,12 +1,20 @@
 use cosmic::widget;
 use packagekit_zbus::{
-    zbus::blocking::Connection, PackageKit::PackageKitProxyBlocking,
+    zbus::{blocking::Connection, zvariant},
+    PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
 };
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
 use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
+
+struct TransactionDetails {
+    //TODO: more fields: https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Details
+    package_id: String,
+    summary: String,
+    description: String,
+}
 
 #[allow(dead_code)]
 struct TransactionPackage {
@@ -24,11 +32,40 @@ struct TransactionProgress {
 fn transaction_handle(
     tx: TransactionProxyBlocking,
     mut on_progress: impl FnMut(TransactionProgress),
-) -> Result<Vec<TransactionPackage>, Box<dyn Error>> {
+) -> Result<(Vec<TransactionDetails>, Vec<TransactionPackage>), Box<dyn Error>> {
+    let mut details = Vec::new();
     let mut packages = Vec::new();
     for signal in tx.receive_all_signals()? {
         match signal.member() {
             Some(member) => match member.as_str() {
+                "Details" => {
+                    let map = signal.body::<HashMap<String, zvariant::Value>>()?;
+
+                    let get_string = |key: &str| -> Option<String> {
+                        match map.get(key) {
+                            Some(zvariant::Value::Str(str)) => Some(str.to_string()),
+                            unknown => {
+                                log::warn!(
+                                    "failed to find string for key {:?} in packagekit Details: found {:?} instead",
+                                    key,
+                                    unknown
+                                );
+                                None
+                            }
+                        }
+                    };
+
+                    let Some(package_id) = get_string("package-id") else {
+                        continue;
+                    };
+                    let summary = get_string("summary").unwrap_or_default();
+                    let description = get_string("description").unwrap_or_default();
+                    details.push(TransactionDetails {
+                        package_id,
+                        summary,
+                        description,
+                    });
+                }
                 "ErrorCode" => {
                     // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::ErrorCode
                     let (code, details) = signal.body::<(u32, String)>()?;
@@ -62,7 +99,7 @@ fn transaction_handle(
             None => {}
         }
     }
-    Ok(packages)
+    Ok((details, packages))
 }
 
 // https://lazka.github.io/pgi-docs/PackageKitGlib-1.0/enums.html#PackageKitGlib.FilterEnum
@@ -125,10 +162,54 @@ impl Packagekit {
     ) -> Result<Vec<Package>, Box<dyn Error>> {
         let appstream_cache = &self.appstream_caches[0];
 
-        let tx_packages = transaction_handle(tx, |_| {})?;
+        let (tx_details, tx_packages) = transaction_handle(tx, |_| {})?;
 
         let mut system_packages = Vec::new();
         let mut packages = Vec::new();
+
+        for tx_detail in tx_details {
+            //TODO: this is a hack to handle file details like they are packages
+            let mut parts = tx_detail.package_id.split(';');
+            let Some(package_name) = parts.next() else {
+                continue;
+            };
+            let version_opt = parts.next();
+            let _architecture_opt = parts.next();
+
+            let data = parts.next().unwrap_or("");
+            let mut data_parts = data.split(':');
+            let _status_opt = data_parts.next();
+            let _origin_opt = data_parts.next();
+
+            //TODO: translate
+            packages.push(Package {
+                id: AppId::new(package_name),
+                icon: widget::icon::from_name("package-x-generic")
+                    .size(128)
+                    .handle(),
+                //TODO: fill in more AppInfo fields
+                info: Arc::new(AppInfo {
+                    source_id: appstream_cache.source_id.clone(),
+                    source_name: appstream_cache.source_name.clone(),
+                    origin_opt: None,
+                    name: package_name.to_string(),
+                    summary: tx_detail.summary.clone(),
+                    developer_name: String::new(),
+                    description: tx_detail.description.clone(),
+                    pkgnames: vec![package_name.to_string()],
+                    categories: Vec::new(),
+                    desktop_ids: Vec::new(),
+                    flatpak_refs: Vec::new(),
+                    icons: Vec::new(),
+                    releases: Vec::new(),
+                    screenshots: Vec::new(),
+                    monthly_downloads: 0,
+                }),
+                version: String::new(),
+                extra: HashMap::new(),
+            });
+        }
+
         for tx_package in tx_packages {
             let mut parts = tx_package.package_id.split(';');
             let Some(package_name) = parts.next() else {
@@ -248,6 +329,12 @@ impl Backend for Packagekit {
         self.package_transaction(tx)
     }
 
+    fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
+        let tx = self.transaction()?;
+        tx.get_details_local(&[path])?;
+        self.package_transaction(tx)
+    }
+
     fn operation(
         &self,
         kind: OperationKind,
@@ -262,7 +349,7 @@ impl Backend for Packagekit {
         if package_names.is_empty() {
             return Err(format!("{:?} missing package name", package_id).into());
         }
-        let tx_packages = {
+        let (_tx_details, tx_packages) = {
             let tx = self.transaction()?;
             log::info!("resolve packages for {:?}", package_names);
             let filter = match kind {

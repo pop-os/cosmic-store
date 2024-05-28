@@ -221,6 +221,10 @@ impl Backend for Flatpak {
         Ok(packages)
     }
 
+    fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
+        Err("flatpak backend does not support loading details from a file".into())
+    }
+
     fn operation(
         &self,
         kind: OperationKind,

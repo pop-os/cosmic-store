@@ -30,6 +30,7 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn info_caches(&self) -> &[AppstreamCache];
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
+    fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>>;
     fn operation(
         &self,
         kind: OperationKind,
