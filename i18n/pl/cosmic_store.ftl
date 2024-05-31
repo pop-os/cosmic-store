@@ -7,6 +7,7 @@ install = Zainstaluj
 no-installed-applications = Brak zainstalowanycha aplikacji.
 no-updates = Wszystkie zainstalowane aplikacje są aktualne.
 no-results = Brak wyników dla "{$search}".
+notification-progress = Instalacje i uaktualnienia są and kompletne w {$progress}%.
 open = Otwórz
 see-all = Zobacz wszystkie
 uninstall = Odinstaluj
