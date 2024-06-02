@@ -1,15 +1,22 @@
 cosmic-app-store = Магазин приложений COSMIC
 back = Назад
 cancel = Отмена
+check-for-updates = Проверить обновления
+checking-for-updates = Проверка наличия обновлений...
 install = Установить
 no-installed-applications = Нет установленных приложений
-no-updates = Нет доступных обновлений
-no-results = Нет результатов для "{$search}"
+no-updates = Все установленные приложения обновлены.
+no-results = Нет результатов для "{$search}".
+notification-progress = Установка и обновление завершены на {$progress}%.
 open = Открыть
 see-all = См. все
 uninstall = Удалить
 update = Обновить
 update-all = Обновить все
+
+# Uninstall Dialog
+uninstall-app = Удалить {$name}
+uninstall-app-warning = Вы уверены, что хотите удалить {$name}?
 
 # Nav Pages
 explore = Обзор
@@ -37,7 +44,6 @@ social-networking-apps = Приложения социальных сетей
 games = Игры
 music-and-video-apps = Для музыки и видео
 apps-for-learning = Для обучения
-utilities = Утилиты
 
 # Details Page
 source-installed = {$source} (Установлен)
