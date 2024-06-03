@@ -1,0 +1,58 @@
+cosmic-app-store = Loja de Aplicativos COSMIC
+back = Voltar
+cancel = Cancelar
+install = Instalar
+no-installed-applications = Nenhuma aplicativo instalado
+no-updates = Nenhuma atualização disponível
+no-results = Nenhum resultado para "{$search}"
+open = Abrir
+see-all = Ver tudo
+uninstall = Desinstalar
+update = Atualizar
+update-all = Atualizar tudo
+
+# Nav Pages
+explore = Explorar
+create = Criar
+work = Trabalhar
+develop = Desenvolver
+learn = Aprender
+game = Jogar
+relax = Relaxar
+socialize = Socializar
+utilities = Utilitários
+installed-apps = Apps instalados
+updates = Atualizações
+
+# Explore Pages
+editors-choice = Escolha dos editores
+popular-apps = Aplicativos populares
+new-apps = Novos aplicativos
+recently-updated = Atualizado recentemente
+development-tools = Ferramentas de desenvolvimento
+scientific-tools = Ferramentas científicas
+productivity-apps = Aplicativos de produtividade
+graphics-and-photography-tools = Ferramentas gráficas e de fotografia
+social-networking-apps = Aplicativos de redes sociais
+games = Jogos
+music-and-video-apps = Aplicativos de música e vídeo
+apps-for-learning = Aplicativos de aprendizagem
+utilities = Utilitários
+
+# Details Page
+source-installed = {$source} (instalado)
+developer = Programador
+app-developers = Programadores {$app}
+monthly-downloads = Downloads mensais do Flathub
+
+# Context Pages
+
+## Settings
+settings = Configurações
+
+### Appearance
+appearance = Aparência
+theme = Tema
+match-desktop = Acompanhar o ambiente de trabalho
+dark = Escuro
+light = Claro
