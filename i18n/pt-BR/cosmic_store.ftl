@@ -1,15 +1,22 @@
 cosmic-app-store = Loja de Aplicativos COSMIC
 back = Voltar
 cancel = Cancelar
+check-for-updates = Buscar atualizações
+checking-for-updates = Buscando atualizações...
 install = Instalar
 no-installed-applications = Nenhuma aplicativo instalado
 no-updates = Nenhuma atualização disponível
 no-results = Nenhum resultado para "{$search}"
+notification-progress = Instalações e atualizações estão {$progress}% completas.
 open = Abrir
 see-all = Ver tudo
 uninstall = Desinstalar
 update = Atualizar
 update-all = Atualizar tudo
+
+# Uninstall Dialog
+uninstall-app = Desinstalar {$name}
+uninstall-app-warning = Tem certeza que quer desinstalar {$name}?
 
 # Nav Pages
 explore = Explorar
