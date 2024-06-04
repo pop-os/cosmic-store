@@ -14,6 +14,7 @@ use cosmic::{
         window::{self, Event as WindowEvent},
         Alignment, Length, Limits, Size,
     },
+    prelude::CollectionWidget,
     theme, widget, Application, ApplicationExt, Element,
 };
 use rayon::prelude::*;
@@ -198,12 +199,14 @@ pub enum Message {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContextPage {
+    ReleaseNotes,
     Settings,
 }
 
 impl ContextPage {
     fn title(&self) -> String {
         match self {
+            Self::ReleaseNotes => fl!("release-notes"),
             Self::Settings => fl!("settings"),
         }
     }
@@ -1476,6 +1479,47 @@ impl App {
         .into()
     }
 
+    fn release_notes(&self) -> Element<Message> {
+        let (version, date, summary, url) = {
+            self.selected_opt
+                .as_ref()
+                .and_then(|selected| {
+                    selected.info.releases.last().map(|latest| {
+                        (
+                            &*latest.version,
+                            latest.timestamp,
+                            latest.description.to_owned(),
+                            latest.url.as_deref(),
+                        )
+                    })
+                })
+                .unwrap_or(("", None, None, None))
+        };
+        let cosmic_theme::Spacing { space_xs, .. } = theme::active().cosmic().spacing;
+        widget::column::with_capacity(3)
+            .push(
+                widget::column::with_capacity(2)
+                    .push(widget::text(format!(
+                        "{} {}",
+                        fl!("latest-version"),
+                        version
+                    )))
+                    .push_maybe(
+                        date.and_then(|secs| {
+                            chrono::DateTime::from_timestamp(secs, 0)
+                                .map(|dt| dt.with_timezone(&chrono::Local).to_string())
+                        })
+                        .map(widget::text),
+                    ),
+            )
+            .push(widget::scrollable(widget::text(
+                summary.unwrap_or_else(|| fl!("no-description")),
+            )))
+            .push_maybe(url.map(widget::text))
+            .spacing(space_xs)
+            .into()
+    }
+
     fn view_responsive(&self, size: Size) -> Element<Message> {
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
@@ -1612,7 +1656,14 @@ impl App {
                             .size(ICON_SIZE_DETAILS)
                             .into(),
                         widget::column::with_children(vec![
-                            widget::text::title2(&selected.info.name).into(),
+                            widget::row::with_children(vec![
+                                widget::text::title2(&selected.info.name).into(),
+                                widget::horizontal_space(Length::Fill).into(),
+                                widget::button::icon(widget::icon::from_name("help-info"))
+                                    .on_press(Message::ToggleContextPage(ContextPage::ReleaseNotes))
+                                    .into(),
+                            ])
+                            .into(),
                             widget::text(&selected.info.summary).into(),
                             widget::vertical_space(Length::Fixed(space_s.into())).into(),
                             widget::row::with_children(buttons).spacing(space_xs).into(),
@@ -2666,6 +2717,7 @@ impl Application for App {
 
         Some(match self.context_page {
             ContextPage::Settings => self.settings(),
+            ContextPage::ReleaseNotes => self.release_notes(),
         })
     }
 
