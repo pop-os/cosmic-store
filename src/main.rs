@@ -199,14 +199,14 @@ pub enum Message {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContextPage {
-    ReleaseNotes,
+    ReleaseNotes(usize),
     Settings,
 }
 
 impl ContextPage {
     fn title(&self) -> String {
         match self {
-            Self::ReleaseNotes => fl!("release-notes"),
+            Self::ReleaseNotes(_) => fl!("release-notes"),
             Self::Settings => fl!("settings"),
         }
     }
@@ -431,16 +431,31 @@ fn package_card_view<'a>(
     info: &'a AppInfo,
     icon: &'a widget::icon::Handle,
     controls: Vec<Element<'a, Message>>,
+    top_controls: Option<Vec<Element<'a, Message>>>,
     spacing: &cosmic_theme::Spacing,
     width: usize,
 ) -> Element<'a, Message> {
     let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
+    let top_row_cap = 1 + top_controls
+        .as_deref()
+        .map(|elements| 1 + elements.len())
+        .unwrap_or_default();
     let column = widget::column::with_children(vec![
-        widget::text::body(&info.name)
-            .height(Length::Fixed(20.0))
-            .into(),
-        widget::text::caption(&info.summary)
-            .height(Length::Fixed(28.0))
+        widget::row::with_capacity(top_row_cap)
+            .push(widget::column::with_children(vec![
+                widget::text::body(&info.name)
+                    .height(Length::Fixed(20.0))
+                    .into(),
+                widget::text::caption(&info.summary)
+                    .height(Length::Fixed(28.0))
+                    .into(),
+            ]))
+            .push_maybe(
+                top_controls
+                    .is_some()
+                    .then_some(widget::horizontal_space(Length::Fill)),
+            )
+            .extend(top_controls.unwrap_or_default().into_iter())
             .into(),
         widget::vertical_space(Length::Fixed(spacing.space_xxs.into())).into(),
         widget::row::with_children(controls)
@@ -474,10 +489,18 @@ impl Package {
     pub fn card_view<'a>(
         &'a self,
         controls: Vec<Element<'a, Message>>,
+        top_controls: Option<Vec<Element<'a, Message>>>,
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        package_card_view(&self.info, &self.icon, controls, spacing, width)
+        package_card_view(
+            &self.info,
+            &self.icon,
+            controls,
+            top_controls,
+            spacing,
+            width,
+        )
     }
 }
 
@@ -1479,10 +1502,11 @@ impl App {
         .into()
     }
 
-    fn release_notes(&self) -> Element<Message> {
+    fn release_notes(&self, index: usize) -> Element<Message> {
         let (version, date, summary, url) = {
-            self.selected_opt
-                .as_ref()
+            self.updates
+                .as_deref()
+                .and_then(|updates| updates.get(index).map(|(_, package)| package))
                 .and_then(|selected| {
                     selected.info.releases.last().map(|latest| {
                         (
@@ -1495,19 +1519,22 @@ impl App {
                 })
                 .unwrap_or(("", None, None, None))
         };
-        let cosmic_theme::Spacing { space_xs, .. } = theme::active().cosmic().spacing;
+        let cosmic_theme::Spacing { space_s, .. } = theme::active().cosmic().spacing;
         widget::column::with_capacity(3)
             .push(
                 widget::column::with_capacity(2)
-                    .push(widget::text(format!(
+                    .push(widget::text::title4(format!(
                         "{} {}",
                         fl!("latest-version"),
                         version
                     )))
                     .push_maybe(
                         date.and_then(|secs| {
-                            chrono::DateTime::from_timestamp(secs, 0)
-                                .map(|dt| dt.with_timezone(&chrono::Local).to_string())
+                            chrono::DateTime::from_timestamp(secs, 0).map(|dt| {
+                                dt.with_timezone(&chrono::Local)
+                                    .format("%Y-%m-%d")
+                                    .to_string()
+                            })
                         })
                         .map(widget::text),
                     ),
@@ -1516,7 +1543,8 @@ impl App {
                 summary.unwrap_or_else(|| fl!("no-description")),
             )))
             .push_maybe(url.map(widget::text))
-            .spacing(space_xs)
+            .width(Length::Fill)
+            .spacing(space_s)
             .into()
     }
 
@@ -1656,14 +1684,7 @@ impl App {
                             .size(ICON_SIZE_DETAILS)
                             .into(),
                         widget::column::with_children(vec![
-                            widget::row::with_children(vec![
-                                widget::text::title2(&selected.info.name).into(),
-                                widget::horizontal_space(Length::Fill).into(),
-                                widget::button::icon(widget::icon::from_name("help-info"))
-                                    .on_press(Message::ToggleContextPage(ContextPage::ReleaseNotes))
-                                    .into(),
-                            ])
-                            .into(),
+                            widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
                             widget::vertical_space(Length::Fixed(space_s.into())).into(),
                             widget::row::with_children(buttons).spacing(space_xs).into(),
@@ -1977,6 +1998,7 @@ impl App {
                                             &result.info,
                                             &result.icon,
                                             buttons,
+                                            None,
                                             &spacing,
                                             item_width,
                                         ))
@@ -2069,14 +2091,24 @@ impl App {
                                             ))
                                             .into()]
                                     };
+                                    let top_controls = Some(vec![widget::button::icon(
+                                        widget::icon::from_name("help-info-symbolic"),
+                                    )
+                                    .on_press(Message::ToggleContextPage(
+                                        ContextPage::ReleaseNotes(updates_i),
+                                    ))
+                                    .into()]);
                                     if col >= cols {
                                         grid = grid.insert_row();
                                         col = 0;
                                     }
                                     grid = grid.push(
-                                        widget::mouse_area(
-                                            package.card_view(controls, &spacing, item_width),
-                                        )
+                                        widget::mouse_area(package.card_view(
+                                            controls,
+                                            top_controls,
+                                            &spacing,
+                                            item_width,
+                                        ))
                                         .on_press(Message::SelectUpdates(updates_i)),
                                     );
                                     col += 1;
@@ -2717,7 +2749,7 @@ impl Application for App {
 
         Some(match self.context_page {
             ContextPage::Settings => self.settings(),
-            ContextPage::ReleaseNotes => self.release_notes(),
+            ContextPage::ReleaseNotes(i) => self.release_notes(i),
         })
     }
 
