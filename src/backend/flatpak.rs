@@ -250,7 +250,7 @@ impl Backend for Flatpak {
             started_ops.set(current_op + 1);
             let progress_per_op = 100.0 / (total_ops.get().max(started_ops.get()) as f32);
             log::info!(
-                "Operation {}: {} {:?}",
+                "Operation {}: {:?} {:?}",
                 current_op,
                 op.operation_type(),
                 op.get_ref()

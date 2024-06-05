@@ -34,7 +34,7 @@ atomicwrites = "0.4"
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "5"
 # flatpak feature
-libflatpak = { version = "0.4", optional = true }
+libflatpak = { version = "0.5", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
 logind-zbus = { version = "4", optional = true }
 nix = { version = "0.26", features = ["user"], optional = true }
