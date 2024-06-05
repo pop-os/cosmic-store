@@ -208,6 +208,7 @@ impl Backend for Flatpak {
                     continue;
                 };
                 inst.update_remote_sync(&remote_name, Cancellable::NONE)?;
+                inst.update_appstream_sync(&remote_name, None, Cancellable::NONE)?;
             }
         }
 
