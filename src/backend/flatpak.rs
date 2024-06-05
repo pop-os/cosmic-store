@@ -9,7 +9,7 @@ use std::{
 };
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
+use crate::{AppId, AppInfo, AppstreamCache, Operation, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
@@ -227,9 +227,7 @@ impl Backend for Flatpak {
 
     fn operation(
         &self,
-        kind: OperationKind,
-        id: &AppId,
-        info: &AppInfo,
+        op: &Operation,
         callback: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         let callback = Arc::new(Mutex::new(callback));
@@ -268,26 +266,64 @@ impl Backend for Flatpak {
                 callback(total_progress)
             });
         });
-        match kind {
+        match op.kind {
             OperationKind::Install => {
-                //TODO: install all refs?
-                for r_str in info.flatpak_refs.iter() {
-                    let r = match Ref::parse(r_str) {
-                        Ok(ok) => ok,
-                        Err(err) => {
-                            log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
-                            continue;
-                        }
-                    };
-                    for remote in inst.list_remotes(Cancellable::NONE)? {
-                        let Some(remote_name) = remote.name() else {
-                            continue;
+                for info in op.infos.iter() {
+                    for r_str in info.flatpak_refs.iter() {
+                        let r = match Ref::parse(r_str) {
+                            Ok(ok) => ok,
+                            Err(err) => {
+                                log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
+                                continue;
+                            }
                         };
-                        if remote_name != info.source_id {
-                            continue;
+                        for remote in inst.list_remotes(Cancellable::NONE)? {
+                            let Some(remote_name) = remote.name() else {
+                                continue;
+                            };
+                            if remote_name != info.source_id {
+                                continue;
+                            }
+                            match inst.fetch_remote_ref_sync(
+                                &remote_name,
+                                r.kind(),
+                                &r.name().unwrap_or_default(),
+                                r.arch().as_deref(),
+                                r.branch().as_deref(),
+                                Cancellable::NONE,
+                            ) {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    log::info!(
+                                        "failed to find {} in {}: {}",
+                                        r_str,
+                                        remote_name,
+                                        err
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            log::info!("installing flatpak {} from remote {}", r_str, remote_name);
+                            tx.add_install(&remote_name, &r_str, &[])?;
+                            //TODO: install all refs?
+                            break;
                         }
-                        match inst.fetch_remote_ref_sync(
-                            &remote_name,
+                    }
+                }
+            }
+            OperationKind::Uninstall => {
+                //TODO: deduplicate code
+                for info in op.infos.iter() {
+                    for r_str in info.flatpak_refs.iter() {
+                        let r = match Ref::parse(r_str) {
+                            Ok(ok) => ok,
+                            Err(err) => {
+                                log::warn!("failed to parse flatpak ref {}: {}", r_str, err);
+                                continue;
+                            }
+                        };
+                        match inst.installed_ref(
                             r.kind(),
                             &r.name().unwrap_or_default(),
                             r.arch().as_deref(),
@@ -296,79 +332,48 @@ impl Backend for Flatpak {
                         ) {
                             Ok(_) => {}
                             Err(err) => {
-                                log::info!("failed to find {:?} in {}: {}", id, remote_name, err);
+                                log::info!("failed to find {} installed locally: {}", r_str, err);
                                 continue;
                             }
                         };
 
-                        log::info!("installing flatpak {} from remote {}", r_str, remote_name);
-                        tx.add_install(&remote_name, &r_str, &[])?;
-                        tx.run(Cancellable::NONE)?;
-                        return Ok(());
+                        log::info!("uninstalling flatpak {}", r_str);
+                        tx.add_uninstall(&r_str)?;
                     }
                 }
             }
-            OperationKind::Uninstall => {
-                //TODO: deduplicate code
-                for r_str in info.flatpak_refs.iter() {
-                    let r = match Ref::parse(r_str) {
-                        Ok(ok) => ok,
-                        Err(err) => {
-                            log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
-                            continue;
-                        }
-                    };
-                    match inst.installed_ref(
-                        r.kind(),
-                        &r.name().unwrap_or_default(),
-                        r.arch().as_deref(),
-                        r.branch().as_deref(),
-                        Cancellable::NONE,
-                    ) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::info!("failed to find {:?} installed locally: {}", id, err);
-                            continue;
-                        }
-                    };
-
-                    log::info!("uninstalling flatpak {}", r_str);
-                    tx.add_uninstall(&r_str)?;
-                }
-                tx.run(Cancellable::NONE)?;
-                return Ok(());
-            }
             OperationKind::Update => {
                 //TODO: deduplicate code
-                for r_str in info.flatpak_refs.iter() {
-                    let r = match Ref::parse(r_str) {
-                        Ok(ok) => ok,
-                        Err(err) => {
-                            log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
-                            continue;
-                        }
-                    };
-                    match inst.installed_ref(
-                        r.kind(),
-                        &r.name().unwrap_or_default(),
-                        r.arch().as_deref(),
-                        r.branch().as_deref(),
-                        Cancellable::NONE,
-                    ) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::info!("failed to find {:?} installed locally: {}", id, err);
-                            continue;
-                        }
-                    };
+                for info in op.infos.iter() {
+                    for r_str in info.flatpak_refs.iter() {
+                        let r = match Ref::parse(r_str) {
+                            Ok(ok) => ok,
+                            Err(err) => {
+                                log::warn!("failed to parse flatpak ref {}: {}", r_str, err);
+                                continue;
+                            }
+                        };
+                        match inst.installed_ref(
+                            r.kind(),
+                            &r.name().unwrap_or_default(),
+                            r.arch().as_deref(),
+                            r.branch().as_deref(),
+                            Cancellable::NONE,
+                        ) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::info!("failed to find {} installed locally: {}", r_str, err);
+                                continue;
+                            }
+                        };
 
-                    log::info!("updating flatpak {}", r_str);
-                    tx.add_update(&r_str, &[], None)?;
+                        log::info!("updating flatpak {}", r_str);
+                        tx.add_update(&r_str, &[], None)?;
+                    }
                 }
-                tx.run(Cancellable::NONE)?;
-                return Ok(());
             }
         }
-        Err(format!("package {id:?} not found").into())
+        tx.run(Cancellable::NONE)?;
+        Ok(())
     }
 }

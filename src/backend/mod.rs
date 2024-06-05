@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
+use crate::{AppId, AppInfo, AppstreamCache, Operation};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -33,9 +33,7 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>>;
     fn operation(
         &self,
-        kind: OperationKind,
-        package_id: &AppId,
-        info: &AppInfo,
+        op: &Operation,
         f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>>;
 }

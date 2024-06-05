@@ -1529,8 +1529,14 @@ impl App {
                 let mut progress_opt = None;
                 for (_id, (op, progress)) in self.pending_operations.iter() {
                     if op.backend_name == selected.backend_name
-                        && &op.info.source_id == &selected.info.source_id
-                        && &op.package_id == &selected.id
+                        && op
+                            .infos
+                            .iter()
+                            .any(|info| info.source_id == selected.info.source_id)
+                        && op
+                            .package_ids
+                            .iter()
+                            .any(|package_id| package_id == &selected.id)
                     {
                         progress_opt = Some(*progress);
                         break;
@@ -1995,8 +2001,13 @@ impl App {
                                     let mut progress_opt = None;
                                     for (_id, (op, progress)) in self.pending_operations.iter() {
                                         if &op.backend_name == backend_name
-                                            && &op.info.source_id == &package.info.source_id
-                                            && &op.package_id == &package.id
+                                            && op.infos.iter().any(|info| {
+                                                info.source_id == package.info.source_id
+                                            })
+                                            && op
+                                                .package_ids
+                                                .iter()
+                                                .any(|package_id| package_id == &package.id)
                                         {
                                             progress_opt = Some(*progress);
                                             break;
@@ -2358,22 +2369,24 @@ impl Application for App {
                 self.operation(Operation {
                     kind,
                     backend_name,
-                    package_id,
-                    info,
+                    package_ids: vec![package_id],
+                    infos: vec![info],
                 });
             }
             Message::PendingComplete(id) => {
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
-                    self.waiting_installed.push((
-                        op.backend_name,
-                        op.info.source_id.clone(),
-                        op.package_id.clone(),
-                    ));
-                    self.waiting_updates.push((
-                        op.backend_name,
-                        op.info.source_id.clone(),
-                        op.package_id.clone(),
-                    ));
+                    for (package_id, info) in op.package_ids.iter().zip(op.infos.iter()) {
+                        self.waiting_installed.push((
+                            op.backend_name,
+                            info.source_id.clone(),
+                            package_id.clone(),
+                        ));
+                        self.waiting_updates.push((
+                            op.backend_name,
+                            info.source_id.clone(),
+                            package_id.clone(),
+                        ));
+                    }
                     //TODO: self.complete_operations.insert(id, op);
                 }
                 return Command::batch([
@@ -2616,17 +2629,18 @@ impl Application for App {
             }
             Message::UpdateAll => {
                 if let Some(updates) = &self.updates {
-                    //TODO: this shows multiple pkexec dialogs
-                    let mut ops = Vec::with_capacity(updates.len());
+                    let mut ops = HashMap::with_capacity(self.backends.len());
                     for (backend_name, package) in updates.iter() {
-                        ops.push(Operation {
+                        let op = ops.entry(*backend_name).or_insert_with(|| Operation {
                             kind: OperationKind::Update,
                             backend_name,
-                            package_id: package.id.clone(),
-                            info: package.info.clone(),
+                            package_ids: Vec::new(),
+                            infos: Vec::new(),
                         });
+                        op.package_ids.push(package.id.clone());
+                        op.infos.push(package.info.clone());
                     }
-                    for op in ops {
+                    for (_backend_name, op) in ops {
                         self.operation(op);
                     }
                 }
@@ -2839,9 +2853,7 @@ impl Application for App {
                         tokio::task::spawn_blocking(move || {
                             backend
                                 .operation(
-                                    op.kind,
-                                    &op.package_id,
-                                    &op.info,
+                                    &op,
                                     Box::new(move |progress| -> () {
                                         let _ = futures::executor::block_on(async {
                                             msg_tx

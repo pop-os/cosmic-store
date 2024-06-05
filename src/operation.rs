@@ -13,8 +13,8 @@ pub enum OperationKind {
 pub struct Operation {
     pub kind: OperationKind,
     pub backend_name: &'static str,
-    pub package_id: AppId,
-    pub info: Arc<AppInfo>,
+    pub package_ids: Vec<AppId>,
+    pub infos: Vec<Arc<AppInfo>>,
 }
 
 impl Operation {
@@ -25,17 +25,18 @@ impl Operation {
             OperationKind::Uninstall => "uninstall",
             OperationKind::Update => "update",
         };
+        //TODO: get ids and names from all packages
         (
             format!(
                 "Failed to {verb} {} from {}",
-                self.info.name, self.info.source_name
+                self.infos[0].name, self.infos[0].source_name
             ),
             format!(
                 "Failed to {verb} {} ({}) from {} ({}):\n{err}",
-                self.info.name,
-                self.package_id.raw(),
-                self.info.source_name,
-                self.info.source_id
+                self.infos[0].name,
+                self.package_ids[0].raw(),
+                self.infos[0].source_name,
+                self.infos[0].source_id
             ),
         )
     }

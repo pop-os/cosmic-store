@@ -7,7 +7,7 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppstreamCache, OperationKind};
+use crate::{AppId, AppInfo, AppstreamCache, Operation, OperationKind};
 
 struct TransactionDetails {
     //TODO: more fields: https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Details
@@ -337,22 +337,22 @@ impl Backend for Packagekit {
 
     fn operation(
         &self,
-        kind: OperationKind,
-        package_id: &AppId,
-        info: &AppInfo,
+        op: &Operation,
         mut f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut package_names = Vec::with_capacity(info.pkgnames.len());
-        for pkgname in &info.pkgnames {
-            package_names.push(pkgname.as_str());
+        let mut package_names = Vec::new();
+        for info in op.infos.iter() {
+            for pkgname in &info.pkgnames {
+                package_names.push(pkgname.as_str());
+            }
         }
         if package_names.is_empty() {
-            return Err(format!("{:?} missing package name", package_id).into());
+            return Err(format!("{:?} missing package name", op.package_ids).into());
         }
         let (_tx_details, tx_packages) = {
             let tx = self.transaction()?;
             log::info!("resolve packages for {:?}", package_names);
-            let filter = match kind {
+            let filter = match op.kind {
                 OperationKind::Install | OperationKind::Update => {
                     FilterKind::NotInstalled as u64
                         | FilterKind::Newest as u64
@@ -369,7 +369,7 @@ impl Backend for Packagekit {
         }
         let tx = self.transaction()?;
         tx.set_hints(&["interactive=true"])?;
-        match kind {
+        match op.kind {
             OperationKind::Install => {
                 log::info!("installing packages {:?}", package_ids);
                 //TODO: transaction flags
