@@ -59,7 +59,6 @@ settings = Settings
 ## Release notes
 latest-version = Latest version
 no-description = No description available.
-release-notes = Release notes
 
 ### Appearance
 appearance = Appearance
