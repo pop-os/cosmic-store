@@ -39,6 +39,21 @@ impl Flatpak {
                 }
             };
 
+            //TODO: also update if out of date?
+            if !appstream_dir.is_dir() {
+                log::info!("updating appstream data for remote {:?}", remote);
+                match inst.update_appstream_sync(&source_id, None, Cancellable::NONE) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        log::warn!(
+                            "failed to update appstream data for remote {:?}: {}",
+                            remote,
+                            err
+                        );
+                    }
+                }
+            }
+
             let mut paths = Vec::new();
             let xml_gz_path = appstream_dir.join("appstream.xml.gz");
             if xml_gz_path.is_file() {
