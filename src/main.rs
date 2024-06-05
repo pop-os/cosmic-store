@@ -206,7 +206,7 @@ pub enum ContextPage {
 impl ContextPage {
     fn title(&self) -> String {
         match self {
-            Self::ReleaseNotes(_) => fl!("release-notes"),
+            Self::ReleaseNotes(_) => String::default(),
             Self::Settings => fl!("settings"),
         }
     }
