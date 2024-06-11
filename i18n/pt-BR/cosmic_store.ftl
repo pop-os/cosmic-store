@@ -44,7 +44,6 @@ social-networking-apps = Aplicativos de redes sociais
 games = Jogos
 music-and-video-apps = Aplicativos de música e vídeo
 apps-for-learning = Aplicativos de aprendizagem
-utilities = Utilitários
 
 # Details Page
 source-installed = {$source} (instalado)
@@ -56,6 +55,10 @@ monthly-downloads = Downloads mensais do Flathub
 
 ## Settings
 settings = Configurações
+
+## Release notes
+latest-version = Última versão
+no-description = Nenhuma descrição disponível.
 
 ### Appearance
 appearance = Aparência
