@@ -31,7 +31,7 @@ struct TransactionProgress {
 
 fn transaction_handle(
     tx: TransactionProxyBlocking,
-    mut on_progress: impl FnMut(TransactionProgress),
+    mut on_progress: impl FnMut(u32, TransactionProgress),
 ) -> Result<(Vec<TransactionDetails>, Vec<TransactionPackage>), Box<dyn Error>> {
     let mut details = Vec::new();
     let mut packages = Vec::new();
@@ -74,11 +74,15 @@ fn transaction_handle(
                 "ItemProgress" => {
                     // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::ItemProgress
                     let (package_id, status, percentage) = signal.body::<(String, u32, u32)>()?;
-                    on_progress(TransactionProgress {
-                        package_id,
-                        status,
-                        percentage,
-                    })
+                    let total_percentage = tx.percentage().unwrap_or(percentage);
+                    on_progress(
+                        total_percentage,
+                        TransactionProgress {
+                            package_id,
+                            status,
+                            percentage,
+                        },
+                    )
                 }
                 "Package" => {
                     // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Package
@@ -162,7 +166,7 @@ impl Packagekit {
     ) -> Result<Vec<Package>, Box<dyn Error>> {
         let appstream_cache = &self.appstream_caches[0];
 
-        let (tx_details, tx_packages) = transaction_handle(tx, |_| {})?;
+        let (tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
 
         let mut system_packages = Vec::new();
         let mut packages = Vec::new();
@@ -361,7 +365,7 @@ impl Backend for Packagekit {
                 OperationKind::Uninstall => FilterKind::Installed as u64,
             };
             tx.resolve(filter, &package_names)?;
-            transaction_handle(tx, |_| {})?
+            transaction_handle(tx, |_, _| {})?
         };
         let mut package_ids = Vec::with_capacity(package_names.len());
         for tx_package in tx_packages.iter() {
@@ -386,15 +390,15 @@ impl Backend for Packagekit {
                 tx.update_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
             }
         }
-        let _tx_packages = transaction_handle(tx, |progress| {
+        let _tx_packages = transaction_handle(tx, |total_percentage, progress| {
             log::info!(
-                "{} {} {}%",
+                "{}%: {} {} {}%",
+                total_percentage,
                 progress.package_id,
                 progress.status,
                 progress.percentage
             );
-            //TODO: show progress as total of all items
-            f(progress.percentage as f32);
+            f(total_percentage as f32);
         })?;
         Ok(())
     }
