@@ -4,10 +4,10 @@ cancel = Отмена
 check-for-updates = Проверить обновления
 checking-for-updates = Проверка наличия обновлений...
 install = Установить
-no-installed-applications = Нет установленных приложений
+no-installed-applications = Нет установленных приложений.
 no-updates = Все установленные приложения обновлены.
-no-results = Нет результатов для "{$search}".
-notification-progress = Установка и обновление завершены на {$progress}%.
+no-results = Нет результатов по запросу «{$search}».
+notification-progress = Установка и обновление завершены на {$progress} %.
 open = Открыть
 see-all = См. все
 uninstall = Удалить
@@ -35,26 +35,30 @@ updates = Обновления
 editors-choice = Выбор редакции
 popular-apps = Популярные приложения
 new-apps = Новые приложения
-recently-updated = Недавно обновлено
+recently-updated = Недавно обновлённые
 development-tools = Средства разработки
 scientific-tools = Научные инструменты
 productivity-apps = Для повышения продуктивности
-graphics-and-photography-tools = Инструменты для графики и фотографий
+graphics-and-photography-tools = Для графики и фотографий
 social-networking-apps = Приложения социальных сетей
 games = Игры
 music-and-video-apps = Для музыки и видео
-apps-for-learning = Для обучения
+apps-for-learning = Приложения для обучения
 
 # Details Page
-source-installed = {$source} (Установлен)
+source-installed = {$source} (установлено)
 developer = Разработчик
 app-developers = Разработчики {$app}
-monthly-downloads = Ежемесячные загрузки на Flathub
+monthly-downloads = Загрузок на Flathub за месяц
 
 # Context Pages
 
 ## Settings
 settings = Настройки
+
+## Release notes
+latest-version = Последняя версия
+no-description = Описание отсутствует.
 
 ### Appearance
 appearance = Внешний вид
