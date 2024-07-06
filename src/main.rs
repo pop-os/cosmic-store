@@ -190,7 +190,7 @@ pub enum Message {
     SelectedScreenshotShown(usize),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
-    ToggleContextPage(ContextPage),
+    ToggleContextPage(ContextPage, String),
     UpdateAll,
     Updates(Vec<(&'static str, Package)>),
     WindowClose,
@@ -204,9 +204,9 @@ pub enum ContextPage {
 }
 
 impl ContextPage {
-    fn title(&self) -> String {
+    fn title(&self, app_name: String) -> String {
         match self {
-            Self::ReleaseNotes(_) => String::default(),
+            Self::ReleaseNotes(_) => app_name,
             Self::Settings => fl!("settings"),
         }
     }
@@ -2107,6 +2107,7 @@ impl App {
                                     )
                                     .on_press(Message::ToggleContextPage(
                                         ContextPage::ReleaseNotes(updates_i),
+                                        package.info.name.clone(),
                                     ))
                                     .into()]);
                                     if col >= cols {
@@ -2700,7 +2701,7 @@ impl Application for App {
             Message::SystemThemeModeChange(_theme_mode) => {
                 return self.update_config();
             }
-            Message::ToggleContextPage(context_page) => {
+            Message::ToggleContextPage(context_page, app_name) => {
                 //TODO: ensure context menus are closed
                 if self.context_page == context_page {
                     self.core.window.show_context = !self.core.window.show_context;
@@ -2708,7 +2709,7 @@ impl Application for App {
                     self.context_page = context_page;
                     self.core.window.show_context = true;
                 }
-                self.set_context_title(context_page.title());
+                self.set_context_title(context_page.title(app_name));
             }
             Message::UpdateAll => {
                 if let Some(updates) = &self.updates {
