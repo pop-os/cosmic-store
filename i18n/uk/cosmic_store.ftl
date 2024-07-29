@@ -61,7 +61,7 @@ latest-version = Остання версія
 no-description = Немає опису.
 
 ### Appearance
-appearance = Вигляд
+appearance = Зовнішній вигляд
 theme = Тема
 match-desktop = Системна
 dark = Темна
