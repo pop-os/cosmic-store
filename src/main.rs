@@ -17,6 +17,7 @@ use cosmic::{
     prelude::CollectionWidget,
     theme, widget, Application, ApplicationExt, Element,
 };
+use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
 use std::{
     any::TypeId,
@@ -190,7 +191,7 @@ pub enum Message {
     SelectedScreenshotShown(usize),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
-    ToggleContextPage(ContextPage),
+    ToggleContextPage(ContextPage, String),
     UpdateAll,
     Updates(Vec<(&'static str, Package)>),
     WindowClose,
@@ -204,9 +205,9 @@ pub enum ContextPage {
 }
 
 impl ContextPage {
-    fn title(&self) -> String {
+    fn title(&self, app_name: String) -> String {
         match self {
-            Self::ReleaseNotes(_) => String::default(),
+            Self::ReleaseNotes(_) => app_name,
             Self::Settings => fl!("settings"),
         }
     }
@@ -785,14 +786,10 @@ impl App {
             })
             .collect();
         results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
-            cmp::Ordering::Equal => {
-                match lexical_sort::natural_lexical_cmp(&a.info.name, &b.info.name) {
-                    cmp::Ordering::Equal => {
-                        lexical_sort::natural_lexical_cmp(&a.backend_name, &b.backend_name)
-                    }
-                    ordering => ordering,
-                }
-            }
+            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
+                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.backend_name, &b.backend_name),
+                ordering => ordering,
+            },
             ordering => ordering,
         });
         results
@@ -1155,14 +1152,10 @@ impl App {
                     let b_priority = priority(b.backend_name, &b.info.source_id, id);
                     match b_priority.cmp(&a_priority) {
                         cmp::Ordering::Equal => {
-                            match lexical_sort::natural_lexical_cmp(
-                                &a.info.source_id,
-                                &b.info.source_id,
-                            ) {
-                                cmp::Ordering::Equal => lexical_sort::natural_lexical_cmp(
-                                    &a.backend_name,
-                                    &b.backend_name,
-                                ),
+                            match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
+                                cmp::Ordering::Equal => {
+                                    LANGUAGE_SORTER.compare(&a.backend_name, &b.backend_name)
+                                }
                                 ordering => ordering,
                             }
                         }
@@ -1257,7 +1250,7 @@ impl App {
                         } else if b_is_system && !a_is_system {
                             cmp::Ordering::Greater
                         } else {
-                            lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
+                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
                     message::app(Message::Installed(installed))
@@ -1297,7 +1290,7 @@ impl App {
                         } else if b.1.id.is_system() {
                             cmp::Ordering::Greater
                         } else {
-                            lexical_sort::natural_lexical_cmp(&a.1.info.name, &b.1.info.name)
+                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
                     message::app(Message::Updates(updates))
@@ -2107,6 +2100,7 @@ impl App {
                                     )
                                     .on_press(Message::ToggleContextPage(
                                         ContextPage::ReleaseNotes(updates_i),
+                                        package.info.name.clone(),
                                     ))
                                     .into()]);
                                     if col >= cols {
@@ -2700,7 +2694,7 @@ impl Application for App {
             Message::SystemThemeModeChange(_theme_mode) => {
                 return self.update_config();
             }
-            Message::ToggleContextPage(context_page) => {
+            Message::ToggleContextPage(context_page, app_name) => {
                 //TODO: ensure context menus are closed
                 if self.context_page == context_page {
                     self.core.window.show_context = !self.core.window.show_context;
@@ -2708,7 +2702,7 @@ impl Application for App {
                     self.context_page = context_page;
                     self.core.window.show_context = true;
                 }
-                self.set_context_title(context_page.title());
+                self.set_context_title(context_page.title(app_name));
             }
             Message::UpdateAll => {
                 if let Some(updates) = &self.updates {
