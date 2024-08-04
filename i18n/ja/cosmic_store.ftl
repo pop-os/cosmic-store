@@ -24,7 +24,7 @@ create = 作成
 work = 仕事
 develop = 開発
 learn = 学習
-game = ゲーム
+game = 遊び
 relax = リラックス
 socialize = ソーシャルメディア
 utilities = ユティリティ
@@ -32,24 +32,24 @@ installed-apps = インストール込みアップ
 updates = アップデートリスト
 
 # Explore Pages
-editors-choice = Editor's Choice
-popular-apps = 人気なアプリケーション
-new-apps = New Apps
-recently-updated = Recently Updated
-development-tools = Development Tools
-scientific-tools = Scientific Tools
-productivity-apps = Productivity Apps
-graphics-and-photography-tools = Graphics & Photography Tools
-social-networking-apps = Social Networking Apps
-games = Games
-music-and-video-apps = Music & Video Apps
-apps-for-learning = Apps for Learning
+editors-choice = エディターズチョイス
+popular-apps = 人気なアプリ
+new-apps = 新しいアプリ
+recently-updated = 最近にアップデートされた
+development-tools = 開発ツール
+scientific-tools = 科学的なツール
+productivity-apps = プロダクティビティー
+graphics-and-photography-tools = グラフィックスと写真
+social-networking-apps = SNSのアプリ
+games = ゲーム
+music-and-video-apps = 音楽とビデオのアプリ
+apps-for-learning = 学びのアプリ
 
 # Details Page
-source-installed = {$source} (installed)
-developer = Developer
-app-developers = {$app} Developers
-monthly-downloads = Flathub Monthly Downloads
+source-installed = {$source} (インストール済み)
+developer = 開発者
+app-developers = {$app}の開発者
+monthly-downloads = 月例のFlathubからのダウンロード
 
 # Context Pages
 
