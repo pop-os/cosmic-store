@@ -23,7 +23,7 @@ explore = Preskúmať
 create = Tvorivosť
 work = Práva
 develop = Vývoj
-learn = = Edukačné
+learn = Vzdelávanie
 game = Hry
 relax = Relax
 socialize = Komunikácia
@@ -39,7 +39,7 @@ recently-updated = Nedávno aktualizované
 development-tools = Vývojové nástroje
 scientific-tools = Vedecké nástroje
 productivity-apps = Aplikácie na zvýšenie produktivity
-graphics-and-photography-tools = Grafické a fotografické nástroje
+graphics-and-photography-tools = Grafické nástroje a práca s fotografiami
 social-networking-apps = Aplikácie sociálnych sietí
 games = Hry
 music-and-video-apps = Hudobné a video aplikácie
