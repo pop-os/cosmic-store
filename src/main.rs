@@ -1323,32 +1323,6 @@ impl App {
             }
         }
 
-        // Handle updating notification progress
-        if let Some(notification_arc) = &self.notification_opt {
-            let mut total_progress = 0.0;
-            for (_, (_, progress)) in self.pending_operations.iter() {
-                total_progress += progress;
-            }
-            total_progress /= self.pending_operations.len() as f32;
-            let notification_arc = notification_arc.clone();
-            return Command::perform(
-                async move {
-                    tokio::task::spawn_blocking(move || {
-                        let mut notification = notification_arc.lock().unwrap();
-                        notification.summary(&fl!(
-                            "notification-progress",
-                            progress = (total_progress as i32)
-                        ));
-                        notification.update();
-                    })
-                    .await
-                    .unwrap();
-                    message::none()
-                },
-                |x| x,
-            );
-        }
-
         Command::none()
     }
 
@@ -2890,8 +2864,8 @@ impl Application for App {
                     move |msg_tx| async move {
                         let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                         tokio::task::spawn_blocking(move || match notify_rust::Notification::new()
-                            .summary(&fl!("notification-progress", progress = 0))
-                            .timeout(notify_rust::Timeout::Never)
+                            .summary(&fl!("notification-in-progress"))
+                            .auto_icon()
                             .show()
                         {
                             Ok(notification) => {
