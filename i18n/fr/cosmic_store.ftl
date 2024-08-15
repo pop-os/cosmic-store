@@ -56,6 +56,10 @@ monthly-downloads = Téléchargements mensuels sur Flathub
 ## Settings
 settings = Paramètres
 
+## Release notes
+latest-version = Dernière version
+no-description = Aucune description disponible.
+
 ### Appearance
 appearance = Apparence
 theme = Thème
