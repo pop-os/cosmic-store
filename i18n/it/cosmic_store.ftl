@@ -6,13 +6,13 @@ uninstall = Disinstalla
 update = Aggiornare
 
 # Nav Pages
-create = Creare
-work = Lavorare
-develop = Sviluppare
+create = Creatività
+work = Produttività
+develop = Sviluppo
 learn = Imparare
-game = Giochare
-relax = Rilassare
-socialize = Socializzare
+game = Giochi
+relax = Relax
+socialize = Social
 utilities = Utilità
 installed-apps = Applicazioni installate
 updates = Aggiornamenti
@@ -26,5 +26,5 @@ settings = Opzioni
 appearance = Aspetto
 theme = Tema
 match-desktop = Automatico
-dark = Oscuro
+dark = Scuro
 light = Chiaro
