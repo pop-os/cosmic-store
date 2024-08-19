@@ -719,7 +719,7 @@ impl App {
                         }
                     };
                     //TODO: use libcosmic for loading desktop data
-                    cosmic::desktop::spawn_desktop_exec(exec, Vec::<(&str, &str)>::new());
+                    cosmic::desktop::spawn_desktop_exec(exec, Vec::<(&str, &str)>::new(), None);
                     message::none()
                 })
                 .await
