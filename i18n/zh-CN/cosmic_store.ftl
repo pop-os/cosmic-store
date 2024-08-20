@@ -28,7 +28,7 @@ game = 游戏
 relax = 娱乐
 socialize = 社交
 utilities = 实用工具
-installed-apps = 已安装得应用软件
+installed-apps = 已安装的应用软件
 updates = 更新
 
 # Explore Pages
