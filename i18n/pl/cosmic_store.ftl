@@ -1,4 +1,4 @@
-cosmic-app-store = Sklep z Apkami COSMIC
+cosmic-app-store = Sklep z Aplikacjami COSMIC
 back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź uaktualnienia
@@ -7,7 +7,7 @@ install = Zainstaluj
 no-installed-applications = Brak zainstalowanycha aplikacji.
 no-updates = Wszystkie zainstalowane aplikacje są aktualne.
 no-results = Brak wyników dla "{$search}".
-notification-in-progress = Są przeprowadzane instalacje i uaktualnienia.
+notification-in-progress = Instalacje i aktualizacje w toku.
 open = Otwórz
 see-all = Zobacz wszystkie
 uninstall = Odinstaluj
@@ -19,7 +19,7 @@ uninstall-app = Odinstaluj {$name}
 uninstall-app-warning = Czy na pewno chcesz odinstalować {$name}?
 
 # Nav Pages
-explore = Odkrywanie
+explore = Odkrywaj
 create = Twórcze
 work = Praca
 develop = Programistyczne
@@ -33,17 +33,17 @@ updates = Aktualizacje
 
 # Explore Pages
 editors-choice = Wybór Redakcji
-popular-apps = Popularne Apki
-new-apps = Nowe Apki
+popular-apps = Popularne aplikacje
+new-apps = Nowe Aplikacje
 recently-updated = Ostatnio Zaktualizowane
 development-tools = Narzędzia Programistyczne
 scientific-tools = Narzędzia Naukowe
-productivity-apps = Apki Zwiększające Produktywność
+productivity-apps = Aplikacje Zwiększające Produktywność
 graphics-and-photography-tools = Narzędzia Graficzne i Fotograficzne
-social-networking-apps = Apki Mediów Społecznościowych
+social-networking-apps = Aplikacje Mediów Społecznościowych
 games = Gry
-music-and-video-apps = Apki Muzyczne i Wideo
-apps-for-learning = Apki do Nauki
+music-and-video-apps = Aplikacje Muzyczne i Wideo
+apps-for-learning = Aplikacje do Nauki
 
 # Details Page
 source-installed = {$source} (zainstalowane)
