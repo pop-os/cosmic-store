@@ -56,6 +56,10 @@ monthly-downloads = 月例のFlathubからのダウンロード
 ## Settings
 settings = 設定
 
+## Release notes
+latest-version = 最新版
+no-description = 説明はありません。
+
 ### Appearance
 appearance = 外観
 theme = テーマ
