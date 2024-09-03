@@ -1,15 +1,22 @@
 cosmic-app-store = Loja de Aplicações COSMIC
 back = Voltar
 cancel = Cancelar
+check-for-updates = Procurar por atualizações
+checking-for-updates = À procura de atualizações...
 install = Instalar
 no-installed-applications = Nenhuma aplicação instalada
 no-updates = Nenhuma atualização disponível
 no-results = Nenhum resultado para "{$search}"
+notification-in-progress = Instalações e atualizações estão em progresso.
 open = Abrir
 see-all = Ver tudo
 uninstall = Desinstalar
 update = Atualizar
 update-all = Atualizar tudo
+
+# Uninstall Dialog
+uninstall-app = Desinstalar {$name}
+uninstall-app-warning = Tens a certeza que queres desinstalar {$name}?
 
 # Nav Pages
 explore = Explorar
@@ -37,7 +44,6 @@ social-networking-apps = Aplicações de redes sociais
 games = Jogos
 music-and-video-apps = Aplicações de música e vídeo
 apps-for-learning = Aplicações de aprendizagem
-utilities = Utilitários
 
 # Details Page
 source-installed = {$source} (instalado)
@@ -49,6 +55,10 @@ monthly-downloads = Descargas mensais do Flathub
 
 ## Settings
 settings = Definições
+
+## Release notes
+latest-version = Última versão
+no-description = Nenhuma descrição disponível.
 
 ### Appearance
 appearance = Aparência
