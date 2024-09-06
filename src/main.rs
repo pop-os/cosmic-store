@@ -693,39 +693,50 @@ impl App {
                         Ok(ok) => ok,
                         Err(err) => {
                             log::warn!("failed to find applications xdg directories: {}", err);
-                            return message::none();
+                            return None;
                         }
                     };
                     let path = match xdg_dirs.find_data_file(&desktop_id) {
                         Some(some) => some,
                         None => {
                             log::warn!("failed to find desktop file for {:?}", desktop_id);
-                            return message::none();
+                            return None;
                         }
                     };
                     let entry = match freedesktop_entry_parser::parse_entry(&path) {
                         Ok(ok) => ok,
                         Err(err) => {
                             log::warn!("failed to read desktop file {:?}: {}", path, err);
-                            return message::none();
+                            return None;
                         }
                     };
-                    //TODO: handlne Terminal=true
+                    //TODO: handle Terminal=true
                     let exec = match entry.section("Desktop Entry").attr("Exec") {
                         Some(some) => some,
                         None => {
                             log::warn!("no exec section in {:?}", path);
-                            return message::none();
+                            return None;
                         }
                     };
                     //TODO: use libcosmic for loading desktop data
-                    cosmic::desktop::spawn_desktop_exec(exec, Vec::<(&str, &str)>::new(), None);
-                    message::none()
+                    Some((exec.to_string(), desktop_id))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(None)
             },
-            |x| x,
+            |result| {
+                if let Some((exec, desktop_id)) = result {
+                    tokio::spawn(async move {
+                        cosmic::desktop::spawn_desktop_exec(
+                            &exec,
+                            Vec::<(&str, &str)>::new(),
+                            Some(&desktop_id),
+                        )
+                        .await;
+                    });
+                }
+                message::none()
+            },
         )
     }
 
