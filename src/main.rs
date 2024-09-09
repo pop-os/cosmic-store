@@ -2181,9 +2181,6 @@ impl Application for App {
 
     /// Creates the application, and optionally emits command on initialize.
     fn init(mut core: Core, flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        //TODO: make set_nav_bar_toggle_condensed pub
-        core.nav_bar_toggle_condensed();
-
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
