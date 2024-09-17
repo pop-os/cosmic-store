@@ -70,6 +70,7 @@ const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
 const MAX_GRID_WIDTH: f32 = 1600.0;
+const MAX_RESULTS: usize = 100;
 
 /// Runs application with these settings
 #[rustfmt::skip]
@@ -180,7 +181,12 @@ pub enum Message {
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>),
     SearchSubmit,
-    Select(&'static str, AppId, widget::icon::Handle, Arc<AppInfo>),
+    Select(
+        &'static str,
+        AppId,
+        Option<widget::icon::Handle>,
+        Arc<AppInfo>,
+    ),
     SelectInstalled(usize),
     SelectUpdates(usize),
     SelectNone,
@@ -356,7 +362,7 @@ impl ExplorePage {
         &[
             Self::EditorsChoice,
             Self::PopularApps,
-            Self::NewApps,
+            //TODO: Self::NewApps,
             Self::RecentlyUpdated,
             Self::DevelopmentTools,
             Self::ScientificTools,
@@ -430,7 +436,7 @@ impl GridMetrics {
 
 fn package_card_view<'a>(
     info: &'a AppInfo,
-    icon: &'a widget::icon::Handle,
+    icon_opt: Option<&'a widget::icon::Handle>,
     controls: Vec<Element<'a, Message>>,
     top_controls: Option<Vec<Element<'a, Message>>>,
     spacing: &cosmic_theme::Spacing,
@@ -466,9 +472,12 @@ fn package_card_view<'a>(
     ]);
     widget::container(
         widget::row::with_children(vec![
-            widget::icon::icon(icon.clone())
-                .size(ICON_SIZE_PACKAGE)
-                .into(),
+            match icon_opt {
+                Some(icon) => widget::icon::icon(icon.clone())
+                    .size(ICON_SIZE_PACKAGE)
+                    .into(),
+                None => widget::horizontal_space(Length::Fixed(ICON_SIZE_PACKAGE as f32)).into(),
+            },
             column.into(),
         ])
         .align_items(Alignment::Center)
@@ -496,7 +505,7 @@ impl Package {
     ) -> Element<'a, Message> {
         package_card_view(
             &self.info,
-            &self.icon,
+            Some(&self.icon),
             controls,
             top_controls,
             spacing,
@@ -509,7 +518,7 @@ impl Package {
 pub struct SearchResult {
     backend_name: &'static str,
     id: AppId,
-    icon: widget::icon::Handle,
+    icon_opt: Option<widget::icon::Handle>,
     // Info from selected source
     info: Arc<AppInfo>,
     weight: i64,
@@ -557,9 +566,12 @@ impl SearchResult {
     ) -> Element<'a, Message> {
         widget::container(
             widget::row::with_children(vec![
-                widget::icon::icon(self.icon.clone())
-                    .size(ICON_SIZE_SEARCH)
-                    .into(),
+                match &self.icon_opt {
+                    Some(icon) => widget::icon::icon(icon.clone())
+                        .size(ICON_SIZE_SEARCH)
+                        .into(),
+                    None => widget::horizontal_space(Length::Fixed(ICON_SIZE_SEARCH as f32)).into(),
+                },
                 widget::column::with_children(vec![
                     widget::text::body(&self.info.name)
                         .height(Length::Fixed(20.0))
@@ -634,7 +646,7 @@ impl AsRef<str> for SelectedSource {
 pub struct Selected {
     backend_name: &'static str,
     id: AppId,
-    icon: widget::icon::Handle,
+    icon_opt: Option<widget::icon::Handle>,
     info: Arc<AppInfo>,
     screenshot_images: HashMap<usize, widget::image::Handle>,
     screenshot_shown: usize,
@@ -762,47 +774,49 @@ impl App {
                 } in infos.iter()
                 {
                     if let Some(weight) = filter_map(id, info, *installed) {
-                        //TODO: optimize
-                        let Some(backend) = backends.get(backend_name) else {
-                            continue;
-                        };
-                        let appstream_caches = backend.info_caches();
-                        let Some(appstream_cache) = appstream_caches
-                            .iter()
-                            .find(|x| x.source_id == info.source_id)
-                        else {
-                            continue;
-                        };
-                        //TODO: put all infos into search result
-                        let result = SearchResult {
+                        // Skip if best result has lower weight
+                        if let Some(prev_result) = &best_result {
+                            if prev_result.weight < weight {
+                                continue;
+                            }
+                        }
+
+                        //TODO: put all infos into search result?
+                        // Replace best result
+                        best_result = Some(SearchResult {
                             backend_name,
                             id: id.clone(),
-                            icon: appstream_cache.icon(info),
+                            icon_opt: None,
                             info: info.clone(),
                             weight,
-                        };
-                        best_result = match best_result {
-                            Some(other_result) => {
-                                if result.weight < other_result.weight {
-                                    Some(result)
-                                } else {
-                                    Some(other_result)
-                                }
-                            }
-                            None => Some(result),
-                        };
+                        });
                     }
                 }
                 best_result
             })
             .collect();
-        results.sort_by(|a, b| match a.weight.cmp(&b.weight) {
+        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
                 cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.backend_name, &b.backend_name),
                 ordering => ordering,
             },
             ordering => ordering,
         });
+        // Load only enough icons to show one page of results
+        //TODO: load in background
+        for result in results.iter_mut().take(MAX_RESULTS) {
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            result.icon_opt = Some(appstream_cache.icon(&result.info));
+        }
         results
     }
 
@@ -845,48 +859,54 @@ impl App {
         Command::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    log::info!("start search for {:?}", explore_page);
                     let start = Instant::now();
                     let now = chrono::Utc::now().timestamp();
-                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
-                        match explore_page {
-                            ExplorePage::EditorsChoice => EDITORS_CHOICE
-                                .iter()
-                                .position(|choice_id| choice_id == &id.normalized())
-                                .map(|x| x as i64),
-                            ExplorePage::PopularApps => Some(-(info.monthly_downloads as i64)),
-                            ExplorePage::NewApps => {
-                                //TODO
-                                None
-                            }
-                            ExplorePage::RecentlyUpdated => {
-                                // Finds the newest release and sorts from newest to oldest
-                                //TODO: appstream release info is often incomplete
-                                let mut min_weight = 0;
-                                for release in info.releases.iter() {
-                                    if let Some(timestamp) = release.timestamp {
-                                        if timestamp < now {
-                                            let weight = -timestamp;
-                                            if weight < min_weight {
-                                                min_weight = weight;
-                                            }
-                                        } else {
-                                            log::info!("{:?} has release timestamp {} which is past the present {}", id, timestamp, now);
+                    let results = match explore_page {
+                        ExplorePage::EditorsChoice => Self::generic_search(&apps, &backends, |id, _info, _installed | {
+                            EDITORS_CHOICE
+                            .iter()
+                            .position(|choice_id| choice_id == &id.normalized())
+                            .map(|x| x as i64)
+                        }),
+                        ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            Some(-(info.monthly_downloads as i64))
+                        }),
+                        ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
+                            //TODO
+                            None
+                        }),
+                        ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
+                            // Finds the newest release and sorts from newest to oldest
+                            //TODO: appstream release info is often incomplete
+                            let mut min_weight = 0;
+                            for release in info.releases.iter() {
+                                if let Some(timestamp) = release.timestamp {
+                                    if timestamp < now {
+                                        let weight = -timestamp;
+                                        if weight < min_weight {
+                                            min_weight = weight;
                                         }
+                                    } else {
+                                        log::info!("{:?} has release timestamp {} which is past the present {}", id, timestamp, now);
                                     }
                                 }
-                                Some(min_weight)
                             }
-                            _ => {
-                                for category in explore_page.categories() {
+                            Some(min_weight)
+                        }),
+                        _ => {
+                            let categories = explore_page.categories();
+                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                                for category in categories {
                                     //TODO: contains doesn't work due to type mismatch
                                     if info.categories.iter().any(|x| x == category.id()) {
                                         return Some(-(info.monthly_downloads as i64));
                                     }
                                 }
                                 None
-                            }
+                            })
                         }
-                    });
+                    };
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1056,7 +1076,7 @@ impl App {
         &mut self,
         backend_name: &'static str,
         id: AppId,
-        icon: widget::icon::Handle,
+        icon_opt: Option<widget::icon::Handle>,
         info: Arc<AppInfo>,
     ) -> Command<Message> {
         log::info!(
@@ -1069,7 +1089,7 @@ impl App {
         self.selected_opt = Some(Selected {
             backend_name,
             id,
-            icon,
+            icon_opt,
             info,
             screenshot_images: HashMap::new(),
             screenshot_shown: 0,
@@ -1187,7 +1207,7 @@ impl App {
                         info: info.clone(),
                         installed: self.is_installed(backend_name, &info.source_id, id),
                     });
-                    entry.sort_by(|a, b| entry_sort(a, b, id));
+                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
                 }
             }
         }
@@ -1202,7 +1222,7 @@ impl App {
                         info: package.info.clone(),
                         installed: true,
                     });
-                    entry.sort_by(|a, b| entry_sort(a, b, &package.id));
+                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, &package.id));
                 }
             }
         }
@@ -1253,7 +1273,7 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded installed from {} in {:?}", backend_name, duration);
                     }
-                    installed.sort_by(|a, b| {
+                    installed.par_sort_unstable_by(|a, b| {
                         let a_is_system = a.1.id.is_system();
                         let b_is_system = b.1.id.is_system();
                         if a_is_system && !b_is_system {
@@ -1295,7 +1315,7 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded updates from {} in {:?}", backend_name, duration);
                     }
-                    updates.sort_by(|a, b| {
+                    updates.par_sort_unstable_by(|a, b| {
                         if a.1.id.is_system() {
                             cmp::Ordering::Less
                         } else if b.1.id.is_system() {
@@ -1367,7 +1387,7 @@ impl App {
                         message::app(Message::Select(
                             result.backend_name,
                             result.id.clone(),
-                            result.icon.clone(),
+                            result.icon_opt.clone(),
                             result.info.clone(),
                         ))
                     } else {
@@ -1664,9 +1684,15 @@ impl App {
                 }
                 column = column.push(
                     widget::row::with_children(vec![
-                        widget::icon::icon(selected.icon.clone())
-                            .size(ICON_SIZE_DETAILS)
-                            .into(),
+                        match &selected.icon_opt {
+                            Some(icon) => widget::icon::icon(icon.clone())
+                                .size(ICON_SIZE_DETAILS)
+                                .into(),
+                            None => {
+                                widget::horizontal_space(Length::Fixed(ICON_SIZE_DETAILS as f32))
+                                    .into()
+                            }
+                        },
                         widget::column::with_children(vec![
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
@@ -1829,7 +1855,7 @@ impl App {
             None => match &self.search_results {
                 Some((input, results)) => {
                     //TODO: paging or dynamic load
-                    let results_len = cmp::min(results.len(), 256);
+                    let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                     let mut column = widget::column::with_capacity(2)
                         .padding([0, space_s])
@@ -1870,7 +1896,7 @@ impl App {
                                 match self.explore_results.get(&explore_page) {
                                     Some(results) => {
                                         //TODO: paging or dynamic load
-                                        let results_len = cmp::min(results.len(), 256);
+                                        let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                                         if results.is_empty() {
                                             //TODO: no results message?
@@ -1987,7 +2013,7 @@ impl App {
                                     grid = grid.push(
                                         widget::mouse_area(package_card_view(
                                             &result.info,
-                                            &result.icon,
+                                            result.icon_opt.as_ref(),
                                             buttons,
                                             None,
                                             &spacing,
@@ -2132,7 +2158,7 @@ impl App {
                         match &self.category_results {
                             Some((_, results)) => {
                                 //TODO: paging or dynamic load
-                                let results_len = cmp::min(results.len(), 256);
+                                let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                                 if results.is_empty() {
                                     //TODO: no results message?
@@ -2159,8 +2185,8 @@ impl App {
 
 /// Implement [`Application`] to integrate with COSMIC.
 impl Application for App {
-    /// Default async executor to use with the app.
-    type Executor = executor::Default;
+    /// Multithreaded async executor to use with the app.
+    type Executor = executor::multi::Executor;
 
     /// Argument received
     type Flags = Flags;
@@ -2180,7 +2206,7 @@ impl Application for App {
     }
 
     /// Creates the application, and optionally emits command on initialize.
-    fn init(mut core: Core, flags: Self::Flags) -> (Self, Command<Self::Message>) {
+    fn init(core: Core, flags: Self::Flags) -> (Self, Command<Self::Message>) {
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
@@ -2527,7 +2553,7 @@ impl Application for App {
                             return self.select(
                                 result.backend_name,
                                 result.id.clone(),
-                                result.icon.clone(),
+                                result.icon_opt.clone(),
                                 result.info.clone(),
                             )
                         }
@@ -2547,7 +2573,7 @@ impl Application for App {
                             return self.select(
                                 backend_name,
                                 package.id,
-                                package.icon,
+                                Some(package.icon),
                                 package.info,
                             );
                         }
@@ -2568,7 +2594,7 @@ impl Application for App {
                             return self.select(
                                 result.backend_name,
                                 result.id.clone(),
-                                result.icon.clone(),
+                                result.icon_opt.clone(),
                                 result.info.clone(),
                             )
                         }
@@ -2585,7 +2611,7 @@ impl Application for App {
                             return self.select(
                                 result.backend_name,
                                 result.id.clone(),
-                                result.icon.clone(),
+                                result.icon_opt.clone(),
                                 result.info.clone(),
                             )
                         }
@@ -2606,7 +2632,7 @@ impl Application for App {
                             return self.select(
                                 result.backend_name,
                                 result.id.clone(),
-                                result.icon.clone(),
+                                result.icon_opt.clone(),
                                 result.info.clone(),
                             )
                         }
@@ -2654,7 +2680,7 @@ impl Application for App {
                                     return self.select(
                                         backend_name,
                                         id,
-                                        appstream_cache.icon(info),
+                                        Some(appstream_cache.icon(info)),
                                         info.clone(),
                                     );
                                 }
@@ -2672,7 +2698,7 @@ impl Application for App {
                                 return self.select(
                                     backend_name,
                                     id,
-                                    package.icon.clone(),
+                                    Some(package.icon.clone()),
                                     package.info.clone(),
                                 );
                             }
