@@ -2825,6 +2825,7 @@ impl Application for App {
         } else {
             widget::button::icon(widget::icon::from_name("system-search-symbolic"))
                 .on_press(Message::SearchActivate)
+                .padding(8)
                 .into()
         }]
     }
