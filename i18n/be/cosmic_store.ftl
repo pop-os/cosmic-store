@@ -7,6 +7,7 @@ install = Усталяваць
 no-installed-applications = Няма ўсталяваных праграм
 no-updates = Няма даступных абнаўленняў
 no-results = Няма вынікаў для "{$search}"
+notification-in-progress = Выконваюцца ўстаноўкі і абнаўленні.
 open = Адкрыць
 see-all = Гл. усе
 uninstall = Выдаліць
@@ -54,6 +55,10 @@ monthly-downloads = Штомесячныя загрузкі Flathub
 
 ## Settings
 settings = Налады
+
+## Release notes
+latest-version = Апошняя версія
+no-description = Апісанне адсутнічае.
 
 ### Appearance
 appearance = Выгляд
