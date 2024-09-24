@@ -2,7 +2,7 @@
 [Desktop Entry]
 Name=COSMIC App Store
 Name[pl]=Sklep z Apkami COSMIC
-Name[pt-BR]=Loja de Aplicativos COSMIC
+Name[pt-BR]=Loja de Aplicativos do COSMIC
 Exec=cosmic-store %u
 Terminal=false
 Type=Application
