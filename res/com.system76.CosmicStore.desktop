@@ -2,6 +2,7 @@
 [Desktop Entry]
 Name=COSMIC App Store
 Name[pl]=Sklep z Apkami COSMIC
+Name[pt-BR]=Loja de Aplicativos COSMIC
 Exec=cosmic-store %u
 Terminal=false
 Type=Application
@@ -10,4 +11,5 @@ Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
+Keywords[pt-BR]=App;Aplicativos;Software;Programas;Loja;
 MimeType=x-scheme-handler/appstream;
