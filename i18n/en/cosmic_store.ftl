@@ -50,6 +50,7 @@ source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers
 monthly-downloads = Flathub Monthly Downloads
+licenses = Licenses
 
 # Context Pages
 

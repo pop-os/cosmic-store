@@ -168,6 +168,7 @@ pub enum Message {
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
     Key(Modifiers, Key),
+    LaunchUrl(String),
     MaybeExit,
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
@@ -1482,7 +1483,8 @@ impl App {
             AppTheme::Light => 2,
             AppTheme::System => 0,
         };
-        widget::settings::view_column(vec![widget::settings::view_section(fl!("appearance"))
+        widget::settings::view_column(vec![widget::settings::section()
+            .title(fl!("appearance"))
             .add(
                 widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
                     &self.app_themes,
@@ -1848,6 +1850,49 @@ impl App {
                     column = column.push(release_col);
                     //TODO: show more releases, or make sure this is the latest?
                     break;
+                }
+
+                if let Some(license) = &selected.info.license_opt {
+                    let mut license_col = widget::column::with_capacity(2).spacing(space_xxxs);
+                    license_col = license_col.push(widget::text::title4(fl!("licenses")));
+                    match spdx::Expression::parse_mode(license, spdx::ParseMode::LAX) {
+                        Ok(expr) => {
+                            for item in expr.requirements() {
+                                match &item.req.license {
+                                    spdx::LicenseItem::Spdx { id, .. } => {
+                                        license_col =
+                                            license_col.push(widget::text::body(id.full_name));
+                                    }
+                                    spdx::LicenseItem::Other { lic_ref, .. } => {
+                                        let mut license_row = widget::row::with_capacity(2)
+                                            .spacing(space_xxxs)
+                                            .align_items(Alignment::Center);
+                                        let mut parts = lic_ref.splitn(2, '=');
+                                        if let Some(id) = parts.next() {
+                                            license_row = license_row
+                                                .push(widget::text::body(format!("Custom: {id}")));
+                                            if let Some(url) = parts.next() {
+                                                license_row = license_row.push(
+                                                    widget::button::link(url.to_string()).on_press(
+                                                        Message::LaunchUrl(url.to_string()),
+                                                    ),
+                                                )
+                                            }
+                                        } else {
+                                            license_row = license_row
+                                                .push(widget::text::body(format!("Custom")));
+                                        }
+                                        license_col = license_col.push(license_row);
+                                    }
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            license_col = license_col.push(widget::text::body(license));
+                            license_col = license_col.push(widget::text::body(format!("{}", err)));
+                        }
+                    }
+                    column = column.push(license_col);
                 }
 
                 column.into()
@@ -2445,6 +2490,12 @@ impl Application for App {
                     }
                 }
             }
+            Message::LaunchUrl(url) => match open::that_detached(&url) {
+                Ok(()) => {}
+                Err(err) => {
+                    log::warn!("failed to open {:?}: {}", url, err);
+                }
+            },
             Message::MaybeExit => {
                 if self.window_id_opt.is_none() && self.pending_operations.is_empty() {
                     // Exit if window is closed and there are no pending operations

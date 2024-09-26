@@ -180,6 +180,7 @@ impl Flatpak {
                     summary,
                     developer_name: String::new(),
                     description,
+                    license_opt: None,
                     pkgnames: Vec::new(),
                     categories: Vec::new(),
                     desktop_ids: Vec::new(),
