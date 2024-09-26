@@ -1864,27 +1864,18 @@ impl App {
                                             license_col.push(widget::text::body(id.full_name));
                                     }
                                     spdx::LicenseItem::Other { lic_ref, .. } => {
-                                        let mut license_row = widget::row::with_capacity(2)
-                                            .spacing(space_xxxs)
-                                            .align_items(Alignment::Center);
                                         let mut parts = lic_ref.splitn(2, '=');
-                                        if let Some(id) = parts.next() {
-                                            license_row = license_row
-                                                .push(widget::text::body(format!("Custom: {id}")));
-                                            if let Some(url) = parts.next() {
-                                                license_row = license_row.push(
-                                                    widget::button::link(url.to_string())
-                                                        .on_press(Message::LaunchUrl(
-                                                            url.to_string(),
-                                                        ))
-                                                        .padding(0),
-                                                )
-                                            }
+                                        parts.next();
+                                        if let Some(url) = parts.next() {
+                                            license_col = license_col.push(
+                                                widget::button::link(fl!("proprietary"))
+                                                    .on_press(Message::LaunchUrl(url.to_string()))
+                                                    .padding(0),
+                                            )
                                         } else {
-                                            license_row = license_row
-                                                .push(widget::text::body(format!("Custom")));
+                                            license_col = license_col
+                                                .push(widget::text::body(fl!("proprietary")));
                                         }
-                                        license_col = license_col.push(license_row);
                                     }
                                 }
                             }
