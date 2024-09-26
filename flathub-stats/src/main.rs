@@ -24,7 +24,7 @@ fn leap_year(year: u16) -> bool {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let year = 2024;
-    let month = 6;
+    let month = 8;
     let days = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -49,10 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let bitcode = bitcode::encode(&ref_downloads);
-    fs::write(
-        format!("flathub-stats-{year}-{month:02}.bitcode-v0-6"),
-        &bitcode,
-    )?;
+    fs::write(format!("res/flathub-stats.bitcode-v0-6"), &bitcode)?;
 
     Ok(())
 }
