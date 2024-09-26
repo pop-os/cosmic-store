@@ -1,4 +1,4 @@
-cosmic-app-store = Obchod aplikácií COSMIC
+app-name = Obchod aplikácií COSMIC
 back = Späť
 cancel = Zrušiť
 check-for-updates = Skontrolovať aktualizácie

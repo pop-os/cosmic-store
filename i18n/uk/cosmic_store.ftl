@@ -1,4 +1,4 @@
-cosmic-app-store = Крамниця застосунків COSMIC
+app-name = Крамниця застосунків COSMIC
 back = Назад
 cancel = Скасувати
 check-for-updates = Перевірити оновлення

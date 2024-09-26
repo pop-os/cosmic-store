@@ -1,4 +1,4 @@
-cosmic-app-store = COSMIC Sovelluskauppa
+app-name = COSMIC Sovelluskauppa
 back = Takaisin
 cancel = Keskeytä
 check-for-updates = Tarkista päivitysten varalta

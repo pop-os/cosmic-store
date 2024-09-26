@@ -6,8 +6,8 @@ pub async fn inhibit() -> zbus::Result<Vec<OwnedFd>> {
 
     let connection = zbus::Connection::system().await?;
     let manager = ManagerProxy::new(&connection).await?;
-    let who = "COSMIC App Store";
-    let why = "COSMIC App Store is performing packaging operations";
+    let who = "COSMIC Store";
+    let why = "COSMIC Store is performing packaging operations";
     let mode = "block";
     let mut fds = Vec::new();
     for what in &[InhibitType::Shutdown, InhibitType::Sleep] {

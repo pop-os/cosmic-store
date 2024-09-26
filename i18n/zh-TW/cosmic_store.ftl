@@ -1,4 +1,4 @@
-cosmic-app-store = COSMIC 應用商店
+app-name = COSMIC 應用商店
 back = 返回
 cancel = 取消
 check-for-updates = 檢查更新

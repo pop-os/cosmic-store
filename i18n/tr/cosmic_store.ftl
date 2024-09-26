@@ -1,4 +1,4 @@
-cosmic-app-store = COSMIC Uygulama Mağazası
+app-name = COSMIC Uygulama Mağazası
 back = Geri
 cancel = İptal
 install = Kur

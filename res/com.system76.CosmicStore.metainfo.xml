@@ -8,7 +8,7 @@
   <update_contact>jeremy@system76.com</update_contact>
   <url type="homepage">https://github.com/pop-os/cosmic-store</url>
   <url type="bugtracker">https://github.com/pop-os/cosmic-store</url>
-  <name>COSMIC App Store</name>
+  <name>COSMIC Store</name>
   <summary>Application store for the COSMIC desktop</summary>
   <description>
       <p>Application store for the COSMIC desktop</p>

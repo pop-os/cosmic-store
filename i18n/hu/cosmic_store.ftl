@@ -1,4 +1,4 @@
-cosmic-app-store = COSMIC App Store
+app-name = COSMIC Store
 back = Vissza
 cancel = Mégse
 check-for-updates = Frissítések keresése

@@ -1473,7 +1473,7 @@ impl App {
     }
 
     fn update_title(&mut self) -> Command<Message> {
-        self.set_window_title(fl!("cosmic-app-store"), self.main_window_id())
+        self.set_window_title(fl!("app-name"), self.main_window_id())
     }
 
     fn settings(&self) -> Element<Message> {

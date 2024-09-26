@@ -1,4 +1,4 @@
-cosmic-app-store = Магазин приложений COSMIC
+app-name = Магазин приложений COSMIC
 back = Назад
 cancel = Отмена
 check-for-updates = Проверить обновления

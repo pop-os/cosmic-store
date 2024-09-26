@@ -1,4 +1,4 @@
-cosmic-app-store = COSMIC App Store
+app-name = COSMIC Store
 back = Indietro
 cancel = Annulla
 check-for-updates = Controlla gli aggiornamenti

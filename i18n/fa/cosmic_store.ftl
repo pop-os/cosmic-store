@@ -1,4 +1,4 @@
-cosmic-app-store = فروشگاه برنامه کازمیک
+app-name = فروشگاه برنامه کازمیک
 back = بازگشت
 cancel = لفو
 check-for-updates = بازبینی بروزرسانی ها

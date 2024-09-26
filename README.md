@@ -1,2 +1,2 @@
 # cosmic-store
-WIP COSMIC app store
+WIP COSMIC Store

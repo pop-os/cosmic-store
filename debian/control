@@ -25,4 +25,4 @@ Depends:
     cosmic-icons,
     ${misc:Depends},
     ${shlibs:Depends}
-Description: Cosmic App Store
+Description: COSMIC Store
