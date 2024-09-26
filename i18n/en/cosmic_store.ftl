@@ -52,6 +52,15 @@ app-developers = {$app} Developers
 monthly-downloads = Flathub Monthly Downloads
 licenses = Licenses
 
+## App URLs
+bug-tracker = Bug tracker
+contact = Contact
+donation = Donation
+faq = FAQ
+help = Help
+homepage = Homepage
+translate = Translate
+
 # Context Pages
 
 ## Settings

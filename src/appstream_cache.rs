@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{ComponentKind, Icon, ImageKind, Launchable, ReleaseKind, ReleaseUrgency},
+    enums::{ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, ReleaseKind, ReleaseUrgency},
     url::Url,
     xmltree, Component, Image, MarkupTranslatableString, ParseError, Release, Screenshot,
 };
@@ -876,6 +876,56 @@ impl AppstreamCache {
                                         videos: Vec::new(),
                                     });
                                 }
+                            }
+                        }
+
+                        if let Some(urls) = value["Url"].as_mapping() {
+                            for (key, url_value) in urls.iter() {
+                                let url = match url_value.as_str() {
+                                    Some(url_str) => match Url::parse(url_str) {
+                                        Ok(ok) => ok,
+                                        Err(err) => {
+                                            log::warn!(
+                                                "failed to parse url {:?} for {:?} in {:?}: {}",
+                                                url_str,
+                                                component.id,
+                                                path,
+                                                err
+                                            );
+                                            continue;
+                                        }
+                                    },
+                                    None => {
+                                        log::warn!(
+                                            "unsupported url kind {:?} for {:?} in {:?}",
+                                            url_value,
+                                            component.id,
+                                            path
+                                        );
+                                        continue;
+                                    }
+                                };
+                                let project_url = match key.as_str() {
+                                    Some("bugtracker") => ProjectUrl::BugTracker(url),
+                                    Some("contact") => ProjectUrl::Contact(url),
+                                    //TODO: add to appstream crate: Some("contribute") => ProjectUrl::Contribute(url),
+                                    Some("donation") => ProjectUrl::Donation(url),
+                                    Some("faq") => ProjectUrl::Faq(url),
+                                    Some("help") => ProjectUrl::Help(url),
+                                    Some("homepage") => ProjectUrl::Homepage(url),
+                                    Some("translate") => ProjectUrl::Translate(url),
+                                    //TODO: add to appstream crate: Some("vcs-browser") => ProjectUrl::VcsBrowser(url),
+                                    _ => {
+                                        log::warn!(
+                                            "unsupported url kind {:?} for {:?} in {:?}",
+                                            key,
+                                            component.id,
+                                            path
+                                        );
+                                        continue;
+                                    }
+                                };
+                                component.urls.push(project_url);
                             }
                         }
 

@@ -33,7 +33,7 @@ use std::{
 use app_id::AppId;
 mod app_id;
 
-use app_info::{AppIcon, AppInfo};
+use app_info::{AppIcon, AppInfo, AppUrl};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -1873,9 +1873,11 @@ impl App {
                                                 .push(widget::text::body(format!("Custom: {id}")));
                                             if let Some(url) = parts.next() {
                                                 license_row = license_row.push(
-                                                    widget::button::link(url.to_string()).on_press(
-                                                        Message::LaunchUrl(url.to_string()),
-                                                    ),
+                                                    widget::button::link(url.to_string())
+                                                        .on_press(Message::LaunchUrl(
+                                                            url.to_string(),
+                                                        ))
+                                                        .padding(0),
                                                 )
                                             }
                                         } else {
@@ -1893,6 +1895,29 @@ impl App {
                         }
                     }
                     column = column.push(license_col);
+                }
+
+                if !selected.info.urls.is_empty() {
+                    let mut url_row = widget::row::with_capacity(selected.info.urls.len())
+                        .spacing(space_s)
+                        .align_items(Alignment::Center);
+                    for app_url in &selected.info.urls {
+                        let (name, url) = match app_url {
+                            AppUrl::BugTracker(url) => (fl!("bug-tracker"), url),
+                            AppUrl::Contact(url) => (fl!("contact"), url),
+                            AppUrl::Donation(url) => (fl!("donation"), url),
+                            AppUrl::Faq(url) => (fl!("faq"), url),
+                            AppUrl::Help(url) => (fl!("help"), url),
+                            AppUrl::Homepage(url) => (fl!("homepage"), url),
+                            AppUrl::Translate(url) => (fl!("translate"), url),
+                        };
+                        url_row = url_row.push(
+                            widget::button::link(name)
+                                .on_press(Message::LaunchUrl(url.to_string()))
+                                .padding(0),
+                        );
+                    }
+                    column = column.push(url_row);
                 }
 
                 column.into()

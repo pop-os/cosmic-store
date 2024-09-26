@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{Bundle, Icon, ImageKind, Launchable},
+    enums::{Bundle, Icon, ImageKind, Launchable, ProjectUrl},
     xmltree, Component,
 };
 use std::{error::Error, fmt::Write};
@@ -120,6 +120,17 @@ pub struct AppScreenshot {
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum AppUrl {
+    BugTracker(String),
+    Contact(String),
+    Donation(String),
+    Faq(String),
+    Help(String),
+    Homepage(String),
+    Translate(String),
+}
+
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub source_id: String,
     pub source_name: String,
@@ -136,6 +147,7 @@ pub struct AppInfo {
     pub icons: Vec<AppIcon>,
     pub releases: Vec<AppRelease>,
     pub screenshots: Vec<AppScreenshot>,
+    pub urls: Vec<AppUrl>,
     pub monthly_downloads: u64,
 }
 
@@ -274,6 +286,22 @@ impl AppInfo {
                 }
             }
         }
+        let urls = component
+            .urls
+            .into_iter()
+            .filter_map(|project_url| {
+                Some(match project_url {
+                    ProjectUrl::BugTracker(url) => AppUrl::BugTracker(url.into()),
+                    ProjectUrl::Contact(url) => AppUrl::Contact(url.into()),
+                    ProjectUrl::Donation(url) => AppUrl::Donation(url.into()),
+                    ProjectUrl::Faq(url) => AppUrl::Faq(url.into()),
+                    ProjectUrl::Help(url) => AppUrl::Help(url.into()),
+                    ProjectUrl::Homepage(url) => AppUrl::Homepage(url.into()),
+                    ProjectUrl::Translate(url) => AppUrl::Translate(url.into()),
+                    _ => return None,
+                })
+            })
+            .collect();
 
         Self {
             source_id: source_id.to_string(),
@@ -291,6 +319,7 @@ impl AppInfo {
             icons,
             releases,
             screenshots,
+            urls,
             monthly_downloads,
         }
     }
