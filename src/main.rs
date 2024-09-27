@@ -1782,16 +1782,17 @@ impl App {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-previous-symbolic").size(16),
                         );
-                        button = button.on_press(Message::SelectedScreenshotShown(
-                            selected.screenshot_shown.checked_sub(1).unwrap_or_else(|| {
-                                selected
-                                    .info
-                                    .screenshots
-                                    .len()
-                                    .checked_sub(1)
-                                    .unwrap_or_default()
-                            }),
-                        ));
+                        let index = selected.screenshot_shown.checked_sub(1).unwrap_or_else(|| {
+                            selected
+                                .info
+                                .screenshots
+                                .len()
+                                .checked_sub(1)
+                                .unwrap_or_default()
+                        });
+                        if index != selected.screenshot_shown {
+                            button = button.on_press(Message::SelectedScreenshotShown(index));
+                        }
                         row = row.push(button);
                     }
                     let image_element = if let Some(image) =
@@ -1815,13 +1816,15 @@ impl App {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-next-symbolic").size(16),
                         );
-                        let add_idx =
+                        let index =
                             if selected.screenshot_shown + 1 == selected.info.screenshots.len() {
                                 0
                             } else {
                                 selected.screenshot_shown + 1
                             };
-                        button = button.on_press(Message::SelectedScreenshotShown(add_idx));
+                        if index != selected.screenshot_shown {
+                            button = button.on_press(Message::SelectedScreenshotShown(index));
+                        }
                         row = row.push(button);
                     }
                     column = column.push(row);
