@@ -7,7 +7,7 @@ install = Installieren
 no-installed-applications = Keine installierte Anwendungen
 no-updates = Alle installierten Anwendungen sind auf dem neuesten Stand.
 no-results = Keine Ergebnisse für „{$search}“.
-notification-progress = Installationen und Aktualisierungen sind zu {$Fortschritt}% abgeschlossen.
+notification-progress = Installationen und Aktualisierungen sind im Gange.
 open = Öffnen
 see-all = Alle anzeigen
 uninstall = Deinstallieren
@@ -50,6 +50,17 @@ source-installed = {$source} (installiert)
 developer = Entwickler
 app-developers = {$app} Entwickler
 monthly-downloads = Monatliche Downloads von Flathub
+licenses = Lizenzen
+proprietary = Proprietär
+
+## App-URLs
+bug-tracker = Bugtracker
+contact = Kontakt
+donation = Spende
+faq = FAQ
+help = Hilfe
+homepage = Homepage
+translate = Übersetzen
 
 # Kontextseiten
 
