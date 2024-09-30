@@ -16,6 +16,7 @@
   <launchable type="desktop-id">com.system76.CosmicStore.desktop</launchable>
   <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/pop-os/cosmic-store/master/res/icons/hicolor/256x256/apps/com.system76.CosmicStore.svg</icon>
   <provides>
+    <id>com.system76.CosmicApplication</id>
     <binaries>
       <binary>cosmic-store</binary>
     </binaries>
