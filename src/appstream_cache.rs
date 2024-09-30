@@ -1,5 +1,8 @@
 use appstream::{
-    enums::{ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, ReleaseKind, ReleaseUrgency},
+    enums::{
+        ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, Provide, ReleaseKind,
+        ReleaseUrgency,
+    },
     url::Url,
     xmltree, Component, Image, MarkupTranslatableString, ParseError, Release, Screenshot,
 };
@@ -756,6 +759,81 @@ impl AppstreamCache {
                                     _ => {
                                         log::warn!(
                                             "unsupported launchable kind {:?} for {:?} in {:?}",
+                                            key,
+                                            component.id,
+                                            path
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(provides) = value["Provides"].as_mapping() {
+                            for (key, provide) in provides.iter() {
+                                match key.as_str() {
+                                    Some("id") => match provide.as_sequence() {
+                                        Some(sequence) => {
+                                            for id in sequence {
+                                                match id.as_str() {
+                                                    Some(id) => {
+                                                        component.provides.push(Provide::Id(
+                                                            appstream::AppId(id.to_string()),
+                                                        ));
+                                                    }
+                                                    None => {
+                                                        log::warn!(
+                                                        "unsupported ids provide {:?} for {:?} in {:?}",
+                                                        id,
+                                                        component.id,
+                                                        path
+                                                    );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            log::warn!(
+                                                "unsupported ids provides {:?} for {:?} in {:?}",
+                                                provide,
+                                                component.id,
+                                                path
+                                            );
+                                        }
+                                    },
+                                    Some("mediatypes") => match provide.as_sequence() {
+                                        Some(sequence) => {
+                                            for mediatype in sequence {
+                                                match mediatype.as_str() {
+                                                    Some(mediatype) => {
+                                                        component.provides.push(
+                                                            Provide::MediaType(
+                                                                mediatype.to_string(),
+                                                            ),
+                                                        );
+                                                    }
+                                                    None => {
+                                                        log::warn!(
+                                                        "unsupported mediatypes provide {:?} for {:?} in {:?}",
+                                                        mediatype,
+                                                        component.id,
+                                                        path
+                                                    );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            log::warn!(
+                                                "unsupported mediatypes provides {:?} for {:?} in {:?}",
+                                                provide,
+                                                component.id,
+                                                path
+                                            );
+                                        }
+                                    },
+                                    _ => {
+                                        log::warn!(
+                                            "unsupported provide kind {:?} for {:?} in {:?}",
                                             key,
                                             component.id,
                                             path

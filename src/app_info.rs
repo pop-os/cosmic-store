@@ -1,5 +1,5 @@
 use appstream::{
-    enums::{Bundle, Icon, ImageKind, Launchable, ProjectUrl},
+    enums::{Bundle, Icon, ImageKind, Launchable, ProjectUrl, Provide},
     xmltree, Component,
 };
 use std::{error::Error, fmt::Write};
@@ -103,6 +103,12 @@ pub enum AppIcon {
     Local(String, Option<u32>, Option<u32>, Option<u32>),
 }
 
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum AppProvide {
+    Id(String),
+    MediaType(String),
+}
+
 // Replaced Release due to skip_field not supported in bitcode
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppRelease {
@@ -145,6 +151,7 @@ pub struct AppInfo {
     pub desktop_ids: Vec<String>,
     pub flatpak_refs: Vec<String>,
     pub icons: Vec<AppIcon>,
+    pub provides: Vec<AppProvide>,
     pub releases: Vec<AppRelease>,
     pub screenshots: Vec<AppScreenshot>,
     pub urls: Vec<AppUrl>,
@@ -241,6 +248,17 @@ impl AppInfo {
                 )),
             })
             .collect();
+        let provides = component
+            .provides
+            .into_iter()
+            .filter_map(|provide| {
+                Some(match provide {
+                    Provide::Id(value) => AppProvide::Id(value.0),
+                    Provide::MediaType(value) => AppProvide::MediaType(value),
+                    _ => return None,
+                })
+            })
+            .collect();
         let releases = component
             .releases
             .into_iter()
@@ -317,6 +335,7 @@ impl AppInfo {
             desktop_ids,
             flatpak_refs,
             icons,
+            provides,
             releases,
             screenshots,
             urls,

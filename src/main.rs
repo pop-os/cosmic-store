@@ -33,7 +33,7 @@ use std::{
 use app_id::AppId;
 mod app_id;
 
-use app_info::{AppIcon, AppInfo, AppUrl};
+use app_info::{AppIcon, AppInfo, AppProvide, AppUrl};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -180,7 +180,7 @@ pub enum Message {
     SearchActivate,
     SearchClear,
     SearchInput(String),
-    SearchResults(String, Vec<SearchResult>),
+    SearchResults(String, Vec<SearchResult>, bool),
     SearchSubmit,
     Select(
         &'static str,
@@ -955,6 +955,27 @@ impl App {
 
     fn search(&self) -> Command<Message> {
         let input = self.search_input.clone();
+
+        // Handle supported URI schemes before trying plain text search
+        match reqwest::Url::parse(&input) {
+            Ok(url) => match url.scheme() {
+                "appstream" => {
+                    return self.handle_appstream_url(input, url.path());
+                }
+                "file" => {
+                    return self.handle_file_url(input, url.path());
+                }
+                "mime" => {
+                    // This is a workaround to be able to search for mime handlers, mime is not a real URL scheme
+                    return self.handle_mime_url(input, url.path());
+                }
+                scheme => {
+                    log::warn!("unsupported URL scheme {scheme} in {url}");
+                }
+            },
+            Err(_) => {}
+        }
+
         let pattern = regex::escape(&input);
         let regex = match regex::RegexBuilder::new(&pattern)
             .case_insensitive(true)
@@ -1037,7 +1058,7 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results))
+                    message::app(Message::SearchResults(input, results, false))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1358,7 +1379,7 @@ impl App {
         Command::none()
     }
 
-    fn handle_appstream_url(&mut self, path: &str) -> Command<Message> {
+    fn handle_appstream_url(&self, input: String, path: &str) -> Command<Message> {
         // Handler for appstream:component-id as described in:
         // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
         let apps = self.apps.clone();
@@ -1384,16 +1405,7 @@ impl App {
                         duration,
                         results.len()
                     );
-                    if let Some(result) = results.first() {
-                        message::app(Message::Select(
-                            result.backend_name,
-                            result.id.clone(),
-                            result.icon_opt.clone(),
-                            result.info.clone(),
-                        ))
-                    } else {
-                        message::none()
-                    }
+                    message::app(Message::SearchResults(input, results, true))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1402,7 +1414,7 @@ impl App {
         )
     }
 
-    fn handle_file_url(&mut self, path: &str) -> Command<Message> {
+    fn handle_file_url(&self, input: String, path: &str) -> Command<Message> {
         let path = path.to_string();
         let backends = self.backends.clone();
         Command::perform(
@@ -1444,28 +1456,47 @@ impl App {
         )
     }
 
+    fn handle_mime_url(&self, input: String, path: &str) -> Command<Message> {
+        let apps = self.apps.clone();
+        let backends = self.backends.clone();
+        let mime = path.trim_matches('/').to_string();
+        let provide = AppProvide::MediaType(mime.clone());
+        Command::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        //TODO: monthly downloads as weight?
+                        if info.provides.contains(&provide) {
+                            Some(-(info.monthly_downloads as i64))
+                        } else {
+                            None
+                        }
+                    });
+                    let duration = start.elapsed();
+                    log::info!(
+                        "searched for mime {:?} in {:?}, found {} results",
+                        mime,
+                        duration,
+                        results.len()
+                    );
+                    message::app(Message::SearchResults(input, results, false))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
     fn handle_subcommand(&mut self) -> Command<Message> {
         match self.subcommand_opt.take() {
-            Some(subcommand) => match reqwest::Url::parse(&subcommand) {
-                Ok(url) => match url.scheme() {
-                    "appstream" => {
-                        return self.handle_appstream_url(url.path());
-                    }
-                    "file" => {
-                        return self.handle_file_url(url.path());
-                    }
-                    scheme => {
-                        log::warn!("unsupported URL scheme {scheme}");
-                        Command::none()
-                    }
-                },
-                Err(_) => {
-                    // Search for term
-                    self.search_active = true;
-                    self.search_input = subcommand.clone();
-                    return self.search();
-                }
-            },
+            Some(subcommand) => {
+                // Search for term
+                self.search_active = true;
+                self.search_input = subcommand.clone();
+                self.search()
+            }
             None => {
                 // No subcommand, do nothing
                 Command::none()
@@ -2593,10 +2624,19 @@ impl Application for App {
                     }
                 }
             }
-            Message::SearchResults(input, results) => {
+            Message::SearchResults(input, results, auto_select) => {
                 if input == self.search_input {
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
+                    if auto_select && results.len() == 1 {
+                        // This drops update_scroll's command, it will be done again later
+                        let _ = self.select(
+                            results[0].backend_name,
+                            results[0].id.clone(),
+                            results[0].icon_opt.clone(),
+                            results[0].info.clone(),
+                        );
+                    }
                     self.search_results = Some((input, results));
                     return self.update_scroll();
                 } else {
