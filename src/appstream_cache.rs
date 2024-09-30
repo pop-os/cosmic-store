@@ -771,7 +771,7 @@ impl AppstreamCache {
                         if let Some(provides) = value["Provides"].as_mapping() {
                             for (key, provide) in provides.iter() {
                                 match key.as_str() {
-                                    Some("id") => match provide.as_sequence() {
+                                    Some("ids") => match provide.as_sequence() {
                                         Some(sequence) => {
                                             for id in sequence {
                                                 match id.as_str() {

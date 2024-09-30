@@ -34,6 +34,7 @@ updates = Updates
 # Explore Pages
 editors-choice = Editor's Choice
 popular-apps = Popular Apps
+made-for-cosmic = Made for COSMIC
 new-apps = New Apps
 recently-updated = Recently Updated
 development-tools = Development Tools

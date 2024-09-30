@@ -345,6 +345,7 @@ impl NavPage {
 pub enum ExplorePage {
     EditorsChoice,
     PopularApps,
+    MadeForCosmic,
     NewApps,
     RecentlyUpdated,
     DevelopmentTools,
@@ -363,6 +364,7 @@ impl ExplorePage {
         &[
             Self::EditorsChoice,
             Self::PopularApps,
+            Self::MadeForCosmic,
             //TODO: Self::NewApps,
             Self::RecentlyUpdated,
             Self::DevelopmentTools,
@@ -381,6 +383,7 @@ impl ExplorePage {
         match self {
             Self::EditorsChoice => fl!("editors-choice"),
             Self::PopularApps => fl!("popular-apps"),
+            Self::MadeForCosmic => fl!("made-for-cosmic"),
             Self::NewApps => fl!("new-apps"),
             Self::RecentlyUpdated => fl!("recently-updated"),
             Self::DevelopmentTools => fl!("development-tools"),
@@ -873,6 +876,16 @@ impl App {
                         ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
                             Some(-(info.monthly_downloads as i64))
                         }),
+                        ExplorePage::MadeForCosmic => {
+                            let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
+                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                                if info.provides.contains(&provide) {
+                                    Some(-(info.monthly_downloads as i64))
+                                } else {
+                                    None
+                                }
+                            })
+                        },
                         ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
                             //TODO
                             None
