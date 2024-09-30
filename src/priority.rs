@@ -17,12 +17,12 @@ pub fn priority(backend_name: &str, source_id: &str, id: &AppId) -> i32 {
                 priority += 2;
             }
         }
-        // All other sources prefer the flatpak backend
+        // All other sources prefer the flatpak-user backend
         _ => {
-            if backend_name == "flatpak" {
+            if backend_name == "flatpak-user" {
                 priority += 2;
 
-                // Among flatpak sources, the flathub source is preferred
+                // Among flatpak-user sources, the flathub source is preferred
                 if source_id == "flathub" {
                     priority += 1;
                 }

@@ -1,5 +1,5 @@
 use cosmic::widget;
-use libflatpak::{gio::Cancellable, prelude::*, Installation, Ref, Transaction};
+use libflatpak::{gio::Cancellable, glib, prelude::*, Installation, Ref, Transaction};
 use std::{
     cell::Cell,
     collections::HashMap,
@@ -13,18 +13,37 @@ use crate::{AppId, AppInfo, AppstreamCache, Operation, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
+    user: bool,
     appstream_caches: Vec<AppstreamCache>,
 }
 
 impl Flatpak {
-    pub fn new(locale: &str) -> Result<Self, Box<dyn Error>> {
-        let mut appstream_caches = Vec::new();
+    fn installation(&self) -> Result<Installation, glib::Error> {
+        if self.user {
+            Installation::new_user(Cancellable::NONE)
+        } else {
+            Installation::new_system(Cancellable::NONE)
+        }
+    }
 
-        //TODO: should we support system installations?
-        let inst = Installation::new_user(Cancellable::NONE)?;
+    fn source_id(&self, remote_name: &str) -> String {
+        if self.user {
+            remote_name.to_string()
+        } else {
+            format!("{remote_name} (system)")
+        }
+    }
+
+    pub fn new(user: bool, locale: &str) -> Result<Self, Box<dyn Error>> {
+        let mut this = Self {
+            user,
+            appstream_caches: Vec::new(),
+        };
+
+        let inst = this.installation()?;
         for remote in inst.list_remotes(Cancellable::NONE)? {
             let source_id = match remote.name() {
-                Some(some) => some.to_string(),
+                Some(name) => this.source_id(&name),
                 None => {
                     log::warn!("remote {:?} missing name", remote);
                     continue;
@@ -77,10 +96,10 @@ impl Flatpak {
             }
 
             let source_name = match remote.title() {
-                Some(title) => title.to_string(),
+                Some(title) => this.source_id(&title),
                 None => source_id.clone(),
             };
-            appstream_caches.push(AppstreamCache::new(
+            this.appstream_caches.push(AppstreamCache::new(
                 source_id,
                 source_name,
                 paths,
@@ -90,7 +109,7 @@ impl Flatpak {
         }
 
         // We don't store the installation because it is not Send
-        Ok(Self { appstream_caches })
+        Ok(this)
     }
 
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: &R) -> Option<Package> {
@@ -98,7 +117,7 @@ impl Flatpak {
         let id = AppId::new(&id_raw);
         let origin = r.origin()?;
         for appstream_cache in self.appstream_caches.iter() {
-            if &appstream_cache.source_id != &origin {
+            if appstream_cache.source_id != self.source_id(&origin) {
                 // Only show items from correct cache
                 continue;
             }
@@ -193,8 +212,7 @@ impl Flatpak {
 impl Backend for Flatpak {
     fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>> {
         if refresh {
-            //TODO: should we support system installations?
-            let inst = Installation::new_user(Cancellable::NONE)?;
+            let inst = self.installation()?;
             for remote in inst.list_remotes(Cancellable::NONE)? {
                 let Some(remote_name) = remote.name() else {
                     continue;
@@ -215,15 +233,13 @@ impl Backend for Flatpak {
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        //TODO: should we support system installations?
-        let inst = Installation::new_user(Cancellable::NONE)?;
+        let inst = self.installation()?;
         let packages = self.refs_to_packages(inst.list_installed_refs(Cancellable::NONE)?);
         Ok(packages)
     }
 
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        //TODO: should we support system installations?
-        let inst = Installation::new_user(Cancellable::NONE)?;
+        let inst = self.installation()?;
         let packages =
             self.refs_to_packages(inst.list_installed_refs_for_update(Cancellable::NONE)?);
         Ok(packages)
@@ -239,8 +255,7 @@ impl Backend for Flatpak {
         callback: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         let callback = Arc::new(Mutex::new(callback));
-        //TODO: should we support system installations?
-        let inst = Installation::new_user(Cancellable::NONE)?;
+        let inst = self.installation()?;
         let total_ops = Arc::new(Cell::new(0));
         let tx = Transaction::for_installation(&inst, Cancellable::NONE)?;
         {
@@ -289,7 +304,7 @@ impl Backend for Flatpak {
                             let Some(remote_name) = remote.name() else {
                                 continue;
                             };
-                            if remote_name != info.source_id {
+                            if self.source_id(&remote_name) != info.source_id {
                                 continue;
                             }
                             match inst.fetch_remote_ref_sync(

@@ -46,15 +46,17 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
 
     #[cfg(feature = "flatpak")]
     {
-        let start = Instant::now();
-        match flatpak::Flatpak::new(locale) {
-            Ok(backend) => {
-                backends.insert("flatpak", Arc::new(backend));
-                let duration = start.elapsed();
-                log::info!("initialized flatpak backend in {:?}", duration);
-            }
-            Err(err) => {
-                log::error!("failed to load flatpak backend: {}", err);
+        for (backend_name, user) in [("flatpak-user", true), ("flatpak-system", false)] {
+            let start = Instant::now();
+            match flatpak::Flatpak::new(user, locale) {
+                Ok(backend) => {
+                    backends.insert(backend_name, Arc::new(backend));
+                    let duration = start.elapsed();
+                    log::info!("initialized {backend_name} backend in {:?}", duration);
+                }
+                Err(err) => {
+                    log::error!("failed to load {backend_name} backend: {}", err);
+                }
             }
         }
     }
