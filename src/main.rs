@@ -1211,12 +1211,12 @@ impl App {
 
         let entry_sort = |a: &AppEntry, b: &AppEntry, id: &AppId| {
             // Sort with installed first
-            match b.installed.cmp(&a.installed) {
+            match a.installed.cmp(&b.installed) {
                 cmp::Ordering::Equal => {
                     // Sort by highest priority first to lowest priority
                     let a_priority = priority(a.backend_name, &a.info.source_id, id);
                     let b_priority = priority(b.backend_name, &b.info.source_id, id);
-                    match b_priority.cmp(&a_priority) {
+                    match a_priority.cmp(&b_priority) {
                         cmp::Ordering::Equal => {
                             match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
                                 cmp::Ordering::Equal => {
