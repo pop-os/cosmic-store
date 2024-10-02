@@ -34,6 +34,7 @@ updates = Aggiornamenti
 # Explore Pages
 editors-choice = Scelta dell'editore
 popular-apps = Applicazioni più popolari
+made-for-cosmic = Realizzato per COSMIC
 new-apps = Novità
 recently-updated = Aggiornate di recente
 development-tools = Strumenti di sviluppo
@@ -50,6 +51,17 @@ source-installed = {$source} (installed)
 developer = Sviluppatore
 app-developers = {$app} Sviluppatori
 monthly-downloads = Flathub Monthly Downloads
+licenses = Licenze
+proprietary = Proprietario
+
+## App URLs
+bug-tracker = Bug tracker
+contact = Contatta
+donation = Donazioni
+faq = FAQ
+help = Help
+homepage = Home page
+translate = Traduci
 
 # Context Pages
 
