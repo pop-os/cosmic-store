@@ -661,7 +661,6 @@ pub struct Selected {
 /// The [`App`] stores application-specific state.
 pub struct App {
     core: Core,
-    subcommand_opt: Option<String>,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
     locale: String,
@@ -1539,26 +1538,6 @@ impl App {
         )
     }
 
-    fn handle_subcommand(&mut self) -> Command<Message> {
-        match self.subcommand_opt.take() {
-            Some(subcommand) => {
-                // Search for term
-                self.search_active = true;
-                self.search_input = subcommand;
-            }
-            None => {
-                // No subcommand, do nothing
-            }
-        }
-
-        // Run search if active
-        if self.search_active {
-            self.search()
-        } else {
-            Command::none()
-        }
-    }
-
     fn update_title(&mut self) -> Command<Message> {
         self.set_window_title(fl!("app-name"), self.main_window_id())
     }
@@ -2377,7 +2356,6 @@ impl Application for App {
 
         let mut app = App {
             core,
-            subcommand_opt: flags.subcommand_opt,
             config_handler: flags.config_handler,
             config: flags.config,
             locale,
@@ -2409,6 +2387,12 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
         };
+
+        if let Some(subcommand) = flags.subcommand_opt {
+            // Search for term
+            app.search_active = true;
+            app.search_input = subcommand;
+        }
 
         let command = Command::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
@@ -2575,7 +2559,10 @@ impl Application for App {
 
                 self.update_apps();
                 let mut commands = Vec::new();
-                commands.push(self.handle_subcommand());
+                if self.search_active {
+                    // Update search if active
+                    commands.push(self.search());
+                }
                 commands.push(self.installed_results());
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));
