@@ -20,5 +20,8 @@
     <binaries>
       <binary>cosmic-store</binary>
     </binaries>
+    <mimetypes>
+        <mimetype>application/vnd.debian.binary-package</mimetype>
+    </mimetypes>
   </provides>
 </component>
