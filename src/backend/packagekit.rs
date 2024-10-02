@@ -7,13 +7,14 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppstreamCache, Operation, OperationKind};
+use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind};
 
 struct TransactionDetails {
     //TODO: more fields: https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Details
     package_id: String,
     summary: String,
     description: String,
+    url: String,
 }
 
 #[allow(dead_code)]
@@ -60,10 +61,12 @@ fn transaction_handle(
                     };
                     let summary = get_string("summary").unwrap_or_default();
                     let description = get_string("description").unwrap_or_default();
+                    let url = get_string("url").unwrap_or_default();
                     details.push(TransactionDetails {
                         package_id,
                         summary,
                         description,
+                        url,
                     });
                 }
                 "ErrorCode" => {
@@ -199,6 +202,11 @@ impl Packagekit {
                     summary: tx_detail.summary.clone(),
                     description: tx_detail.description.clone(),
                     pkgnames: vec![package_name.to_string()],
+                    urls: if !tx_detail.url.is_empty() {
+                        vec![AppUrl::Homepage(tx_detail.url.to_string())]
+                    } else {
+                        Vec::new()
+                    },
                     ..Default::default()
                 }),
                 version: version_opt.unwrap_or("").to_string(),
@@ -320,7 +328,12 @@ impl Backend for Packagekit {
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
         let tx = self.transaction()?;
         tx.get_details_local(&[path])?;
-        self.package_transaction(tx)
+        let mut packages = self.package_transaction(tx)?;
+        for package in packages.iter_mut() {
+            let info = Arc::make_mut(&mut package.info);
+            info.package_paths.push(path.to_string());
+        }
+        Ok(packages)
     }
 
     fn operation(
@@ -329,9 +342,13 @@ impl Backend for Packagekit {
         mut f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         let mut package_names = Vec::new();
+        let mut package_paths = Vec::new();
         for info in op.infos.iter() {
             for pkgname in &info.pkgnames {
                 package_names.push(pkgname.as_str());
+            }
+            for package_path in &info.package_paths {
+                package_paths.push(package_path.as_str());
             }
         }
         if package_names.is_empty() {
@@ -359,9 +376,15 @@ impl Backend for Packagekit {
         tx.set_hints(&["interactive=true"])?;
         match op.kind {
             OperationKind::Install => {
-                log::info!("installing packages {:?}", package_ids);
-                //TODO: transaction flags
-                tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+                if !package_paths.is_empty() {
+                    log::info!("installing package files {:?}", package_paths);
+                    //TODO: transaction flags
+                    tx.install_files(0, &package_paths)?;
+                } else {
+                    log::info!("installing packages {:?}", package_ids);
+                    //TODO: transaction flags
+                    tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+                }
             }
             OperationKind::Uninstall => {
                 log::info!("uninstalling packages {:?}", package_ids);

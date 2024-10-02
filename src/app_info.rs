@@ -147,6 +147,7 @@ pub struct AppInfo {
     pub description: String,
     pub license_opt: Option<String>,
     pub pkgnames: Vec<String>,
+    pub package_paths: Vec<String>,
     pub categories: Vec<String>,
     pub desktop_ids: Vec<String>,
     pub flatpak_refs: Vec<String>,
@@ -340,6 +341,7 @@ impl AppInfo {
             screenshots,
             urls,
             monthly_downloads,
+            ..Default::default()
         }
     }
 }

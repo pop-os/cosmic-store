@@ -1459,8 +1459,19 @@ impl App {
                         duration,
                         packages.len()
                     );
-                    log::warn!("TODO: do something with {:?}", packages);
-                    message::none()
+
+                    //TODO: store the resolved packages somewhere
+                    let mut results = Vec::with_capacity(packages.len());
+                    for (backend_name, package) in packages {
+                        results.push(SearchResult {
+                            backend_name,
+                            id: package.id,
+                            icon_opt: Some(package.icon),
+                            info: package.info,
+                            weight: 0,
+                        });
+                    }
+                    message::app(Message::SearchResults(input, results, false))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1478,14 +1489,15 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
-                        //TODO: monthly downloads as weight?
-                        if info.provides.contains(&provide) {
-                            Some(-(info.monthly_downloads as i64))
-                        } else {
-                            None
-                        }
-                    });
+                    let results =
+                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            //TODO: monthly downloads as weight?
+                            if info.provides.contains(&provide) {
+                                Some(-(info.monthly_downloads as i64))
+                            } else {
+                                None
+                            }
+                        });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for mime {:?} in {:?}, found {} results",
