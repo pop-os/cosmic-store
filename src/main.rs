@@ -25,6 +25,7 @@ use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     env,
     future::pending,
+    path::Path,
     process,
     sync::{Arc, Mutex},
     time::Instant,
@@ -987,6 +988,13 @@ impl App {
                 }
             },
             Err(_) => {}
+        }
+
+        // Also handle standard file paths
+        if input.starts_with("/") {
+            if Path::new(&input).is_file() {
+                return self.handle_file_url(input.clone(), &input);
+            }
         }
 
         let pattern = regex::escape(&input);
