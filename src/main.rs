@@ -1545,12 +1545,17 @@ impl App {
                 // Search for term
                 self.search_active = true;
                 self.search_input = subcommand.clone();
-                self.search()
             }
             None => {
                 // No subcommand, do nothing
-                Command::none()
             }
+        }
+
+        // Run search if active
+        if self.search_active {
+            self.search()
+        } else {
+            Command::none()
         }
     }
 
