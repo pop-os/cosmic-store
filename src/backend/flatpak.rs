@@ -279,6 +279,11 @@ impl Backend for Flatpak {
                 continue;
             };
             if url == remote_url {
+                // Check if already installed
+                if let Ok(r) = inst.current_installed_app(id, Cancellable::NONE) {
+                    return Ok(self.refs_to_packages(vec![r]));
+                }
+
                 source_id = match remote.name() {
                     Some(name) => self.source_id(&name),
                     None => {
