@@ -1100,7 +1100,7 @@ impl App {
             }
             None => {
                 //TODO: warning?
-                let installed = self.is_installed(backend_name, &info.source_id, &id);
+                let installed = self.is_installed(backend_name, &id, &info);
                 sources.push(SelectedSource::new(backend_name, &info, installed));
             }
         }
@@ -1190,14 +1190,31 @@ impl App {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
 
-    fn is_installed(&self, backend_name: &'static str, source_id: &str, id: &AppId) -> bool {
+    fn is_installed(&self, backend_name: &'static str, id: &AppId, info: &AppInfo) -> bool {
         if let Some(installed) = &self.installed {
             for (installed_backend_name, package) in installed {
-                if installed_backend_name == &backend_name
-                    && &package.info.source_id == &source_id
-                    && &package.id == id
+                if *installed_backend_name == backend_name
+                    && package.info.source_id == info.source_id
                 {
-                    return true;
+                    // Simple app match found
+                    if &package.id == id {
+                        return true;
+                    }
+
+                    // Search for matching pkgnames
+                    //TODO: also do flatpak refs?
+                    if package.id.is_system() && !info.pkgnames.is_empty() {
+                        let mut found = true;
+                        for pkgname in info.pkgnames.iter() {
+                            if !package.info.pkgnames.contains(&pkgname) {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if found {
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -1240,7 +1257,7 @@ impl App {
                     entry.push(AppEntry {
                         backend_name,
                         info: info.clone(),
-                        installed: self.is_installed(backend_name, &info.source_id, id),
+                        installed: self.is_installed(backend_name, id, &info),
                     });
                     entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
                 }
@@ -1632,11 +1649,8 @@ impl App {
                         break;
                     }
                 }
-                let is_installed = self.is_installed(
-                    selected.backend_name,
-                    &selected.info.source_id,
-                    &selected.id,
-                );
+                let is_installed =
+                    self.is_installed(selected.backend_name, &selected.id, &selected.info);
                 let mut update_opt = None;
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
