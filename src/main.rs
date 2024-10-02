@@ -1471,7 +1471,7 @@ impl App {
                             weight: 0,
                         });
                     }
-                    message::app(Message::SearchResults(input, results, false))
+                    message::app(Message::SearchResults(input, results, true))
                 })
                 .await
                 .unwrap_or(message::none())
