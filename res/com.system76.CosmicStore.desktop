@@ -12,4 +12,4 @@ Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
 Keywords[pt-BR]=App;Aplicativos;Software;Programas;Loja;
-MimeType=application/vnd.debian.binary-package;x-scheme-handler/appstream;
+MimeType=application/x-debian-package;application/vnd.debian.binary-package;x-scheme-handler/appstream;
