@@ -5,11 +5,12 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::Write,
+    fs,
     sync::{Arc, Mutex},
 };
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppstreamCache, Operation, OperationKind};
+use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind};
 
 #[derive(Debug)]
 pub struct Flatpak {
@@ -246,7 +247,81 @@ impl Backend for Flatpak {
     }
 
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
-        Err("flatpak backend does not support loading details from a file".into())
+        if !self.user {
+            return Err(format!(
+                "flatpak backend only supports installing files with user installation"
+            )
+            .into());
+        }
+
+        if !path.ends_with(".flatpakref") {
+            return Err(format!("flatpak backend does not support file {path:?}").into());
+        }
+
+        let entry = freedesktop_entry_parser::parse_entry(path)?;
+        if !entry.has_section("Flatpak Ref") {
+            return Err(format!("flatpak ref {path:?} missing Flatpak Ref section").into());
+        }
+
+        let section = entry.section("Flatpak Ref");
+        let Some(id) = section.attr("Name") else {
+            return Err(format!("flatpak ref {path:?} missing Name attribute").into());
+        };
+        let Some(url) = section.attr("Url") else {
+            return Err(format!("flatpak ref {path:?} missing Url attribute").into());
+        };
+
+        let mut source_id = url.to_string();
+        let mut source_name = url.to_string();
+        let inst = self.installation()?;
+        for remote in inst.list_remotes(Cancellable::NONE)? {
+            let Some(remote_url) = remote.url() else {
+                continue;
+            };
+            if url == remote_url {
+                source_id = match remote.name() {
+                    Some(name) => self.source_id(&name),
+                    None => {
+                        log::warn!("remote {:?} missing name", remote);
+                        continue;
+                    }
+                };
+                source_name = match remote.title() {
+                    Some(title) => self.source_id(&title),
+                    None => source_id.clone(),
+                };
+                break;
+            }
+        }
+
+        let mut extra = HashMap::new();
+        if let Some(branch) = section.attr("Branch") {
+            extra.insert("branch".to_string(), branch.to_string());
+        }
+
+        Ok(vec![Package {
+            id: AppId::new(id),
+            icon: widget::icon::from_name("package-x-generic")
+                .size(128)
+                .handle(),
+            //TODO: fill in more AppInfo fields
+            info: Arc::new(AppInfo {
+                source_id,
+                source_name,
+                name: section.attr("Title").unwrap_or(id).to_string(),
+                summary: section.attr("Comment").unwrap_or_default().to_string(),
+                description: section.attr("Description").unwrap_or_default().to_string(),
+                urls: if let Some(homepage) = section.attr("Homepage") {
+                    vec![AppUrl::Homepage(homepage.to_string())]
+                } else {
+                    Vec::new()
+                },
+                package_paths: vec![path.to_string()],
+                ..Default::default()
+            }),
+            version: String::new(),
+            extra,
+        }])
     }
 
     fn operation(
@@ -292,45 +367,59 @@ impl Backend for Flatpak {
         match op.kind {
             OperationKind::Install => {
                 for info in op.infos.iter() {
-                    for r_str in info.flatpak_refs.iter() {
-                        let r = match Ref::parse(r_str) {
-                            Ok(ok) => ok,
-                            Err(err) => {
-                                log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
-                                continue;
-                            }
-                        };
-                        for remote in inst.list_remotes(Cancellable::NONE)? {
-                            let Some(remote_name) = remote.name() else {
-                                continue;
-                            };
-                            if self.source_id(&remote_name) != info.source_id {
-                                continue;
-                            }
-                            match inst.fetch_remote_ref_sync(
-                                &remote_name,
-                                r.kind(),
-                                &r.name().unwrap_or_default(),
-                                r.arch().as_deref(),
-                                r.branch().as_deref(),
-                                Cancellable::NONE,
-                            ) {
-                                Ok(_) => {}
+                    if !info.package_paths.is_empty() {
+                        for package_path in info.package_paths.iter() {
+                            log::info!("installing flatpak ref {:?}", package_path);
+                            //TODO: keep package data in memory?
+                            let data = fs::read(&package_path)?;
+                            let bytes = glib::Bytes::from_owned(data);
+                            tx.add_install_flatpakref(&bytes)?;
+                        }
+                    } else {
+                        for r_str in info.flatpak_refs.iter() {
+                            let r = match Ref::parse(r_str) {
+                                Ok(ok) => ok,
                                 Err(err) => {
-                                    log::info!(
-                                        "failed to find {} in {}: {}",
-                                        r_str,
-                                        remote_name,
-                                        err
-                                    );
+                                    log::warn!("failed to parse flatpak ref {:?}: {}", r_str, err);
                                     continue;
                                 }
                             };
+                            for remote in inst.list_remotes(Cancellable::NONE)? {
+                                let Some(remote_name) = remote.name() else {
+                                    continue;
+                                };
+                                if self.source_id(&remote_name) != info.source_id {
+                                    continue;
+                                }
+                                match inst.fetch_remote_ref_sync(
+                                    &remote_name,
+                                    r.kind(),
+                                    &r.name().unwrap_or_default(),
+                                    r.arch().as_deref(),
+                                    r.branch().as_deref(),
+                                    Cancellable::NONE,
+                                ) {
+                                    Ok(_) => {}
+                                    Err(err) => {
+                                        log::info!(
+                                            "failed to find {} in {}: {}",
+                                            r_str,
+                                            remote_name,
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                };
 
-                            log::info!("installing flatpak {} from remote {}", r_str, remote_name);
-                            tx.add_install(&remote_name, &r_str, &[])?;
-                            //TODO: install all refs?
-                            break;
+                                log::info!(
+                                    "installing flatpak {} from remote {}",
+                                    r_str,
+                                    remote_name
+                                );
+                                tx.add_install(&remote_name, &r_str, &[])?;
+                                //TODO: install all refs?
+                                break;
+                            }
                         }
                     }
                 }
