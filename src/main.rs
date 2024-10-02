@@ -1544,7 +1544,7 @@ impl App {
             Some(subcommand) => {
                 // Search for term
                 self.search_active = true;
-                self.search_input = subcommand.clone();
+                self.search_input = subcommand;
             }
             None => {
                 // No subcommand, do nothing
