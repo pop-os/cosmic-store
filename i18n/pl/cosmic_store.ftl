@@ -1,4 +1,4 @@
-app-name = Sklep z Aplikacjami COSMIC
+app-name = Sklep COSMIC
 back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź uaktualnienia
@@ -34,6 +34,7 @@ updates = Aktualizacje
 # Explore Pages
 editors-choice = Wybór Redakcji
 popular-apps = Popularne aplikacje
+made-for-cosmic = Stworzone dla COSMIC
 new-apps = Nowe Aplikacje
 recently-updated = Ostatnio Zaktualizowane
 development-tools = Narzędzia Programistyczne
@@ -50,6 +51,17 @@ source-installed = {$source} (zainstalowane)
 developer = Wydawca
 app-developers = {$app} Wydawca
 monthly-downloads = Miesięczne Pobrania na Flathub
+licenses = Licencje
+proprietary = Własnościowy
+
+## App URLs
+bug-tracker = Śledzenie błędów
+contact = Kontakt
+donation = Darowizny
+faq = Często zadawane pytania
+help = Pomoc
+homepage = Strona domowa
+translate = Tłumaczenie
 
 # Context Pages
 
