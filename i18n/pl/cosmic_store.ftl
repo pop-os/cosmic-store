@@ -52,7 +52,7 @@ developer = Wydawca
 app-developers = {$app} Wydawca
 monthly-downloads = Miesięczne Pobrania na Flathub
 licenses = Licencje
-proprietary = Własnościowy
+proprietary = Własnościowa
 
 ## App URLs
 bug-tracker = Śledzenie błędów
