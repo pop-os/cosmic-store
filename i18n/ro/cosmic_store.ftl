@@ -23,7 +23,7 @@ explore = Explorează
 create = Creează
 work = Lucrează
 develop = Dezvoltă
-learn = �nvață
+learn = Învață
 game = Joacă
 relax = Relaxează-te
 socialize = Socializează
@@ -54,7 +54,7 @@ monthly-downloads = Descărcări lunare Flathub
 licenses = Licențe
 proprietary = Proprietar
 
-# App URLs
+## App URLs
 bug-tracker = Urmărire erori
 contact = Contact
 donation = Donație
@@ -75,7 +75,7 @@ no-description = Nicio descriere disponibilă.
 ### Appearance
 appearance = Aspect
 theme = Temă
-match-desktop = Potrivește cu desktopul
+match-desktop = Potrivește cu desktop-ul
 dark = Întunecat
 light = Deschis
 
