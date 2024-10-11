@@ -1954,9 +1954,7 @@ impl App {
                 }
 
                 if !selected.info.urls.is_empty() {
-                    let mut url_row = widget::row::with_capacity(selected.info.urls.len())
-                        .spacing(space_s)
-                        .align_items(Alignment::Center);
+                    let mut url_items = Vec::with_capacity(selected.info.urls.len());
                     for app_url in &selected.info.urls {
                         let (name, url) = match app_url {
                             AppUrl::BugTracker(url) => (fl!("bug-tracker"), url),
@@ -1967,13 +1965,23 @@ impl App {
                             AppUrl::Homepage(url) => (fl!("homepage"), url),
                             AppUrl::Translate(url) => (fl!("translate"), url),
                         };
-                        url_row = url_row.push(
+                        url_items.push(
                             widget::button::link(name)
                                 .on_press(Message::LaunchUrl(url.to_string()))
-                                .padding(0),
+                                .padding(0)
+                                .into(),
                         );
                     }
-                    column = column.push(url_row);
+                    if grid_width < 416 {
+                        column = column
+                            .push(widget::column::with_children(url_items).spacing(space_xxxs));
+                    } else {
+                        column = column.push(
+                            widget::row::with_children(url_items)
+                                .spacing(space_s)
+                                .align_items(Alignment::Center),
+                        );
+                    }
                 }
 
                 column.into()
