@@ -61,6 +61,9 @@ logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 packagekit = ["dep:packagekit-zbus"]
 wgpu = ["libcosmic/wgpu"]
 
+[profile.release]
+lto = "fat"
+
 [profile.release-with-debug]
 inherits = "release"
 debug = true
