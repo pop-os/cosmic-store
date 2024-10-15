@@ -33,7 +33,7 @@ libc = "0.2"
 sys-locale = "0.3"
 serde_yaml = "0.9"
 # fast cache
-atomicwrites = "0.4"
+atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "5"
 # flatpak feature
