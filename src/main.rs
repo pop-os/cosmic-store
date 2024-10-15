@@ -749,6 +749,7 @@ impl App {
                 .unwrap_or(None)
             },
             |result| {
+                #[cfg(feature = "desktop")]
                 if let Some((exec, desktop_id)) = result {
                     tokio::spawn(async move {
                         cosmic::desktop::spawn_desktop_exec(
