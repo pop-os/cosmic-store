@@ -48,17 +48,18 @@ packagekit-zbus = { version = "0.1", optional = true }
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
-features = ["a11y", "desktop", "multi-window", "single-instance", "tokio", "winit"]
+features = ["a11y", "desktop", "multi-window", "tokio", "winit"]
 
 [dependencies.smol_str]
 version = "0.2.1"
 features = ["serde"]
 
 [features]
-default = ["flatpak", "logind", "packagekit", "wgpu"]
+default = ["flatpak", "logind", "packagekit", "single-instance", "wgpu"]
 flatpak = ["dep:libflatpak"]
 logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 packagekit = ["dep:packagekit-zbus"]
+single-instance = ["libcosmic/single-instance"]
 wgpu = ["libcosmic/wgpu"]
 
 [profile.release-with-debug]
