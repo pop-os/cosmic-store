@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    app::{message, Command, Core, CosmicFlags, DbusActivationMessage, Settings},
+    app::{message, Command, Core, CosmicFlags, Settings},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
@@ -57,6 +57,7 @@ mod key_bind;
 
 mod localize;
 
+#[cfg(feature = "logind")]
 mod logind;
 
 use operation::{Operation, OperationKind};
@@ -110,7 +111,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config_handler,
         config,
     };
+
+    #[cfg(feature = "single-instance")]
     cosmic::app::run_single_instance::<App>(settings, flags)?;
+
+    #[cfg(not(feature = "single-instance"))]
+    cosmic::app::run::<App>(settings, flags)?;
 
     Ok(())
 }
@@ -171,6 +177,7 @@ pub enum Message {
     Key(Modifiers, Key),
     LaunchUrl(String),
     MaybeExit,
+    #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
     Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
@@ -672,6 +679,7 @@ pub struct App {
     explore_page_opt: Option<ExplorePage>,
     key_binds: HashMap<KeyBind, Action>,
     nav_model: widget::nav_bar::Model,
+    #[cfg(feature = "notify")]
     notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, f32)>,
@@ -1395,6 +1403,7 @@ impl App {
     fn update_notification(&mut self) -> Command<Message> {
         // Handle closing notification if there are no operations
         if self.pending_operations.is_empty() {
+            #[cfg(feature = "notify")]
             if let Some(notification_arc) = self.notification_opt.take() {
                 return Command::perform(
                     async move {
@@ -2375,6 +2384,7 @@ impl Application for App {
             explore_page_opt: None,
             key_binds: key_binds(),
             nav_model,
+            #[cfg(feature = "notify")]
             notification_opt: None,
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
@@ -2414,7 +2424,8 @@ impl Application for App {
         Some(&self.nav_model)
     }
 
-    fn dbus_activation(&mut self, msg: DbusActivationMessage) -> Command<Message> {
+    #[cfg(feature = "single-instance")]
+    fn dbus_activation(&mut self, msg: cosmic::app::DbusActivationMessage) -> Command<Message> {
         //TODO: parse msg
         log::info!("{:?}", msg);
         if self.window_id_opt.is_none() {
@@ -2599,6 +2610,7 @@ impl Application for App {
                     process::exit(0);
                 }
             }
+            #[cfg(feature = "notify")]
             Message::Notification(notification) => {
                 self.notification_opt = Some(notification);
             }
@@ -3045,16 +3057,20 @@ impl Application for App {
         ];
 
         if !self.pending_operations.is_empty() {
-            struct InhibitSubscription;
-            subscriptions.push(subscription::channel(
-                TypeId::of::<InhibitSubscription>(),
-                1,
-                move |_msg_tx| async move {
-                    let _inhibits = logind::inhibit().await;
-                    pending().await
-                },
-            ));
+            #[cfg(feature = "logind")]
+            {
+                struct InhibitSubscription;
+                subscriptions.push(subscription::channel(
+                    TypeId::of::<InhibitSubscription>(),
+                    1,
+                    move |_msg_tx| async move {
+                        let _inhibits = logind::inhibit().await;
+                        pending().await
+                    },
+                ));
+            }
 
+            #[cfg(feature = "notify")]
             if self.window_id_opt.is_none() {
                 struct NotificationSubscription;
                 subscriptions.push(subscription::channel(
