@@ -34,6 +34,7 @@ updates = アップデートリスト
 # Explore Pages
 editors-choice = エディターズチョイス
 popular-apps = 人気なアプリ
+made-for-cosmic = COSMICのために作られた
 new-apps = 新しいアプリ
 recently-updated = 最近にアップデートされた
 development-tools = 開発ツール
@@ -50,6 +51,17 @@ source-installed = {$source} (インストール済み)
 developer = 開発者
 app-developers = {$app}の開発者
 monthly-downloads = 月例のFlathubからのダウンロード
+licenses = ライセンス
+proprietary = プロプライエタリ
+
+## App URLs
+bug-tracker = バッグトラッカー
+contact = 連絡
+donation = 寄付
+faq = FAQ
+help = ヘルプ
+homepage = ホームページ
+translate = 翻訳
 
 # Context Pages
 
