@@ -7,7 +7,7 @@ install = インストール
 no-installed-applications = インストールされているアプリケーションはありません。
 no-updates = アプリケーションはすべて最新版です。
 no-results = 「{$search}」の検索結果はありません。
-notification-progress = インストレーションとアップデートは{$progress}％完了です。
+notification-progress = インストレーションとアップデートは行われています。
 open = 開く
 see-all = すべてを表示
 uninstall = アンインストール
@@ -34,6 +34,7 @@ updates = アップデートリスト
 # Explore Pages
 editors-choice = エディターズチョイス
 popular-apps = 人気なアプリ
+made-for-cosmic = COSMICのために作られた
 new-apps = 新しいアプリ
 recently-updated = 最近にアップデートされた
 development-tools = 開発ツール
@@ -50,6 +51,17 @@ source-installed = {$source} (インストール済み)
 developer = 開発者
 app-developers = {$app}の開発者
 monthly-downloads = 月例のFlathubからのダウンロード
+licenses = ライセンス
+proprietary = プロプライエタリ
+
+## App URLs
+bug-tracker = バッグトラッカー
+contact = 連絡
+donation = 寄付
+faq = FAQ
+help = ヘルプ
+homepage = ホームページ
+translate = 翻訳
 
 # Context Pages
 
