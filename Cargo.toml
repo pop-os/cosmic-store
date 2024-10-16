@@ -56,9 +56,10 @@ version = "0.2.1"
 features = ["serde"]
 
 [features]
-default = ["a11y", "desktop", "flatpak", "logind", "notify", "packagekit", "single-instance", "wgpu"]
+default = ["a11y", "desktop-systemd-scope", "flatpak", "logind", "notify", "packagekit", "single-instance", "wgpu"]
 a11y = ["libcosmic/a11y"]
 desktop = ["libcosmic/desktop"]
+desktop-systemd-scope = ["libcosmic/desktop-systemd-scope"]
 flatpak = ["dep:libflatpak"]
 logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 notify = ["dep:notify-rust"]
