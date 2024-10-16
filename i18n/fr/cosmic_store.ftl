@@ -6,8 +6,8 @@ checking-for-updates = Recherche de mises à jour...
 install = Installer
 no-installed-applications = Aucune application installée.
 no-updates = Toutes les applications installées sont à jour.
-no-results = Aucun résultat pour "{$search}".
-notification-progress = Les installations et les mises à jour sont terminées à {$progress}% .
+no-results = Aucun résultat pour « {$search} ».
+notification-progress = Des installations et les mises à jour sont en cours.
 open = Ouvrir
 see-all = Voir tout
 uninstall = Désinstaller
@@ -16,7 +16,7 @@ update-all = Tout mettre à jour
 
 # Uninstall Dialog
 uninstall-app = Désinstaller {$name}
-uninstall-app-warning = Êtes-vous sûr de vouloir désinstaller {$name}?
+uninstall-app-warning = Êtes-vous sûr de vouloir désinstaller {$name} ?
 
 # Nav Pages
 explore = Explorer
@@ -34,6 +34,7 @@ updates = Mises à jour
 # Explore Pages
 editors-choice = Choix de l'éditeur
 popular-apps = Applications populaires
+made-for-cosmic = Faites pour COSMIC
 new-apps = Nouvelles applications
 recently-updated = Récemment mise à jour
 development-tools = Outils de développement
@@ -50,6 +51,17 @@ source-installed = {$source} (installé)
 developer = Développeur
 app-developers = Développeurs de {$app}
 monthly-downloads = Téléchargements mensuels sur Flathub
+licenses = Licences
+proprietary = Privateur
+
+## App URLs
+bug-tracker = Traqeur de bogues
+contact = Contacter
+donation = Donation
+faq = FAQ
+help = Aide
+homepage = Page d'accueil
+translate = Traduire
 
 # Context Pages
 
