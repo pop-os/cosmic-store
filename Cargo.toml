@@ -63,6 +63,7 @@ flatpak = ["dep:libflatpak"]
 logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus"]
+pkgar = []
 single-instance = ["libcosmic/single-instance"]
 wgpu = ["libcosmic/wgpu"]
 

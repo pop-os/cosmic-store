@@ -16,6 +16,9 @@ mod flatpak;
 #[cfg(feature = "packagekit")]
 mod packagekit;
 
+#[cfg(feature = "pkgar")]
+mod pkgar;
+
 #[derive(Clone, Debug)]
 pub struct Package {
     pub id: AppId,
@@ -72,6 +75,21 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
             }
             Err(err) => {
                 log::error!("failed to load packagekit backend: {}", err);
+            }
+        }
+    }
+
+    #[cfg(feature = "pkgar")]
+    {
+        let start = Instant::now();
+        match pkgar::Pkgar::new(locale) {
+            Ok(backend) => {
+                backends.insert("pkgar", Arc::new(backend));
+                let duration = start.elapsed();
+                log::info!("initialized pkgar backend in {:?}", duration);
+            }
+            Err(err) => {
+                log::error!("failed to load pkgar backend: {}", err);
             }
         }
     }
