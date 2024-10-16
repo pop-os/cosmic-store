@@ -1,19 +1,25 @@
-app-name = Tienda de apps COSMIC
+app-name = Tienda COSMIC
 back = Atrás
 cancel = Cancelar
 check-for-updates = Buscar actualizaciones
-checking-for-updates = Buscaando actualizaciones...
+checking-for-updates = Buscando actualizaciones...
 install = Instalar
 no-installed-applications = Sin aplicaciones instaladas.
 no-updates = Todas las aplicaciones están actualizadas.
 no-results = Sin resultados para «{$search}».
-notification-progress = Las instalaciones y actualizaciones están {$progress}% completas.
+notification-progress = Las instalaciones y actualizaciones están en progreso.
 open = Abrir
+see-all = Ver todo
 uninstall = Desinstalar
 update = Actualizar
 update-all = Actualizar todas
 
+# Uninstall Dialog
+uninstall-app = Desinstalar {$name}
+uninstall-app-warning = ¿Está seguro que quiere desinstalar {$name}?
+
 # Nav Pages
+explore = Explorar
 create = Creación
 work = Trabajo
 develop = Desarrollo
@@ -28,6 +34,7 @@ updates = Actualizaciones
 # Explore Pages
 editors-choice = Selección del editor
 popular-apps = Apps populares
+made-for-cosmic = Hechas para COSMIC
 new-apps = Apps nuevas
 recently-updated = Recién actualizadas
 development-tools = Herramientas de desarrollo
@@ -44,11 +51,26 @@ source-installed = {$source} (instalada)
 developer = Desarrollador(a)
 app-developers = Desarrolladores de {$app}
 monthly-downloads = Descargas mensuales desde Flathub
+licenses = Licencias
+proprietary = Privativo
+
+## App URLs
+bug-tracker = Rastreo de errores
+contact = Contacto
+donation = Donación
+faq = Preguntas frequentes
+help = Ayuda
+homepage = Página principal
+translate = Traducir
 
 # Context Pages
 
 ## Settings
-settings = Ajustes
+settings = Settings
+
+## Release notes
+latest-version = Versión más reciente
+no-description = Sin descripción disponible.
 
 ### Appearance
 appearance = Apariencia
