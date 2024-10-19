@@ -21,7 +21,7 @@ uninstall-app-warning = Ste si istý, že chcete odinštalovať {$name}?
 # Nav Pages
 explore = Preskúmať
 create = Tvorivosť
-work = Práva
+work = Práca
 develop = Vývoj
 learn = Vzdelávanie
 game = Hry
@@ -34,6 +34,7 @@ updates = Aktualizácie
 # Explore Pages
 editors-choice = Voľba editora
 popular-apps = Populárne aplikácie
+made-for-cosmic = Vyrobené pre prostredie COSMIC
 new-apps = Nové aplikácie
 recently-updated = Nedávno aktualizované
 development-tools = Vývojové nástroje
@@ -50,6 +51,17 @@ source-installed = {$source} (nainštalované)
 developer = Vývojár
 app-developers = Vývojári {$app}
 monthly-downloads = Počet stiahnutí za mesiac
+licenses = Licencie
+proprietary = Proprietárne
+
+## App URLs
+bug-tracker = Sledovanie chýb
+contact = Kontakt
+donation = Prispieť
+faq = FAQ
+help = Pomoc
+homepage = Domovská stránka
+translate = Preklad
 
 # Context Pages
 
