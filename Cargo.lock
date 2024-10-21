@@ -867,7 +867,7 @@ dependencies = [
 [[package]]
 name = "clipboard_macos"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "objc",
  "objc-foundation",
@@ -877,7 +877,7 @@ dependencies = [
 [[package]]
 name = "clipboard_wayland"
 version = "0.2.2"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "dnd",
  "mime 0.1.0",
@@ -887,7 +887,7 @@ dependencies = [
 [[package]]
 name = "clipboard_x11"
 version = "0.4.2"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "thiserror",
  "x11rb",
@@ -1461,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "dnd"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "bitflags 2.6.0",
  "mime 0.1.0",
@@ -3597,7 +3597,7 @@ dependencies = [
 [[package]]
 name = "mime"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "smithay-clipboard",
 ]
@@ -6563,7 +6563,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "window_clipboard"
 version = "0.4.1"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#1832d5637b27ad9b0c781724ab30bec844366c63"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-0.13#a83bf83784276aaa882ef13555295a2ad9edd265"
 dependencies = [
  "clipboard-win",
  "clipboard_macos",
