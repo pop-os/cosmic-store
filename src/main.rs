@@ -1872,9 +1872,9 @@ impl App {
                     let image_element = if let Some(image) =
                         selected.screenshot_images.get(&selected.screenshot_shown)
                     {
-                        widget::image(image.clone())
+                        widget::container(widget::image(image.clone()).height(image_height))
+                            .align_x(Alignment::Center)
                             .width(Length::Fill)
-                            .height(image_height)
                             .into()
                     } else {
                         widget::Space::new(Length::Fill, image_height).into()
