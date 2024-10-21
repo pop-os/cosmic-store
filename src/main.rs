@@ -14,7 +14,6 @@ use cosmic::{
         window::{self, Event as WindowEvent},
         Alignment, Length, Limits, Size, Subscription,
     },
-    prelude::CollectionWidget,
     theme, widget, Application, ApplicationExt, Element,
 };
 use localize::LANGUAGE_SORTER;
