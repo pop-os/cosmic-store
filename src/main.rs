@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    app::{message, Command, Core, CosmicFlags, Settings},
+    app::{message, Core, CosmicFlags, Settings, Task},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
         event::{self, Event},
         futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
-        subscription::{self, Subscription},
+        stream,
         widget::scrollable,
         window::{self, Event as WindowEvent},
-        Alignment, Length, Limits, Size,
+        Alignment, Length, Limits, Size, Subscription,
     },
-    prelude::CollectionWidget,
     theme, widget, Application, ApplicationExt, Element,
 };
 use localize::LANGUAGE_SORTER;
@@ -469,14 +468,10 @@ fn package_card_view<'a>(
                     .height(Length::Fixed(28.0))
                     .into(),
             ]))
-            .push_maybe(
-                top_controls
-                    .is_some()
-                    .then_some(widget::horizontal_space(Length::Fill)),
-            )
+            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
             .extend(top_controls.unwrap_or_default().into_iter())
             .into(),
-        widget::vertical_space(Length::Fixed(spacing.space_xxs.into())).into(),
+        widget::Space::with_height(Length::Fixed(spacing.space_xxs.into())).into(),
         widget::row::with_children(controls)
             .height(Length::Fixed(32.0))
             .spacing(spacing.space_xs)
@@ -488,18 +483,18 @@ fn package_card_view<'a>(
                 Some(icon) => widget::icon::icon(icon.clone())
                     .size(ICON_SIZE_PACKAGE)
                     .into(),
-                None => widget::horizontal_space(Length::Fixed(ICON_SIZE_PACKAGE as f32)).into(),
+                None => widget::Space::with_width(Length::Fixed(ICON_SIZE_PACKAGE as f32)).into(),
             },
             column.into(),
         ])
-        .align_items(Alignment::Center)
+        .align_y(Alignment::Center)
         .spacing(spacing.space_s),
     )
-    .center_y()
+    .align_y(Alignment::Center)
     .width(Length::Fixed(width as f32))
     .height(Length::Fixed(height))
     .padding([spacing.space_xxs, spacing.space_s])
-    .style(theme::Container::Card)
+    .class(theme::Container::Card)
     .into()
 }
 
@@ -582,7 +577,9 @@ impl SearchResult {
                     Some(icon) => widget::icon::icon(icon.clone())
                         .size(ICON_SIZE_SEARCH)
                         .into(),
-                    None => widget::horizontal_space(Length::Fixed(ICON_SIZE_SEARCH as f32)).into(),
+                    None => {
+                        widget::Space::with_width(Length::Fixed(ICON_SIZE_SEARCH as f32)).into()
+                    }
                 },
                 widget::column::with_children(vec![
                     widget::text::body(&self.info.name)
@@ -594,14 +591,14 @@ impl SearchResult {
                 ])
                 .into(),
             ])
-            .align_items(Alignment::Center)
+            .align_y(Alignment::Center)
             .spacing(spacing.space_s),
         )
-        .center_y()
+        .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
         .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
-        .style(theme::Container::Card)
+        .class(theme::Container::Card)
         .into()
     }
 }
@@ -706,8 +703,8 @@ pub struct App {
 }
 
 impl App {
-    fn open_desktop_id(&self, mut desktop_id: String) -> Command<Message> {
-        Command::perform(
+    fn open_desktop_id(&self, mut desktop_id: String) -> Task<Message> {
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     if !desktop_id.ends_with(".desktop") {
@@ -833,10 +830,10 @@ impl App {
         results
     }
 
-    fn categories(&self, categories: &'static [Category]) -> Command<Message> {
+    fn categories(&self, categories: &'static [Category]) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -866,10 +863,10 @@ impl App {
         )
     }
 
-    fn explore_results(&self, explore_page: ExplorePage) -> Command<Message> {
+    fn explore_results(&self, explore_page: ExplorePage) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     log::info!("start search for {:?}", explore_page);
@@ -946,10 +943,10 @@ impl App {
         )
     }
 
-    fn installed_results(&self) -> Command<Message> {
+    fn installed_results(&self) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -975,7 +972,7 @@ impl App {
         )
     }
 
-    fn search(&self) -> Command<Message> {
+    fn search(&self) -> Task<Message> {
         let input = self.search_input.clone();
 
         // Handle supported URI schemes before trying plain text search
@@ -1013,12 +1010,12 @@ impl App {
             Ok(ok) => ok,
             Err(err) => {
                 log::warn!("failed to parse regex {:?}: {}", pattern, err);
-                return Command::none();
+                return Task::none();
             }
         };
         let apps = self.apps.clone();
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -1129,7 +1126,7 @@ impl App {
         id: AppId,
         icon_opt: Option<widget::icon::Handle>,
         info: Arc<AppInfo>,
-    ) -> Command<Message> {
+    ) -> Task<Message> {
         log::info!(
             "selected {:?} from backend {:?} and source {:?}",
             id,
@@ -1161,7 +1158,7 @@ impl App {
         }
     }
 
-    fn update_scroll(&mut self) -> Command<Message> {
+    fn update_scroll(&mut self) -> Task<Message> {
         let scroll_context = self.scroll_context();
         // Clear unused scroll contexts
         for remove_context in scroll_context.unused_contexts() {
@@ -1176,9 +1173,9 @@ impl App {
         )
     }
 
-    fn update_backends(&mut self, refresh: bool) -> Command<Message> {
+    fn update_backends(&mut self, refresh: bool) -> Task<Message> {
         let locale = self.locale.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -1202,7 +1199,7 @@ impl App {
         )
     }
 
-    fn update_config(&mut self) -> Command<Message> {
+    fn update_config(&mut self) -> Task<Message> {
         cosmic::app::command::set_theme(self.config.app_theme.theme())
     }
 
@@ -1319,9 +1316,9 @@ impl App {
         );
     }
 
-    fn update_installed(&self) -> Command<Message> {
+    fn update_installed(&self) -> Task<Message> {
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let mut installed = Vec::new();
@@ -1361,9 +1358,9 @@ impl App {
         )
     }
 
-    fn update_updates(&self) -> Command<Message> {
+    fn update_updates(&self) -> Task<Message> {
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let mut updates = Vec::new();
@@ -1401,12 +1398,12 @@ impl App {
         )
     }
 
-    fn update_notification(&mut self) -> Command<Message> {
+    fn update_notification(&mut self) -> Task<Message> {
         // Handle closing notification if there are no operations
         if self.pending_operations.is_empty() {
             #[cfg(feature = "notify")]
             if let Some(notification_arc) = self.notification_opt.take() {
-                return Command::perform(
+                return Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || {
                             //TODO: this is nasty
@@ -1423,16 +1420,16 @@ impl App {
             }
         }
 
-        Command::none()
+        Task::none()
     }
 
-    fn handle_appstream_url(&self, input: String, path: &str) -> Command<Message> {
+    fn handle_appstream_url(&self, input: String, path: &str) -> Task<Message> {
         // Handler for appstream:component-id as described in:
         // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
         let apps = self.apps.clone();
         let backends = self.backends.clone();
         let component_id = AppId::new(path.trim_start_matches('/'));
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -1461,10 +1458,10 @@ impl App {
         )
     }
 
-    fn handle_file_url(&self, input: String, path: &str) -> Command<Message> {
+    fn handle_file_url(&self, input: String, path: &str) -> Task<Message> {
         let path = path.to_string();
         let backends = self.backends.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -1514,12 +1511,12 @@ impl App {
         )
     }
 
-    fn handle_mime_url(&self, input: String, path: &str) -> Command<Message> {
+    fn handle_mime_url(&self, input: String, path: &str) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
         let mime = path.trim_matches('/').to_string();
         let provide = AppProvide::MediaType(mime.clone());
-        Command::perform(
+        Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
@@ -1548,8 +1545,12 @@ impl App {
         )
     }
 
-    fn update_title(&mut self) -> Command<Message> {
-        self.set_window_title(fl!("app-name"), self.main_window_id())
+    fn update_title(&mut self) -> Task<Message> {
+        if let Some(window_id) = &self.window_id_opt {
+            self.set_window_title(fl!("app-name"), window_id.clone())
+        } else {
+            Task::none()
+        }
     }
 
     fn settings(&self) -> Element<Message> {
@@ -1763,19 +1764,19 @@ impl App {
                                 .size(ICON_SIZE_DETAILS)
                                 .into(),
                             None => {
-                                widget::horizontal_space(Length::Fixed(ICON_SIZE_DETAILS as f32))
+                                widget::Space::with_width(Length::Fixed(ICON_SIZE_DETAILS as f32))
                                     .into()
                             }
                         },
                         widget::column::with_children(vec![
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
-                            widget::vertical_space(Length::Fixed(space_s.into())).into(),
+                            widget::Space::with_height(Length::Fixed(space_s.into())).into(),
                             widget::row::with_children(buttons).spacing(space_xs).into(),
                         ])
                         .into(),
                     ])
-                    .align_items(Alignment::Center)
+                    .align_y(Alignment::Center)
                     .spacing(space_m),
                 );
 
@@ -1787,7 +1788,7 @@ impl App {
                     widget::dropdown(&selected.sources, selected_source, Message::SelectedSource)
                         .into()
                 }])
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .width(Length::Fill);
                 let developers_widget = widget::column::with_children(vec![
                     if selected.info.developer_name.is_empty() {
@@ -1801,14 +1802,14 @@ impl App {
                     },
                     widget::text::body(fl!("developer")).into(),
                 ])
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .width(Length::Fill);
                 let downloads_widget = widget::column::with_children(vec![
                     widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
                     //TODO: description of what this means?
                     widget::text::body(fl!("monthly-downloads")).into(),
                 ])
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .width(Length::Fill);
                 if grid_width < 416 {
                     column = column.push(
@@ -1838,7 +1839,7 @@ impl App {
                                     .into(),
                                 downloads_widget.into(),
                             ])
-                            .align_items(Alignment::Center)
+                            .align_y(Alignment::Center)
                             .into(),
                             widget::divider::horizontal::default().into(),
                         ])
@@ -1849,7 +1850,7 @@ impl App {
                 if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
                     //TODO: get proper image dimensions
                     let image_height = Length::Fixed(480.0);
-                    let mut row = widget::row::with_capacity(3).align_items(Alignment::Center);
+                    let mut row = widget::row::with_capacity(3).align_y(Alignment::Center);
                     {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-previous-symbolic").size(16),
@@ -1870,9 +1871,9 @@ impl App {
                     let image_element = if let Some(image) =
                         selected.screenshot_images.get(&selected.screenshot_shown)
                     {
-                        widget::image(image.clone())
+                        widget::container(widget::image(image.clone()).height(image_height))
+                            .align_x(Alignment::Center)
                             .width(Length::Fill)
-                            .height(image_height)
                             .into()
                     } else {
                         widget::Space::new(Length::Fill, image_height).into()
@@ -1882,7 +1883,7 @@ impl App {
                             image_element,
                             widget::text::caption(&screenshot.caption).into(),
                         ])
-                        .align_items(Alignment::Center),
+                        .align_x(Alignment::Center),
                     );
                     {
                         let mut button = widget::button::icon(
@@ -1989,7 +1990,7 @@ impl App {
                         column = column.push(
                             widget::row::with_children(url_items)
                                 .spacing(space_s)
-                                .align_items(Alignment::Center),
+                                .align_y(Alignment::Center),
                         );
                     }
                 }
@@ -2086,7 +2087,7 @@ impl App {
 
                                             column = column.push(widget::row::with_children(vec![
                                                 widget::text::title4(explore_page.title()).into(),
-                                                widget::horizontal_space(Length::Fill).into(),
+                                                widget::horizontal_space().into(),
                                                 widget::button::text(fl!("see-all"))
                                                     .trailing_icon(icon_cache_handle(
                                                         "go-next-symbolic",
@@ -2152,7 +2153,9 @@ impl App {
                                                 .into(),
                                         );
                                     } else {
-                                        buttons.push(widget::vertical_space(Length::Shrink).into());
+                                        buttons.push(
+                                            widget::Space::with_height(Length::Shrink).into(),
+                                        );
                                     }
                                     grid = grid.push(
                                         widget::mouse_area(package_card_view(
@@ -2198,7 +2201,7 @@ impl App {
                                         widget::button::standard(fl!("update-all"))
                                             .on_press(Message::UpdateAll)
                                             .into(),
-                                        widget::horizontal_space(Length::Fill).into(),
+                                        widget::horizontal_space().into(),
                                     ]));
                                 }
 
@@ -2350,7 +2353,7 @@ impl Application for App {
     }
 
     /// Creates the application, and optionally emits command on initialize.
-    fn init(core: Core, flags: Self::Flags) -> (Self, Command<Self::Message>) {
+    fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
@@ -2371,6 +2374,9 @@ impl Application for App {
                 nav_model.activate(id);
             }
         }
+
+        //TODO: is this going to be set correctly?
+        let window_id_opt = core.main_window_id();
 
         let mut app = App {
             core,
@@ -2395,7 +2401,7 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
-            window_id_opt: Some(window::Id::MAIN),
+            window_id_opt,
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),
@@ -2413,12 +2419,8 @@ impl Application for App {
             app.search_input = subcommand;
         }
 
-        let command = Command::batch([app.update_title(), app.update_backends(false)]);
+        let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
-    }
-
-    fn main_window_id(&self) -> window::Id {
-        self.window_id_opt.unwrap_or(window::Id::MAIN)
     }
 
     fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
@@ -2426,27 +2428,27 @@ impl Application for App {
     }
 
     #[cfg(feature = "single-instance")]
-    fn dbus_activation(&mut self, msg: cosmic::app::DbusActivationMessage) -> Command<Message> {
+    fn dbus_activation(&mut self, msg: cosmic::app::DbusActivationMessage) -> Task<Message> {
         //TODO: parse msg
         log::info!("{:?}", msg);
         if self.window_id_opt.is_none() {
-            let (window_id, command) = window::spawn(window::Settings {
+            let (window_id, task) = window::open(window::Settings {
                 min_size: Some(Size::new(360.0, 180.0)),
                 decorations: false,
                 exit_on_close_request: false,
                 ..Default::default()
             });
             self.window_id_opt = Some(window_id);
-            return command;
+            return task.map(|_id| message::none());
         }
-        Command::none()
+        Task::none()
     }
 
     fn on_app_exit(&mut self) -> Option<Message> {
         Some(Message::WindowClose)
     }
 
-    fn on_escape(&mut self) -> Command<Message> {
+    fn on_escape(&mut self) -> Task<Message> {
         if self.core.window.show_context {
             // Close context drawer if open
             self.core.window.show_context = false;
@@ -2457,10 +2459,10 @@ impl Application for App {
                 return self.update_scroll();
             }
         }
-        Command::none()
+        Task::none()
     }
 
-    fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Command<Message> {
+    fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Task<Message> {
         self.category_results = None;
         self.explore_page_opt = None;
         self.search_active = false;
@@ -2484,11 +2486,11 @@ impl Application for App {
             }
             _ => {}
         }
-        Command::batch(commands)
+        Task::batch(commands)
     }
 
     /// Handle application events here.
-    fn update(&mut self, message: Self::Message) -> Command<Message> {
+    fn update(&mut self, message: Self::Message) -> Task<Message> {
         // Helper for updating config values efficiently
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
@@ -2523,7 +2525,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                return Command::batch([self.update_installed(), self.update_updates()]);
+                return Task::batch([self.update_installed(), self.update_updates()]);
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
@@ -2587,7 +2589,7 @@ impl Application for App {
                 for explore_page in ExplorePage::all() {
                     commands.push(self.explore_results(*explore_page));
                 }
-                return Command::batch(commands);
+                return Task::batch(commands);
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
@@ -2642,7 +2644,7 @@ impl Application for App {
                     }
                     //TODO: self.complete_operations.insert(id, op);
                 }
-                return Command::batch([
+                return Task::batch([
                     self.update_notification(),
                     self.update_installed(),
                     self.update_updates(),
@@ -2818,7 +2820,7 @@ impl Application for App {
                         if screenshot.url == url {
                             selected
                                 .screenshot_images
-                                .insert(i, widget::image::Handle::from_memory(data));
+                                .insert(i, widget::image::Handle::from_bytes(data));
                         }
                     }
                 }
@@ -2913,9 +2915,9 @@ impl Application for App {
             }
             Message::WindowClose => {
                 if let Some(window_id) = self.window_id_opt.take() {
-                    return Command::batch([
+                    return Task::batch([
                         window::close(window_id),
-                        Command::perform(async move { message::app(Message::MaybeExit) }, |x| x),
+                        Task::perform(async move { message::app(Message::MaybeExit) }, |x| x),
                     ]);
                 }
             }
@@ -2932,7 +2934,7 @@ impl Application for App {
             },
         }
 
-        Command::none()
+        Task::none()
     }
 
     fn context_drawer(&self) -> Option<Element<Message>> {
@@ -3008,7 +3010,7 @@ impl Application for App {
                 widget::container(
                     widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
                 )
-                .center_x(),
+                .align_x(Alignment::Center),
             )
             .id(self.scrollable_id.clone())
             .on_scroll(Message::ScrollView)
@@ -3026,11 +3028,11 @@ impl Application for App {
         struct ThemeSubscription;
 
         let mut subscriptions = vec![
-            event::listen_with(|event, _status| match event {
+            event::listen_with(|event, _status, _window_id| match event {
                 Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => {
                     Some(Message::Key(modifiers, key))
                 }
-                Event::Window(_id, WindowEvent::CloseRequested) => Some(Message::WindowClose),
+                Event::Window(WindowEvent::CloseRequested) => Some(Message::WindowClose),
                 _ => None,
             }),
             cosmic_config::config_subscription(
@@ -3061,23 +3063,21 @@ impl Application for App {
             #[cfg(feature = "logind")]
             {
                 struct InhibitSubscription;
-                subscriptions.push(subscription::channel(
+                subscriptions.push(Subscription::run_with_id(
                     TypeId::of::<InhibitSubscription>(),
-                    1,
-                    move |_msg_tx| async move {
+                    stream::channel(1, move |_msg_tx| async move {
                         let _inhibits = logind::inhibit().await;
                         pending().await
-                    },
+                    }),
                 ));
             }
 
             #[cfg(feature = "notify")]
             if self.window_id_opt.is_none() {
                 struct NotificationSubscription;
-                subscriptions.push(subscription::channel(
+                subscriptions.push(Subscription::run_with_id(
                     TypeId::of::<NotificationSubscription>(),
-                    1,
-                    move |msg_tx| async move {
+                    stream::channel(1, move |msg_tx| async move {
                         let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                         tokio::task::spawn_blocking(move || match notify_rust::Notification::new()
                             .summary(&fl!("notification-in-progress"))
@@ -3103,7 +3103,7 @@ impl Application for App {
                         .unwrap();
 
                         pending().await
-                    },
+                    }),
                 ));
             }
         }
@@ -3113,56 +3113,58 @@ impl Application for App {
             let id = *id;
             let backend_opt = self.backends.get(op.backend_name).map(|x| x.clone());
             let op = op.clone();
-            subscriptions.push(subscription::channel(id, 16, move |msg_tx| async move {
-                let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
-                let res = match backend_opt {
-                    Some(backend) => {
-                        let msg_tx = msg_tx.clone();
-                        tokio::task::spawn_blocking(move || {
-                            backend
-                                .operation(
-                                    &op,
-                                    Box::new(move |progress| -> () {
-                                        let _ = futures::executor::block_on(async {
-                                            msg_tx
-                                                .lock()
-                                                .await
-                                                .send(Message::PendingProgress(id, progress))
-                                                .await
-                                        });
-                                    }),
-                                )
-                                .map_err(|err| err.to_string())
-                        })
-                        .await
-                        .unwrap()
-                    }
-                    None => Err(format!("backend {:?} not found", op.backend_name)),
-                };
-
-                match res {
-                    Ok(()) => {
-                        let _ = msg_tx.lock().await.send(Message::PendingComplete(id)).await;
-                    }
-                    Err(err) => {
-                        let _ = msg_tx
-                            .lock()
+            subscriptions.push(Subscription::run_with_id(
+                id,
+                stream::channel(16, move |msg_tx| async move {
+                    let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
+                    let res = match backend_opt {
+                        Some(backend) => {
+                            let msg_tx = msg_tx.clone();
+                            tokio::task::spawn_blocking(move || {
+                                backend
+                                    .operation(
+                                        &op,
+                                        Box::new(move |progress| -> () {
+                                            let _ = futures::executor::block_on(async {
+                                                msg_tx
+                                                    .lock()
+                                                    .await
+                                                    .send(Message::PendingProgress(id, progress))
+                                                    .await
+                                            });
+                                        }),
+                                    )
+                                    .map_err(|err| err.to_string())
+                            })
                             .await
-                            .send(Message::PendingError(id, err.to_string()))
-                            .await;
+                            .unwrap()
+                        }
+                        None => Err(format!("backend {:?} not found", op.backend_name)),
+                    };
+
+                    match res {
+                        Ok(()) => {
+                            let _ = msg_tx.lock().await.send(Message::PendingComplete(id)).await;
+                        }
+                        Err(err) => {
+                            let _ = msg_tx
+                                .lock()
+                                .await
+                                .send(Message::PendingError(id, err.to_string()))
+                                .await;
+                        }
                     }
-                }
-                pending().await
-            }));
+                    pending().await
+                }),
+            ));
         }
 
         if let Some(selected) = &self.selected_opt {
             for (screenshot_i, screenshot) in selected.info.screenshots.iter().enumerate() {
                 let url = screenshot.url.clone();
-                subscriptions.push(subscription::channel(
+                subscriptions.push(Subscription::run_with_id(
                     url.clone(),
-                    16,
-                    move |mut msg_tx| async move {
+                    stream::channel(16, move |mut msg_tx| async move {
                         log::info!("fetch screenshot {}", url);
                         match reqwest::get(&url).await {
                             Ok(response) => match response.bytes().await {
@@ -3189,7 +3191,7 @@ impl Application for App {
                             }
                         }
                         pending().await
-                    },
+                    }),
                 ));
             }
         }
