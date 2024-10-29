@@ -1,10 +1,9 @@
 use cosmic::iced::keyboard::{Key, Modifiers};
-use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt};
 
 use crate::Action;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Modifier {
     Super,
     Ctrl,
@@ -12,7 +11,7 @@ pub enum Modifier {
     Shift,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct KeyBind {
     pub modifiers: Vec<Modifier>,
     pub key: Key,
