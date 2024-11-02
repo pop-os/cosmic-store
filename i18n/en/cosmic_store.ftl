@@ -1,80 +1,80 @@
-app-name = COSMIC Store
-back = Back
-cancel = Cancel
-check-for-updates = Check for updates
-checking-for-updates = Checking for updates...
-install = Install
-no-installed-applications = No installed applications.
-no-updates = All installed applications are up to date.
-no-results = No results for "{$search}".
-notification-in-progress = Installations and updates are in progress.
-open = Open
-see-all = See all
-uninstall = Uninstall
-update = Update
-update-all = Update all
+app-name = COSMIC Uygulama Mağazası
+back = Geri
+cancel = İptal
+check-for-updates = Güncellemeleri kontrol et
+checking-for-updates = Güncellemeler kontrol ediliyor...
+install = Kur
+no-installed-applications = Yüklü uygulama yok.
+no-updates = Yüklü tüm uygulamalar güncel
+no-results = "{$search}" için sonuç bulunamadı.
+notification-in-progress = Kurulumlar ve güncellemeler devam ediyor.
+open = Aç
+see-all = Tümünü gör
+uninstall = Kaldır
+update = Güncelle
+update-all = Tümünü güncelle
 
 # Uninstall Dialog
-uninstall-app = Uninstall {$name}
-uninstall-app-warning = Are you sure you want to uninstall {$name}?
+uninstall-app = {$name} yüklemesini kaldır
+uninstall-app-warning = {$name} yüklemesini kaldırmak istediğinden emin misin?
 
 # Nav Pages
-explore = Explore
-create = Create
-work = Work
-develop = Develop
-learn = Learn
-game = Game
+explore = Keşfet
+create = Üretim
+work = İş
+develop = Geliştirme
+learn = Eğitim
+game = Oyun
 relax = Relax
-socialize = Socialize
-utilities = Utilities
-installed-apps = Installed apps
-updates = Updates
+socialize = Sosyal
+utilities = Y. Araçlar
+installed-apps = Yüklü uygulamalar
+updates = Güncellemeler
 
 # Explore Pages
-editors-choice = Editor's Choice
-popular-apps = Popular Apps
-made-for-cosmic = Made for COSMIC
-new-apps = New Apps
-recently-updated = Recently Updated
-development-tools = Development Tools
-scientific-tools = Scientific Tools
-productivity-apps = Productivity Apps
-graphics-and-photography-tools = Graphics & Photography Tools
-social-networking-apps = Social Networking Apps
-games = Games
-music-and-video-apps = Music & Video Apps
-apps-for-learning = Apps for Learning
+editors-choice = Editörün seçimi
+popular-apps = Popüler uygulamalar
+made-for-cosmic = COSMIC için üretildi
+new-apps = Yeni uygulamalar
+recently-updated = Son güncellenen uygulamalar
+development-tools = Geliştirici araçları
+scientific-tools = Bilimsel araçlar
+productivity-apps = Verimlilik uygulamaları
+graphics-and-photography-tools = Grafik ve Fotoğrafçılık araçları
+social-networking-apps = Sosyal ağ uygulamaları
+games = Oyunlar
+music-and-video-apps = Müzik ve Video uygulamaları
+apps-for-learning = Öğrenmeye yönelik uygulamalar
 
 # Details Page
 source-installed = {$source} (installed)
-developer = Developer
-app-developers = {$app} Developers
-monthly-downloads = Flathub Monthly Downloads
-licenses = Licenses
-proprietary = Proprietary
+developer = Geliştirici
+app-developers = {$app} geliştiricileri
+monthly-downloads = Flathub aylık indirmeler
+licenses = Lisanslar
+proprietary = Tescilli
 
 ## App URLs
-bug-tracker = Bug tracker
-contact = Contact
-donation = Donation
-faq = FAQ
-help = Help
-homepage = Homepage
-translate = Translate
+bug-tracker = Hata izleyici
+contact = İletişim
+donation = Bağış
+faq = SSS
+help = Yardım
+homepage = Ana sayfa
+translate = Çeviri
 
 # Context Pages
 
 ## Settings
-settings = Settings
+settings = Ayarlar
 
 ## Release notes
-latest-version = Latest version
-no-description = No description available.
+latest-version = Son sürüm
+no-description = Açıklama yok.
 
 ### Appearance
-appearance = Appearance
-theme = Theme
-match-desktop = Match desktop
-dark = Dark
-light = Light
+appearance = Görünüm
+theme = Tema
+match-desktop = Masaüstünü takip et
+dark = Koyu
+light = Açık
