@@ -1627,6 +1627,7 @@ impl App {
     fn view_responsive(&self, size: Size) -> Element<Message> {
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
+            space_l,
             space_m,
             space_s,
             space_xs,
@@ -1872,8 +1873,7 @@ impl App {
                         selected.screenshot_images.get(&selected.screenshot_shown)
                     {
                         widget::container(widget::image(image.clone()).height(image_height))
-                            .align_x(Alignment::Center)
-                            .width(Length::Fill)
+                            .center_x(Length::Fill)
                             .into()
                     } else {
                         widget::Space::new(Length::Fill, image_height).into()
@@ -2187,21 +2187,40 @@ impl App {
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(widget::text::title2(NavPage::Updates.title()));
                         match &self.updates {
                             Some(updates) => {
                                 if updates.is_empty() {
-                                    column = column.push(widget::text(fl!("no-updates")));
-                                    column = column.push(
-                                        widget::button::standard(fl!("check-for-updates"))
-                                            .on_press(Message::CheckUpdates),
-                                    );
+                                    column = column
+                                        .push(widget::text::title2(NavPage::Updates.title()))
+                                        .push(
+                                            widget::column::with_capacity(2)
+                                                .spacing(space_s)
+                                                .padding([space_l, 0])
+                                                .width(Length::Fill)
+                                                .align_x(Alignment::Center)
+                                                .push(widget::text::body(fl!("no-updates")))
+                                                .push(
+                                                    widget::button::standard(fl!(
+                                                        "check-for-updates"
+                                                    ))
+                                                    .on_press(Message::CheckUpdates),
+                                                ),
+                                        );
                                 } else {
-                                    column = column.push(widget::row::with_children(vec![
-                                        widget::button::standard(fl!("update-all"))
-                                            .on_press(Message::UpdateAll)
+                                    column = column.push(widget::flex_row(vec![
+                                        widget::text::title2(NavPage::Updates.title()).into(),
+                                        widget::horizontal_space().width(Length::Fill).into(),
+                                        widget::row::with_capacity(2)
+                                            .spacing(space_xxs)
+                                            .push(
+                                                widget::button::standard(fl!("check-for-updates"))
+                                                    .on_press(Message::CheckUpdates),
+                                            )
+                                            .push(
+                                                widget::button::standard(fl!("update-all"))
+                                                    .on_press(Message::UpdateAll),
+                                            )
                                             .into(),
-                                        widget::horizontal_space().into(),
                                     ]));
                                 }
 
@@ -2289,7 +2308,21 @@ impl App {
                                 );
                             }
                             None => {
-                                column = column.push(widget::text(fl!("checking-for-updates")));
+                                column = column
+                                    .push(widget::text::title2(NavPage::Updates.title()))
+                                    .push(
+                                        widget::column::with_capacity(2)
+                                            .spacing(space_s)
+                                            .padding([space_l, 0])
+                                            .width(Length::Fill)
+                                            .align_x(Alignment::Center)
+                                            /*.push(
+                                                widget::progress_bar(0.0..=100.0, progress)
+                                                    .height(Length::Fixed(4.0))
+                                                    .width(Length::Fixed(446.0)),
+                                            )*/
+                                            .push(widget::text(fl!("checking-for-updates"))),
+                                    );
                             }
                         }
                         column.into()
