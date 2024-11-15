@@ -464,38 +464,37 @@ fn package_card_view<'a>(
     let column = widget::column::with_children(vec![
         widget::row::with_capacity(top_row_cap)
             .push(widget::column::with_children(vec![
-                widget::text::body(&info.name)
-                    .height(Length::Fixed(20.0))
-                    .into(),
-                widget::text::caption(&info.summary)
-                    .height(Length::Fixed(28.0))
-                    .into(),
+                widget::text::body(&info.name).height(20.0).into(),
+                widget::text::caption(&info.summary).height(28.0).into(),
             ]))
-            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
-            .extend(top_controls.unwrap_or_default().into_iter())
             .into(),
         widget::Space::with_height(Length::Fixed(spacing.space_xxs.into())).into(),
         widget::row::with_children(controls)
-            .height(Length::Fixed(32.0))
+            .height(32.0)
             .spacing(spacing.space_xs)
             .into(),
-    ]);
+    ])
+    .width(width as f32 - 180.0);
+
+    let icon: Element<_> = match icon_opt {
+        Some(icon) => widget::icon::icon(icon.clone())
+            .size(ICON_SIZE_PACKAGE)
+            .into(),
+        None => widget::Space::with_width(ICON_SIZE_PACKAGE as f32).into(),
+    };
+
     widget::container(
-        widget::row::with_children(vec![
-            match icon_opt {
-                Some(icon) => widget::icon::icon(icon.clone())
-                    .size(ICON_SIZE_PACKAGE)
-                    .into(),
-                None => widget::Space::with_width(Length::Fixed(ICON_SIZE_PACKAGE as f32)).into(),
-            },
-            column.into(),
-        ])
-        .align_y(Alignment::Center)
-        .spacing(spacing.space_s),
+        widget::row()
+            .push(icon)
+            .push(column)
+            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
+            .extend(top_controls.unwrap_or_default())
+            .align_y(Alignment::Center)
+            .spacing(spacing.space_s),
     )
     .align_y(Alignment::Center)
-    .width(Length::Fixed(width as f32))
-    .height(Length::Fixed(height))
+    .width(width as f32)
+    .height(height)
     .padding([spacing.space_xxs, spacing.space_s])
     .class(theme::Container::Card)
     .into()
