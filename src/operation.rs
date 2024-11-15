@@ -18,6 +18,32 @@ pub struct Operation {
 }
 
 impl Operation {
+    pub fn pending_text(&self, progress: i32) -> String {
+        //TODO: translate
+        let verb = match self.kind {
+            OperationKind::Install => "Installing",
+            OperationKind::Uninstall => "Uninstalling",
+            OperationKind::Update => "Updating",
+        };
+        format!(
+            "{} {} from {} ({}%)...",
+            verb, self.infos[0].name, self.infos[0].source_name, progress
+        )
+    }
+
+    pub fn completed_text(&self) -> String {
+        //TODO: translate
+        let verb = match self.kind {
+            OperationKind::Install => "Installed",
+            OperationKind::Uninstall => "Uninstalled",
+            OperationKind::Update => "Updated",
+        };
+        format!(
+            "{} {} from {}",
+            verb, self.infos[0].name, self.infos[0].source_name
+        )
+    }
+
     pub fn failed_dialog(&self, err: &str) -> (String, String) {
         //TODO: translate
         let verb = match self.kind {

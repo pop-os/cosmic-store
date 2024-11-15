@@ -14,6 +14,12 @@ uninstall = Uninstall
 update = Update
 update-all = Update all
 
+# Progress footer
+details = Details
+dismiss = Dismiss message
+operations-running = {$running} operations running ({$percent}%)...
+operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
+
 # Uninstall Dialog
 uninstall-app = Uninstall {$name}
 uninstall-app-warning = Are you sure you want to uninstall {$name}?
@@ -64,6 +70,14 @@ homepage = Homepage
 translate = Translate
 
 # Context Pages
+
+## Operations
+cancelled = Cancelled
+operations = Operations
+no-operations = No operations in history.
+pending = Pending
+failed = Failed
+complete = Complete
 
 ## Settings
 settings = Settings

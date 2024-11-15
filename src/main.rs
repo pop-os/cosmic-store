@@ -21,7 +21,7 @@ use rayon::prelude::*;
 use std::{
     any::TypeId,
     cmp,
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     env,
     future::pending,
     path::Path,
@@ -181,6 +181,7 @@ pub enum Message {
     OpenDesktopId(String),
     Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
     PendingComplete(u64),
+    PendingDismiss,
     PendingError(u64, String),
     PendingProgress(u64, f32),
     ScrollView(scrollable::Viewport),
@@ -205,23 +206,25 @@ pub enum Message {
     SelectedScreenshotShown(usize),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
-    ToggleContextPage(ContextPage, String),
+    ToggleContextPage(ContextPage),
     UpdateAll,
     Updates(Vec<(&'static str, Package)>),
     WindowClose,
     WindowNew,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContextPage {
-    ReleaseNotes(usize),
+    Operations,
+    ReleaseNotes(usize, String),
     Settings,
 }
 
 impl ContextPage {
-    fn title(&self, app_name: String) -> String {
+    fn title(&self) -> String {
         match self {
-            Self::ReleaseNotes(_) => app_name,
+            Self::Operations => fl!("operations"),
+            Self::ReleaseNotes(_, app_name) => app_name.clone(),
             Self::Settings => fl!("settings"),
         }
     }
@@ -680,7 +683,9 @@ pub struct App {
     notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, f32)>,
-    failed_operations: BTreeMap<u64, (Operation, String)>,
+    progress_operations: BTreeSet<u64>,
+    complete_operations: BTreeMap<u64, Operation>,
+    failed_operations: BTreeMap<u64, (Operation, f32, String)>,
     scrollable_id: widget::Id,
     scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
@@ -765,6 +770,7 @@ impl App {
     fn operation(&mut self, operation: Operation) {
         let id = self.pending_operation_id;
         self.pending_operation_id += 1;
+        self.progress_operations.insert(id);
         self.pending_operations.insert(id, (operation, 0.0));
     }
 
@@ -1553,6 +1559,58 @@ impl App {
         }
     }
 
+    fn operations(&self) -> Element<Message> {
+        let cosmic_theme::Spacing {
+            space_xs, space_m, ..
+        } = theme::active().cosmic().spacing;
+
+        let mut children = Vec::new();
+
+        //TODO: get height from theme?
+        let progress_bar_height = Length::Fixed(4.0);
+
+        if !self.pending_operations.is_empty() {
+            let mut section = widget::settings::section().title(fl!("pending"));
+            for (_id, (op, progress)) in self.pending_operations.iter().rev() {
+                section = section.add(widget::column::with_children(vec![
+                    widget::progress_bar(0.0..=100.0, *progress)
+                        .height(progress_bar_height)
+                        .into(),
+                    widget::Space::with_height(space_xs).into(),
+                    widget::text(op.pending_text(*progress as i32)).into(),
+                ]));
+            }
+            children.push(section.into());
+        }
+
+        if !self.failed_operations.is_empty() {
+            let mut section = widget::settings::section().title(fl!("failed"));
+            for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
+                section = section.add(widget::column::with_children(vec![
+                    widget::text(op.pending_text(*progress as i32)).into(),
+                    widget::text(error).into(),
+                ]));
+            }
+            children.push(section.into());
+        }
+
+        if !self.complete_operations.is_empty() {
+            let mut section = widget::settings::section().title(fl!("complete"));
+            for (_id, op) in self.complete_operations.iter().rev() {
+                section = section.add(widget::text(op.completed_text()));
+            }
+            children.push(section.into());
+        }
+
+        if children.is_empty() {
+            children.push(widget::text::body(fl!("no-operations")).into());
+        }
+
+        widget::column::with_children(children)
+            .spacing(space_m)
+            .into()
+    }
+
     fn settings(&self) -> Element<Message> {
         let app_theme_selected = match self.config.app_theme {
             AppTheme::Dark => 1,
@@ -2283,8 +2341,10 @@ impl App {
                                         widget::icon::from_name("help-info-symbolic"),
                                     )
                                     .on_press(Message::ToggleContextPage(
-                                        ContextPage::ReleaseNotes(updates_i),
-                                        package.info.name.clone(),
+                                        ContextPage::ReleaseNotes(
+                                            updates_i,
+                                            package.info.name.clone(),
+                                        ),
                                     ))
                                     .into()]);
                                     if col >= cols {
@@ -2428,6 +2488,8 @@ impl Application for App {
             notification_opt: None,
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
+            progress_operations: BTreeSet::new(),
+            complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
             scrollable_id: widget::Id::unique(),
             scroll_views: HashMap::new(),
@@ -2675,7 +2737,11 @@ impl Application for App {
                             package_id.clone(),
                         ));
                     }
-                    //TODO: self.complete_operations.insert(id, op);
+                    self.complete_operations.insert(id, op);
+                }
+                // Close progress notification if all relavent operations are finished
+                if self.pending_operations.is_empty() {
+                    self.progress_operations.clear();
                 }
                 return Task::batch([
                     self.update_notification(),
@@ -2683,11 +2749,18 @@ impl Application for App {
                     self.update_updates(),
                 ]);
             }
+            Message::PendingDismiss => {
+                self.progress_operations.clear();
+            }
             Message::PendingError(id, err) => {
                 log::warn!("operation {id} failed: {err}");
-                if let Some((op, _)) = self.pending_operations.remove(&id) {
-                    self.failed_operations.insert(id, (op, err));
+                if let Some((op, progress)) = self.pending_operations.remove(&id) {
+                    self.failed_operations.insert(id, (op, progress, err));
                     self.dialog_pages.push_back(DialogPage::FailedOperation(id));
+                }
+                // Close progress notification if all relavent operations are finished
+                if self.pending_operations.is_empty() {
+                    self.progress_operations.clear();
                 }
             }
             Message::PendingProgress(id, new_progress) => {
@@ -2914,15 +2987,15 @@ impl Application for App {
             Message::SystemThemeModeChange(_theme_mode) => {
                 return self.update_config();
             }
-            Message::ToggleContextPage(context_page, app_name) => {
+            Message::ToggleContextPage(context_page) => {
                 //TODO: ensure context menus are closed
+                self.set_context_title(context_page.title());
                 if self.context_page == context_page {
                     self.core.window.show_context = !self.core.window.show_context;
                 } else {
                     self.context_page = context_page;
                     self.core.window.show_context = true;
                 }
-                self.set_context_title(context_page.title(app_name));
             }
             Message::UpdateAll => {
                 if let Some(updates) = &self.updates {
@@ -2976,8 +3049,9 @@ impl Application for App {
         }
 
         Some(match self.context_page {
+            ContextPage::Operations => self.operations(),
             ContextPage::Settings => self.settings(),
-            ContextPage::ReleaseNotes(i) => self.release_notes(i),
+            ContextPage::ReleaseNotes(i, _) => self.release_notes(i),
         })
     }
 
@@ -2990,7 +3064,7 @@ impl Application for App {
         let dialog = match dialog_page {
             DialogPage::FailedOperation(id) => {
                 //TODO: try next dialog page (making sure index is used by Dialog messages)?
-                let (operation, err) = self.failed_operations.get(id)?;
+                let (operation, _, err) = self.failed_operations.get(id)?;
 
                 let (title, body) = operation.failed_dialog(&err);
                 widget::dialog(title)
@@ -3016,6 +3090,85 @@ impl Application for App {
         };
 
         Some(dialog.into())
+    }
+
+    fn footer(&self) -> Option<Element<Message>> {
+        if self.progress_operations.is_empty() {
+            return None;
+        }
+
+        let cosmic_theme::Spacing {
+            space_xxs,
+            space_xs,
+            space_s,
+            ..
+        } = theme::active().cosmic().spacing;
+
+        let mut title = String::new();
+        let mut total_progress = 0.0;
+        let mut count = 0;
+        for (_id, (op, progress)) in self.pending_operations.iter() {
+            if title.is_empty() {
+                title = op.pending_text(*progress as i32);
+            }
+            total_progress += progress;
+            count += 1;
+        }
+        let running = count;
+        // Adjust the progress bar so it does not jump around when operations finish
+        for id in self.progress_operations.iter() {
+            if self.complete_operations.contains_key(&id) {
+                total_progress += 100.0;
+                count += 1;
+            }
+        }
+        let finished = count - running;
+        total_progress /= count as f32;
+        if running > 1 {
+            if finished > 0 {
+                title = fl!(
+                    "operations-running-finished",
+                    running = running,
+                    finished = finished,
+                    percent = (total_progress as i32)
+                );
+            } else {
+                title = fl!(
+                    "operations-running",
+                    running = running,
+                    percent = (total_progress as i32)
+                );
+            }
+        }
+
+        //TODO: get height from theme?
+        let progress_bar_height = Length::Fixed(4.0);
+        let progress_bar =
+            widget::progress_bar(0.0..=100.0, total_progress).height(progress_bar_height);
+
+        let container = widget::layer_container(widget::column::with_children(vec![
+            progress_bar.into(),
+            widget::Space::with_height(space_xs).into(),
+            widget::text::body(title).into(),
+            widget::Space::with_height(space_s).into(),
+            widget::row::with_children(vec![
+                widget::button::link(fl!("details"))
+                    .on_press(Message::ToggleContextPage(ContextPage::Operations))
+                    .padding(0)
+                    .trailing_icon(true)
+                    .into(),
+                widget::horizontal_space().into(),
+                widget::button::standard(fl!("dismiss"))
+                    .on_press(Message::PendingDismiss)
+                    .into(),
+            ])
+            .align_y(Alignment::Center)
+            .into(),
+        ]))
+        .padding([space_xxs, space_xs])
+        .layer(cosmic_theme::Layer::Primary);
+
+        Some(container.into())
     }
 
     fn header_start(&self) -> Vec<Element<Message>> {
