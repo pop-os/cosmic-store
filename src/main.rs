@@ -464,17 +464,24 @@ fn package_card_view<'a>(
     let column = widget::column::with_children(vec![
         widget::row::with_capacity(top_row_cap)
             .push(widget::column::with_children(vec![
-                widget::text::body(&info.name).height(20.0).into(),
-                widget::text::caption(&info.summary).height(28.0).into(),
+                widget::text::body(&info.name)
+                    .height(20.0)
+                    .width(width as f32 - 180.0)
+                    .into(),
+                widget::text::caption(&info.summary)
+                    .height(28.0)
+                    .width(width as f32 - 180.0)
+                    .into(),
             ]))
+            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
+            .extend(top_controls.unwrap_or_default())
             .into(),
         widget::Space::with_height(Length::Fixed(spacing.space_xxs.into())).into(),
         widget::row::with_children(controls)
             .height(32.0)
             .spacing(spacing.space_xs)
             .into(),
-    ])
-    .width(width as f32 - 180.0);
+    ]);
 
     let icon: Element<_> = match icon_opt {
         Some(icon) => widget::icon::icon(icon.clone())
@@ -487,8 +494,6 @@ fn package_card_view<'a>(
         widget::row()
             .push(icon)
             .push(column)
-            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
-            .extend(top_controls.unwrap_or_default())
             .align_y(Alignment::Center)
             .spacing(spacing.space_s),
     )
