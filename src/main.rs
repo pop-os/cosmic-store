@@ -724,35 +724,34 @@ impl App {
                             return None;
                         }
                     };
-                    let entry = match freedesktop_entry_parser::parse_entry(&path) {
-                        Ok(ok) => ok,
-                        Err(err) => {
-                            log::warn!("failed to read desktop file {:?}: {}", path, err);
+                    let entry = match cosmic::desktop::load_desktop_file(None, &path) {
+                        Some(entry) => entry,
+                        None => {
+                            log::warn!("failed to read desktop file {:?}", path);
                             return None;
                         }
                     };
-                    //TODO: handle Terminal=true
-                    let exec = match entry.section("Desktop Entry").attr("Exec") {
+                    let exec = match entry.exec {
                         Some(some) => some,
                         None => {
                             log::warn!("no exec section in {:?}", path);
                             return None;
                         }
                     };
-                    //TODO: use libcosmic for loading desktop data
-                    Some((exec.to_string(), desktop_id))
+                    Some((exec, desktop_id, entry.terminal))
                 })
                 .await
                 .unwrap_or(None)
             },
             |result| {
                 #[cfg(feature = "desktop")]
-                if let Some((exec, desktop_id)) = result {
+                if let Some((exec, desktop_id, terminal)) = result {
                     tokio::spawn(async move {
                         cosmic::desktop::spawn_desktop_exec(
                             &exec,
                             Vec::<(&str, &str)>::new(),
                             Some(&desktop_id),
+                            terminal,
                         )
                         .await;
                     });
@@ -2993,7 +2992,8 @@ impl Application for App {
                 let (operation, err) = self.failed_operations.get(id)?;
 
                 let (title, body) = operation.failed_dialog(&err);
-                widget::dialog(title)
+                widget::dialog()
+                    .title(title)
                     .body(body)
                     .icon(widget::icon::from_name("dialog-error").size(64))
                     //TODO: retry action
@@ -3001,18 +3001,16 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
-            DialogPage::Uninstall(_backend_name, _id, info) => {
-                widget::dialog(fl!("uninstall-app", name = info.name.as_str()))
-                    .body(fl!("uninstall-app-warning", name = info.name.as_str()))
-                    .icon(widget::icon::from_name(Self::APP_ID).size(64))
-                    .primary_action(
-                        widget::button::destructive(fl!("uninstall"))
-                            .on_press(Message::DialogConfirm),
-                    )
-                    .secondary_action(
-                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                    )
-            }
+            DialogPage::Uninstall(_backend_name, _id, info) => widget::dialog()
+                .title(fl!("uninstall-app", name = info.name.as_str()))
+                .body(fl!("uninstall-app-warning", name = info.name.as_str()))
+                .icon(widget::icon::from_name(Self::APP_ID).size(64))
+                .primary_action(
+                    widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
+                )
+                .secondary_action(
+                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                ),
         };
 
         Some(dialog.into())
