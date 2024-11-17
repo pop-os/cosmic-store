@@ -47,7 +47,8 @@ notify-rust = { version = "4", optional = true }
 packagekit-zbus = { version = "0.1", optional = true }
 
 [dependencies.libcosmic]
-git = "https://github.com/pop-os/libcosmic.git"
+git = "https://github.com/jpttrssn/libcosmic.git"
+branch = "launch-app-in-term"
 default-features = false
 features = ["multi-window", "tokio", "winit"]
 
