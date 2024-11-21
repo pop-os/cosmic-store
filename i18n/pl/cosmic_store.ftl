@@ -14,6 +14,12 @@ uninstall = Odinstaluj
 update = Zaktualizuj
 update-all = Zaktualizuj wszystkie
 
+# Progress footer
+details = Detale
+dismiss = Odrzuć wiadomość
+operations-running = {$running} bieżących działań ({$percent}%)...
+operations-running-finished = {$running} bieżące działania ({$percent}%), {$finished} ukończone...
+
 # Uninstall Dialog
 uninstall-app = Odinstaluj {$name}
 uninstall-app-warning = Czy na pewno chcesz odinstalować {$name}?
@@ -64,6 +70,14 @@ homepage = Strona domowa
 translate = Tłumaczenie
 
 # Context Pages
+
+## Operations
+cancelled = Anulowane
+operations = Działania
+no-operations = Brak działań w historii.
+pending = Oczekujące
+failed = Nieudane
+complete = Ukończone
 
 ## Settings
 settings = Ustawienia
