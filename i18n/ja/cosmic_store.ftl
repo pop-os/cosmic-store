@@ -14,6 +14,12 @@ uninstall = アンインストール
 update = アップデート
 update-all = すべてをアップデート
 
+# Progress footer
+details = 詳細
+dismiss = メッセージを閉じる
+operations-running = {$running}つの操作が実行中... ({$percent}%)
+operations-running-finished = {$running}つの操作が実行中({$percent}%), {$finished}つのが完了です...
+
 # Uninstall Dialog
 uninstall-app = {$name}のアンインストール
 uninstall-app-warning = 本当に{$name}をアンインストールしてよろしいですか？
@@ -64,6 +70,14 @@ homepage = ホームページ
 translate = 翻訳
 
 # Context Pages
+
+## Operations
+cancelled = 中止
+operations = 操作
+no-operations = 歴史には操作がありません。
+pending = 実行中
+failed = 失敗
+complete = 完了
 
 ## Settings
 settings = 設定
