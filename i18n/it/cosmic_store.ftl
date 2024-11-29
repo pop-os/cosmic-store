@@ -18,7 +18,7 @@ update-all = Aggiorna tutti
 details = Informazioni
 dismiss = Chiudi messaggio
 operations-running = {$running} operazioni in corso ({$percent}%)...
-operations-running-finished = {$running} operazioni in corso ({$percent}%), {$finished} finite...
+operations-running-finished = {$running} operazioni in corso ({$percent}%), {$finished} completate...
 
 # Uninstall Dialog
 uninstall-app = Disinstalla {$name}
@@ -72,10 +72,10 @@ translate = Traduci
 # Context Pages
 
 ## Operations
-cancelled = Cancelled
+cancelled = Annullate
 operations = Operazioni
 no-operations = Nessuna operazione nella cronologia.
-pending = Pending
+pending = In corso
 failed = Fallite
 complete = Completate
 
