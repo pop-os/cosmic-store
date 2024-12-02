@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    app::{message, Core, CosmicFlags, Settings, Task},
+    app::{context_drawer, message, Core, CosmicFlags, Settings, Task},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
@@ -218,16 +218,6 @@ pub enum ContextPage {
     Operations,
     ReleaseNotes(usize, String),
     Settings,
-}
-
-impl ContextPage {
-    fn title(&self) -> String {
-        match self {
-            Self::Operations => fl!("operations"),
-            Self::ReleaseNotes(_, app_name) => app_name.clone(),
-            Self::Settings => fl!("settings"),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2993,7 +2983,6 @@ impl Application for App {
             }
             Message::ToggleContextPage(context_page) => {
                 //TODO: ensure context menus are closed
-                self.set_context_title(context_page.title());
                 if self.context_page == context_page {
                     self.core.window.show_context = !self.core.window.show_context;
                 } else {
@@ -3047,15 +3036,27 @@ impl Application for App {
         Task::none()
     }
 
-    fn context_drawer(&self) -> Option<Element<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
         if !self.core.window.show_context {
             return None;
         }
 
-        Some(match self.context_page {
-            ContextPage::Operations => self.operations(),
-            ContextPage::Settings => self.settings(),
-            ContextPage::ReleaseNotes(i, _) => self.release_notes(i),
+        Some(match &self.context_page {
+            ContextPage::Operations => context_drawer::context_drawer(
+                self.operations(),
+                Message::ToggleContextPage(ContextPage::Operations),
+            )
+            .title(fl!("operations")),
+            ContextPage::Settings => context_drawer::context_drawer(
+                self.settings(),
+                Message::ToggleContextPage(ContextPage::Settings),
+            )
+            .title(fl!("settings")),
+            ContextPage::ReleaseNotes(i, app_name) => context_drawer::context_drawer(
+                self.release_notes(*i),
+                Message::ToggleContextPage(ContextPage::ReleaseNotes(*i, app_name.clone())),
+            )
+            .title(app_name),
         })
     }
 
@@ -3071,7 +3072,8 @@ impl Application for App {
                 let (operation, _, err) = self.failed_operations.get(id)?;
 
                 let (title, body) = operation.failed_dialog(&err);
-                widget::dialog(title)
+                widget::dialog()
+                    .title(title)
                     .body(body)
                     .icon(widget::icon::from_name("dialog-error").size(64))
                     //TODO: retry action
@@ -3079,18 +3081,16 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
-            DialogPage::Uninstall(_backend_name, _id, info) => {
-                widget::dialog(fl!("uninstall-app", name = info.name.as_str()))
-                    .body(fl!("uninstall-app-warning", name = info.name.as_str()))
-                    .icon(widget::icon::from_name(Self::APP_ID).size(64))
-                    .primary_action(
-                        widget::button::destructive(fl!("uninstall"))
-                            .on_press(Message::DialogConfirm),
-                    )
-                    .secondary_action(
-                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                    )
-            }
+            DialogPage::Uninstall(_backend_name, _id, info) => widget::dialog()
+                .title(fl!("uninstall-app", name = info.name.as_str()))
+                .body(fl!("uninstall-app-warning", name = info.name.as_str()))
+                .icon(widget::icon::from_name(Self::APP_ID).size(64))
+                .primary_action(
+                    widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
+                )
+                .secondary_action(
+                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                ),
         };
 
         Some(dialog.into())
