@@ -4,7 +4,7 @@ cancel = Cancelar
 check-for-updates = Verificar por atualizações
 checking-for-updates = Verificando por atualizações...
 install = Instalar
-no-installed-applications = Nenhuma aplicativo instalado
+no-installed-applications = Nenhum aplicativo instalado
 no-updates = Nenhuma atualização disponível
 no-results = Nenhum resultado para "{$search}"
 notification-in-progress = Instalações e atualizações estão em andamento.
@@ -13,6 +13,12 @@ see-all = Ver tudo
 uninstall = Desinstalar
 update = Atualizar
 update-all = Atualizar tudo
+
+# Progress footer
+details = Detalhes
+dismiss = Dispensar mensagem
+operations-running = {$running} operações em andamento ({$percent}%)...
+operations-running-finished = {$running} operações em andamento ({$percent}%), {$finished} finalizadas...
 
 # Uninstall Dialog
 uninstall-app = Desinstalar {$name}
@@ -64,6 +70,14 @@ homepage = Site
 translate = Traduzir
 
 # Context Pages
+
+## Operations
+cancelled = Canceladas
+operations = Operações
+no-operations = Nenhuma operação no histórico.
+pending = Pendentes
+failed = Com falha
+complete = Concluídas
 
 ## Settings
 settings = Configurações
