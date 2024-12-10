@@ -52,7 +52,8 @@ default-features = false
 features = ["multi-window", "tokio", "winit"]
 
 [features]
-default = ["a11y", "desktop-systemd-scope", "flatpak", "logind", "notify", "packagekit", "single-instance", "wgpu"]
+#todo : add a11y back to default
+default = ["desktop-systemd-scope", "flatpak", "logind", "notify", "packagekit", "single-instance", "wgpu"]
 a11y = ["libcosmic/a11y"]
 desktop = ["libcosmic/desktop"]
 desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
