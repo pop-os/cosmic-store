@@ -14,6 +14,12 @@ uninstall = Deinstallieren
 update = Aktualisieren
 update-all = Alle aktualisieren
 
+# Fortschrittsfußzeile
+details = Details
+dismiss = Meldung verwerfen
+operations-running = {$running} laufende Vorgänge ({$percent} %)...
+operations-running-finished = {$running} laufende Vorgänge ({$percent} %), {$finished} abgeschlossen...
+
 # Deinstallationsdialog
 uninstall-app = {$name} deinstallieren
 uninstall-app-warning = Bist du sicher, dass du {$name} deinstallieren möchtest?
@@ -64,6 +70,14 @@ homepage = Homepage
 translate = Übersetzen
 
 # Kontextseiten
+
+## Vorgänge
+cancelled = Abgebrochen
+operations = Vorgänge
+no-operations = Keine Vorgänge im Verlauf.
+pending = Ausstehend
+failed = Fehlgeschlagen
+complete = Abgeschlossen
 
 ## Einstellungen
 settings = Einstellungen
