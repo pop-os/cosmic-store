@@ -72,7 +72,9 @@ fn transaction_handle(
                 "ErrorCode" => {
                     // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::ErrorCode
                     let (code, details) = signal.body::<(u32, String)>()?;
-                    return Err(format!("{details} (code {code})").into());
+                    if code != 48 {
+                        return Err(format!("{details} (code {code})").into());
+                    }
                 }
                 "ItemProgress" => {
                     // https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::ItemProgress
