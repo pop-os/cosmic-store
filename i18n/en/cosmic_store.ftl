@@ -20,6 +20,16 @@ panel = Panel
 dock = Dock
 place-and-refine = Place and refine
 
+# Codec dialog
+codec-title = Install additional packages?
+codec-header = "{$application}" requires additional packages providing "{$description}".
+codec-footer =
+    The use of these additional packages may be restricted in some countries.
+    You must verify that one of the following is true:
+     • These restrictions do not apply in your country of legal residence
+     • You have permission to use this software (for example, a patent license)
+     • You are using this software for research purposes only
+
 # Progress footer
 details = Details
 dismiss = Dismiss message

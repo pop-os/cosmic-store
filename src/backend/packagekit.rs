@@ -7,8 +7,9 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind};
+use crate::{AppId, AppInfo, AppUrl, AppstreamCache, GStreamerCodec, Operation, OperationKind};
 
+#[derive(Debug)]
 struct TransactionDetails {
     //TODO: more fields: https://www.freedesktop.org/software/PackageKit/gtk-doc/Transaction.html#Transaction::Details
     package_id: String,
@@ -18,6 +19,7 @@ struct TransactionDetails {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 struct TransactionPackage {
     info: u32,
     package_id: String,
@@ -334,6 +336,33 @@ impl Backend for Packagekit {
             info.package_paths.push(path.to_string());
         }
         Ok(packages)
+    }
+
+    fn gstreamer_packages(
+        &self,
+        gstreamer_codec: &GStreamerCodec,
+    ) -> Result<Vec<Package>, Box<dyn Error>> {
+        // Packagekit provides looks like gstreamer1.0(decoder-video/x-h264)
+        //TODO: truncate version ending in .0? gstreamer1.0-packagekit does this but it does not appear to be required
+        let provides = format!(
+            "gstreamer{}({})",
+            gstreamer_codec.version, gstreamer_codec.type_name
+        );
+        let tx = self.transaction()?;
+        tx.what_provides(
+            FilterKind::Newest as u64 | FilterKind::Arch as u64,
+            &[&provides],
+        )?;
+        let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
+
+        // Convert packages to details in order to show more information
+        let mut package_ids = Vec::with_capacity(tx_packages.len());
+        for tx_package in tx_packages.iter() {
+            package_ids.push(tx_package.package_id.as_str());
+        }
+        let tx = self.transaction()?;
+        tx.get_details(&package_ids)?;
+        self.package_transaction(tx)
     }
 
     fn operation(

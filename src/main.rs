@@ -1,6 +1,7 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
+use clap::Parser;
 use cosmic::{
     action,
     app::{context_drawer, Core, CosmicFlags, Settings, Task},
@@ -53,6 +54,9 @@ mod config;
 use editors_choice::EDITORS_CHOICE;
 mod editors_choice;
 
+use gstreamer::GStreamerCodec;
+mod gstreamer;
+
 use icon_cache::{icon_cache_handle, icon_cache_icon};
 mod icon_cache;
 
@@ -78,6 +82,20 @@ const ICON_SIZE_DETAILS: u16 = 128;
 const MAX_GRID_WIDTH: f32 = 1600.0;
 const MAX_RESULTS: usize = 100;
 
+#[derive(Debug, Default, Parser)]
+struct Cli {
+    subcommand_opt: Option<String>,
+    //TODO: should these extra gst-install-plugins-helper arguments actually be handled?
+    #[arg(long)]
+    transient_for: Option<String>,
+    #[arg(long)]
+    interaction: Option<String>,
+    #[arg(long)]
+    desktop_id: Option<String>,
+    #[arg(long)]
+    startup_notification_id: Option<String>,
+}
+
 /// Runs application with these settings
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -85,8 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     localize::localize();
 
-    //TODO: more advanced argument parsing
-    let subcommand_opt = env::args().nth(1);
+    let cli = Cli::parse();
 
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
@@ -110,17 +127,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     settings = settings.size_limits(Limits::NONE.min_width(360.0).min_height(180.0));
     settings = settings.exit_on_close(false);
 
-    let flags = Flags {
-        subcommand_opt,
+    let mut flags = Flags {
+        subcommand_opt: cli.subcommand_opt,
         config_handler,
         config,
+        mode: Mode::Normal,
     };
 
-    #[cfg(feature = "single-instance")]
-    cosmic::app::run_single_instance::<App>(settings, flags)?;
+    if let Some(codec) = flags.subcommand_opt.as_ref().and_then(|x| GStreamerCodec::parse(&x)) {
+        // GStreamer installer dialog
+        flags.mode = Mode::GStreamer { codec, selected: BTreeSet::new() };
+        cosmic::app::run::<App>(settings, flags)?;
+    } else {
+        #[cfg(feature = "single-instance")]
+        cosmic::app::run_single_instance::<App>(settings, flags)?;
 
-    #[cfg(not(feature = "single-instance"))]
-    cosmic::app::run::<App>(settings, flags)?;
+        #[cfg(not(feature = "single-instance"))]
+        cosmic::app::run::<App>(settings, flags)?;
+    }
 
     Ok(())
 }
@@ -147,10 +171,30 @@ pub struct AppEntry {
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
 #[derive(Clone, Debug)]
+#[repr(i32)]
+pub enum GStreamerExitCode {
+    Success = 0,
+    NotFound = 1,
+    Error = 2,
+    PartialSuccess = 3,
+    UserAbort = 4,
+}
+
+#[derive(Clone, Debug)]
+pub enum Mode {
+    Normal,
+    GStreamer {
+        codec: GStreamerCodec,
+        selected: BTreeSet<usize>,
+    },
+}
+
+#[derive(Clone, Debug)]
 pub struct Flags {
     subcommand_opt: Option<String>,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
+    mode: Mode,
 }
 
 //TODO
@@ -176,6 +220,8 @@ pub enum Message {
     DialogPage(DialogPage),
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
+    GStreamerExit(GStreamerExitCode),
+    GStreamerToggle(usize),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
     Key(Modifiers, Key, Option<SmolStr>),
@@ -679,6 +725,7 @@ pub struct App {
     core: Core,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
+    mode: Mode,
     locale: String,
     app_themes: Vec<String>,
     apps: Arc<Apps>,
@@ -1025,6 +1072,11 @@ impl App {
             if Path::new(&input).is_file() {
                 return self.handle_file_url(input.clone(), &input);
             }
+        }
+
+        // Also handle gstreamer codec strings
+        if let Some(gstreamer_codec) = GStreamerCodec::parse(&input) {
+            return self.handle_gstreamer_codec(input.clone(), gstreamer_codec);
         }
 
         let pattern = regex::escape(&input);
@@ -1500,7 +1552,7 @@ impl App {
                             }
                             Err(err) => {
                                 log::warn!(
-                                    "failed to file {:?} using backend {:?}: {}",
+                                    "failed to load file {:?} using backend {:?}: {}",
                                     path,
                                     backend_name,
                                     err
@@ -1512,6 +1564,62 @@ impl App {
                     log::info!(
                         "loaded file {:?} in {:?}, found {} packages",
                         path,
+                        duration,
+                        packages.len()
+                    );
+
+                    //TODO: store the resolved packages somewhere
+                    let mut results = Vec::with_capacity(packages.len());
+                    for (backend_name, package) in packages {
+                        results.push(SearchResult {
+                            backend_name,
+                            id: package.id,
+                            icon_opt: Some(package.icon),
+                            info: package.info,
+                            weight: 0,
+                        });
+                    }
+                    action::app(Message::SearchResults(input, results, true))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn handle_gstreamer_codec(
+        &self,
+        input: String,
+        gstreamer_codec: GStreamerCodec,
+    ) -> Task<Message> {
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let mut packages = Vec::new();
+                    for (backend_name, backend) in backends.iter() {
+                        match backend.gstreamer_packages(&gstreamer_codec) {
+                            Ok(backend_packages) => {
+                                for package in backend_packages {
+                                    packages.push((backend_name, package));
+                                }
+                            }
+                            Err(err) => {
+                                log::warn!(
+                                    "failed to load gstreamer codec {:?} using backend {:?}: {}",
+                                    gstreamer_codec,
+                                    backend_name,
+                                    err
+                                );
+                            }
+                        }
+                    }
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded gstreamer codec {:?} in {:?}, found {} packages",
+                        gstreamer_codec,
                         duration,
                         packages.len()
                     );
@@ -2101,8 +2209,10 @@ impl App {
                         .width(Length::Fill);
                     //TODO: back button?
                     if results.is_empty() {
-                        column =
-                            column.push(widget::text(fl!("no-results", search = input.as_str())));
+                        column = column.push(widget::text::body(fl!(
+                            "no-results",
+                            search = input.as_str()
+                        )));
                     }
                     column = column.push(SearchResult::grid_view(
                         &results[..results_len],
@@ -2518,6 +2628,7 @@ impl Application for App {
             core,
             config_handler: flags.config_handler,
             config: flags.config,
+            mode: flags.mode,
             locale,
             app_themes,
             apps: Arc::new(Apps::new()),
@@ -2558,19 +2669,30 @@ impl Application for App {
             app.search_input = subcommand;
         }
 
+        match app.mode {
+            Mode::Normal => {}
+            Mode::GStreamer { .. } => {
+                app.core.window.show_maximize = false;
+                app.core.window.show_minimize = false;
+            }
+        }
+
         let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
 
     fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
-        Some(&self.nav_model)
+        match self.mode {
+            Mode::GStreamer { .. } => None,
+            _ => Some(&self.nav_model),
+        }
     }
 
     #[cfg(feature = "single-instance")]
     fn dbus_activation(&mut self, msg: cosmic::dbus_activation::Message) -> Task<Message> {
-        //TODO: parse msg
-        log::info!("{:?}", msg);
+        let mut tasks = Vec::with_capacity(2);
         if self.window_id_opt.is_none() {
+            // Create window if required
             let (window_id, task) = window::open(window::Settings {
                 min_size: Some(Size::new(360.0, 180.0)),
                 decorations: false,
@@ -2578,9 +2700,15 @@ impl Application for App {
                 ..Default::default()
             });
             self.window_id_opt = Some(window_id);
-            return task.map(|_id| action::none());
+            tasks.push(task.map(|_id| action::none()));
         }
-        Task::none()
+        if let cosmic::dbus_activation::Details::ActivateAction { action, .. } = msg.msg {
+            // Search for term
+            self.search_active = true;
+            self.search_input = action;
+            tasks.push(self.search());
+        }
+        Task::batch(tasks)
     }
 
     fn on_app_exit(&mut self) -> Option<Message> {
@@ -2714,6 +2842,20 @@ impl Application for App {
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
             }
+            Message::GStreamerExit(code) => match self.mode {
+                Mode::Normal => {}
+                Mode::GStreamer { .. } => {
+                    process::exit(code as i32);
+                }
+            },
+            Message::GStreamerToggle(i) => match &mut self.mode {
+                Mode::Normal => {}
+                Mode::GStreamer { selected, .. } => {
+                    if !selected.remove(&i) {
+                        selected.insert(i);
+                    }
+                }
+            },
             Message::Installed(installed) => {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
@@ -2867,6 +3009,11 @@ impl Application for App {
                         );
                     }
                     self.search_results = Some((input, results));
+                    // Clear selected results for gstreamer mode
+                    match &mut self.mode {
+                        Mode::Normal => {}
+                        Mode::GStreamer { selected, .. } => selected.clear(),
+                    }
                     return self.update_scroll();
                 } else {
                     log::warn!(
@@ -3300,37 +3447,112 @@ impl Application for App {
     }
 
     fn header_start(&self) -> Vec<Element<Message>> {
-        vec![if self.search_active {
-            widget::text_input::search_input("", &self.search_input)
-                .width(Length::Fixed(240.0))
-                .id(self.search_id.clone())
-                .on_clear(Message::SearchClear)
-                .on_input(Message::SearchInput)
-                .on_submit(Message::SearchSubmit)
-                .into()
-        } else {
-            widget::button::icon(widget::icon::from_name("system-search-symbolic"))
-                .on_press(Message::SearchActivate)
-                .padding(8)
-                .into()
-        }]
+        match self.mode {
+            Mode::Normal => vec![if self.search_active {
+                widget::text_input::search_input("", &self.search_input)
+                    .width(Length::Fixed(240.0))
+                    .id(self.search_id.clone())
+                    .on_clear(Message::SearchClear)
+                    .on_input(Message::SearchInput)
+                    .on_submit(Message::SearchSubmit)
+                    .into()
+            } else {
+                widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                    .on_press(Message::SearchActivate)
+                    .padding(8)
+                    .into()
+            }],
+            Mode::GStreamer { .. } => Vec::new(),
+        }
     }
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
-        let content: Element<_> = widget::responsive(move |mut size| {
-            size.width = size.width.min(MAX_GRID_WIDTH);
-            widget::scrollable(
-                widget::container(
-                    widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
+        let cosmic_theme::Spacing {
+            space_s, space_xxs, ..
+        } = theme::active().cosmic().spacing;
+
+        let content: Element<_> = match &self.mode {
+            Mode::Normal => widget::responsive(move |mut size| {
+                size.width = size.width.min(MAX_GRID_WIDTH);
+                widget::scrollable(
+                    widget::container(
+                        widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
+                    )
+                    .align_x(Alignment::Center),
                 )
-                .align_x(Alignment::Center),
-            )
-            .id(self.scrollable_id.clone())
-            .on_scroll(Message::ScrollView)
-            .into()
-        })
-        .into();
+                .id(self.scrollable_id.clone())
+                .on_scroll(Message::ScrollView)
+                .into()
+            })
+            .into(),
+            Mode::GStreamer { codec, selected } => {
+                //TODO: translate
+                let mut dialog = widget::dialog()
+                    .icon(widget::icon::from_name("dialog-question").size(64))
+                    .title(fl!("codec-title"))
+                    .body(fl!(
+                        "codec-header",
+                        application = codec.application.as_str(),
+                        description = codec.description.as_str()
+                    ));
+                match &self.search_results {
+                    Some((_input, results)) => {
+                        let mut list = widget::list_column();
+                        for (i, result) in results.iter().enumerate() {
+                            list = list.add(
+                                widget::mouse_area(
+                                    widget::button::custom(
+                                        widget::row::with_children(vec![
+                                            widget::column::with_children(vec![
+                                                widget::text::body(&result.info.name).into(),
+                                                widget::text::caption(&result.info.summary).into(),
+                                            ])
+                                            .into(),
+                                            widget::horizontal_space().into(),
+                                            if selected.contains(&i) {
+                                                widget::icon::from_name("checkbox-checked-symbolic")
+                                                    .size(16)
+                                                    .into()
+                                            } else {
+                                                widget::Space::with_width(Length::Fixed(16.0))
+                                                    .into()
+                                            },
+                                        ])
+                                        .spacing(space_s)
+                                        .align_y(Alignment::Center),
+                                    )
+                                    .width(Length::Fill)
+                                    .class(theme::Button::MenuItem)
+                                    .force_enabled(true),
+                                )
+                                .on_press(Message::GStreamerToggle(i)),
+                            )
+                        }
+                        dialog = dialog.control(list);
+                    }
+                    None => {
+                        //TODO: loading indicator?
+                        //column = column.push(widget::text("Loading..."));
+                    }
+                }
+                dialog
+                    .control(
+                        widget::row::with_children(vec![
+                            widget::icon::from_name("dialog-warning").size(16).into(),
+                            widget::text(fl!("codec-footer")).into(),
+                        ])
+                        .spacing(space_xxs),
+                    )
+                    .primary_action(widget::button::suggested(fl!("install")))
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel"))
+                            .on_press(Message::GStreamerExit(GStreamerExitCode::UserAbort)),
+                    )
+                    .width(640)
+                    .into()
+            }
+        };
 
         // Uncomment to debug layout:
         //content.explain(cosmic::iced::Color::WHITE)
