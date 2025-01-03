@@ -14,6 +14,12 @@ uninstall = Verwijderen
 update = Bijwerken
 update-all = Alles bijwerken
 
+# Progress footer
+details = Details
+dismiss = Bericht negeren
+operations-running = {$running} bewerkingen worden uitgevoerd ({$percent}%)...
+operations-running-finished = {$running} bewerkingen worden uitgevoerd ({$percent}%), {$finished} voltooid...
+
 # Uninstall Dialog
 uninstall-app = {$name} verwijderen
 uninstall-app-warning = Weet u zeker dat u {$name} wilt verwijderen?
