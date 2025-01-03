@@ -5,7 +5,7 @@ install = Installeren
 check-for-updates = Naar updates zoeken
 checking-for-updates = Naar updates zoeken...
 no-installed-applications = Er zijn geen apps geïnstalleerd
-no-updates = Alle geïnstallerde apps zijn bijgewerkt.
+no-updates = Alle geïnstalleerde apps zijn bijgewerkt.
 no-results = Geen resultaten voor "{$search}".
 notification-in-progress = Installaties en updates worden uitgevoerd.
 open = Openen
@@ -33,7 +33,7 @@ learn = Leer
 game = Speel
 relax = Ontspan
 socialize = Socialiseer
-utilities = Hulpprograma's
+utilities = Hulpprogramma's
 installed-apps = Geïnstalleerde apps
 updates = Updates
 
@@ -49,22 +49,22 @@ productivity-apps = Productiviteitsapps
 graphics-and-photography-tools = Grafische en fotografietools
 social-networking-apps = Apps voor sociale netwerken
 games = Spelletjes
-music-and-video-apps = Apps voor musiek en video
+music-and-video-apps = Apps voor muziek en video
 apps-for-learning = Apps om te leren
 
 # Details Page
 source-installed = {$source} (geïnstalleerd)
-developer = Ontwinkelaar
-app-developers = Ontwinkelaars van {$app}
+developer = Ontwikkelaar
+app-developers = Ontwikkelaars van {$app}
 monthly-downloads = Maandelijkse downloads van Flathub
 licenses = Licenties
-proprietary = Niet-opensource software
+proprietary = Niet-open source software
 
 ## App URLs
-bug-tracker = Bug-tracker
+bug-tracker = Bug tracker
 contact = Contact
 donation = Donatie
-faq = Veelgesteelde vragen
+faq = Veelgestelde vragen
 help = Hulp
 homepage = Startpagina
 translate = Vertalen
