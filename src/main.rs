@@ -1,6 +1,7 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
+use clap::Parser;
 use cosmic::{
     app::{context_drawer, message, Core, CosmicFlags, Settings, Task},
     cosmic_config::{self, CosmicConfigEntry},
@@ -48,6 +49,9 @@ mod config;
 use editors_choice::EDITORS_CHOICE;
 mod editors_choice;
 
+use gstreamer::GStreamerCodec;
+mod gstreamer;
+
 use icon_cache::{icon_cache_handle, icon_cache_icon};
 mod icon_cache;
 
@@ -73,6 +77,20 @@ const ICON_SIZE_DETAILS: u16 = 128;
 const MAX_GRID_WIDTH: f32 = 1600.0;
 const MAX_RESULTS: usize = 100;
 
+#[derive(Debug, Default, Parser)]
+struct Cli {
+    subcommand_opt: Option<String>,
+    //TODO: should these extra gst-install-plugins-helper arguments actually be handled?
+    #[arg(long)]
+    transient_for: Option<String>,
+    #[arg(long)]
+    interaction: Option<String>,
+    #[arg(long)]
+    desktop_id: Option<String>,
+    #[arg(long)]
+    startup_notification_id: Option<String>,
+}
+
 /// Runs application with these settings
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -80,8 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     localize::localize();
 
-    //TODO: more advanced argument parsing
-    let subcommand_opt = env::args().nth(1);
+    let cli = Cli::parse();
 
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
@@ -106,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     settings = settings.exit_on_close(false);
 
     let flags = Flags {
-        subcommand_opt,
+        subcommand_opt: cli.subcommand_opt,
         config_handler,
         config,
     };
@@ -1002,6 +1019,11 @@ impl App {
             }
         }
 
+        // Also handle gstreamer codec strings
+        if let Some(gstreamer_codec) = GStreamerCodec::parse(&input) {
+            return self.handle_gstreamer_codec(input.clone(), gstreamer_codec);
+        }
+
         let pattern = regex::escape(&input);
         let regex = match regex::RegexBuilder::new(&pattern)
             .case_insensitive(true)
@@ -1475,7 +1497,7 @@ impl App {
                             }
                             Err(err) => {
                                 log::warn!(
-                                    "failed to file {:?} using backend {:?}: {}",
+                                    "failed to load file {:?} using backend {:?}: {}",
                                     path,
                                     backend_name,
                                     err
@@ -1487,6 +1509,62 @@ impl App {
                     log::info!(
                         "loaded file {:?} in {:?}, found {} packages",
                         path,
+                        duration,
+                        packages.len()
+                    );
+
+                    //TODO: store the resolved packages somewhere
+                    let mut results = Vec::with_capacity(packages.len());
+                    for (backend_name, package) in packages {
+                        results.push(SearchResult {
+                            backend_name,
+                            id: package.id,
+                            icon_opt: Some(package.icon),
+                            info: package.info,
+                            weight: 0,
+                        });
+                    }
+                    message::app(Message::SearchResults(input, results, true))
+                })
+                .await
+                .unwrap_or(message::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn handle_gstreamer_codec(
+        &self,
+        input: String,
+        gstreamer_codec: GStreamerCodec,
+    ) -> Task<Message> {
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let mut packages = Vec::new();
+                    for (backend_name, backend) in backends.iter() {
+                        match backend.gstreamer_packages(&gstreamer_codec) {
+                            Ok(backend_packages) => {
+                                for package in backend_packages {
+                                    packages.push((backend_name, package));
+                                }
+                            }
+                            Err(err) => {
+                                log::warn!(
+                                    "failed to load gstreamer codec {:?} using backend {:?}: {}",
+                                    gstreamer_codec,
+                                    backend_name,
+                                    err
+                                );
+                            }
+                        }
+                    }
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded gstreamer codec {:?} in {:?}, found {} packages",
+                        gstreamer_codec,
                         duration,
                         packages.len()
                     );
