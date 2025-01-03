@@ -65,6 +65,14 @@ translate = Vertalen
 
 # Context Pages
 
+## Operations
+cancelled = Geannuleerd
+operations = Bewerkingen
+no-operations = Geen bewerkingsgeschiedenis
+pending = In behandeling
+failed = Mislukt
+complete = Voltooid
+
 ## Settings
 settings = Instellingen
 
@@ -75,6 +83,6 @@ no-description = Geen beschrijving beschikbaar.
 ### Appearance
 appearance = Uiterlijk
 theme = Thema
-match-desktop = Automatisch
-dark = Donkere
-light = Heldere
+match-desktop = Systeemstandaard
+dark = Donker
+light = Licht
