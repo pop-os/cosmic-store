@@ -1,4 +1,4 @@
-app-name = COSMIC Store
+app-name = COSMIC-appstore
 back = Terug
 cancel = Annuleren
 install = Installeren
