@@ -2596,9 +2596,9 @@ impl Application for App {
 
     #[cfg(feature = "single-instance")]
     fn dbus_activation(&mut self, msg: cosmic::app::DbusActivationMessage) -> Task<Message> {
-        //TODO: parse msg
-        log::info!("{:?}", msg);
+        let mut tasks = Vec::with_capacity(2);
         if self.window_id_opt.is_none() {
+            // Create window if required
             let (window_id, task) = window::open(window::Settings {
                 min_size: Some(Size::new(360.0, 180.0)),
                 decorations: false,
@@ -2606,9 +2606,15 @@ impl Application for App {
                 ..Default::default()
             });
             self.window_id_opt = Some(window_id);
-            return task.map(|_id| message::none());
+            tasks.push(task.map(|_id| message::none()));
         }
-        Task::none()
+        if let cosmic::app::DbusActivationDetails::ActivateAction { action, .. } = msg.msg {
+            // Search for term
+            self.search_active = true;
+            self.search_input = action;
+            tasks.push(self.search());
+        }
+        Task::batch(tasks)
     }
 
     fn on_app_exit(&mut self) -> Option<Message> {
