@@ -1,0 +1,13 @@
+#!/bin/sh
+# postinst script for cosmic-store
+
+set -e
+
+update-alternatives --install /usr/bin/gstreamer-codec-install \
+		    gstreamer-codec-install \
+		    /usr/bin/cosmic-store 90 || true
+
+#DEBHELPER#
+
+exit 0
+
