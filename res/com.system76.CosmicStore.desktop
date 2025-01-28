@@ -3,6 +3,7 @@
 Name=COSMIC Store
 Name[pl]=Sklep z Apkami COSMIC
 Name[pt-BR]=Loja de Apps do COSMIC
+Name[hu]=COSMIC Áruház
 Exec=cosmic-store %u
 Terminal=false
 Type=Application
@@ -12,4 +13,5 @@ Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
 Keywords[pt-BR]=App;Aplicativos;Software;Programas;Loja;
+Keywords[hu]=applikációk;bolt;szoftver;csomagkezelő;alkalmazások;programok;
 MimeType=application/x-debian-package;application/vnd.debian.binary-package;application/vnd.flatpak.ref;x-scheme-handler/appstream;x-scheme-handler/mime;
