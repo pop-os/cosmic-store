@@ -5,7 +5,7 @@ check-for-updates = Verifică actualizările
 checking-for-updates = Se verifică actualizările...
 install = Instalează
 no-installed-applications = Nu există aplicații instalate.
-no-updates = Toate aplicațiile instalate sunt la zi.
+no-updates = Nu există actualizări.
 no-results = Nu există rezultate pentru "{$search}".
 notification-in-progress = Instalările și actualizările sunt în desfășurare.
 open = Deschide
@@ -24,7 +24,7 @@ create = Creează
 work = Lucrează
 develop = Dezvoltă
 learn = Învață
-game = Joacă
+game = Joacă-te
 relax = Relaxează-te
 socialize = Socializează
 utilities = Utilitare
@@ -70,7 +70,7 @@ settings = Setări
 
 ## Release notes
 latest-version = Ultima versiune
-no-description = Nicio descriere disponibilă.
+no-description = Nici o descriere disponibilă.
 
 ### Appearance
 appearance = Aspect
