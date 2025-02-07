@@ -4,7 +4,7 @@ cancel = Annuleren
 install = Installeren
 check-for-updates = Naar updates zoeken
 checking-for-updates = Naar updates zoeken...
-no-installed-applications = Er zijn geen apps geïnstalleerd
+no-installed-applications = Er zijn geen apps geïnstalleerd.
 no-updates = Alle geïnstalleerde apps zijn bijgewerkt.
 no-results = Geen resultaten voor "{$search}".
 notification-in-progress = Installaties en updates worden uitgevoerd.
@@ -87,7 +87,7 @@ latest-version = Nieuwste versie
 no-description = Geen beschrijving beschikbaar.
 
 ### Appearance
-appearance = Uiterlijk
+appearance = Weergave
 theme = Thema
 match-desktop = Systeemstandaard
 dark = Donker
