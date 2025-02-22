@@ -16,7 +16,7 @@ update-all = Összes frissítése
 
 # Progress footer
 details = Részletek
-dismiss = Üzenet elvetése
+dismiss = Üzenet eltüntetése
 operations-running = {$running} művelet fut ({$percent}%)...
 operations-running-finished = {$running} művelet fut ({$percent}%), {$finished} befejeződött...
 
@@ -26,7 +26,7 @@ uninstall-app-warning = Biztosan eltávolítja a {$name} alkalmazást?
 
 # Nav Pages
 explore = Felfedezés
-create = Készítés
+create = Alkotás
 work = Munka
 develop = Fejlesztés
 learn = Tanulás
@@ -49,7 +49,7 @@ productivity-apps = Hatékonysági alkalmazások
 graphics-and-photography-tools = Grafikai és fényképészeti eszközök
 social-networking-apps = Közösségi hálózati alkalmazások
 games = Játékok
-music-and-video-apps = Zene és videó alkalmazások
+music-and-video-apps = Zene- és videóalkalmazások
 apps-for-learning = Alkalmazások tanuláshoz
 
 # Details Page
