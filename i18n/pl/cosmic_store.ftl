@@ -55,7 +55,7 @@ apps-for-learning = Aplikacje do Nauki
 # Details Page
 source-installed = {$source} (zainstalowane)
 developer = Wydawca
-app-developers = {$app} Wydawca
+app-developers = Wydawca {$app}
 monthly-downloads = Miesięczne Pobrania na Flathub
 licenses = Licencje
 proprietary = Własnościowa
