@@ -108,7 +108,7 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     });
 
     //TODO: Workaround for xml-rs memory leak when loading appstream data
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
         let start = Instant::now();
         unsafe {
