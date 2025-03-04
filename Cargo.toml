@@ -76,6 +76,9 @@ pkgar = []
 single-instance = ["libcosmic/single-instance"]
 wgpu = ["libcosmic/wgpu"]
 
+[profile.release]
+lto = "fat"
+
 [profile.release-with-debug]
 inherits = "release"
 debug = true
