@@ -3,6 +3,12 @@ back = Back
 cancel = Cancel
 check-for-updates = Check for updates
 checking-for-updates = Checking for updates...
+codec-header = "{$application}" requires additional packages providing "{$description}".
+    The use of these additional packages may be restricted in some countries.
+    You must verify that one of the following is true:
+     • These restrictions do not apply in your country of legal residence
+     • You have permission to use this software (for example, a patent license)
+     • You are using this software for research purposes only
 install = Install
 no-installed-applications = No installed applications.
 no-updates = All installed applications are up to date.

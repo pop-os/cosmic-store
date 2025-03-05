@@ -122,17 +122,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     settings = settings.size_limits(Limits::NONE.min_width(360.0).min_height(180.0));
     settings = settings.exit_on_close(false);
 
-    let flags = Flags {
+    let mut flags = Flags {
         subcommand_opt: cli.subcommand_opt,
         config_handler,
         config,
+        mode: Mode::Normal,
     };
 
-    #[cfg(feature = "single-instance")]
-    cosmic::app::run_single_instance::<App>(settings, flags)?;
+    if flags.subcommand_opt.as_ref().and_then(|x| GStreamerCodec::parse(&x)).is_some() {
+        // GStreamer installer dialog
+        flags.mode = Mode::GStreamer;
+        cosmic::app::run::<App>(settings, flags)?;
+    } else {
+        #[cfg(feature = "single-instance")]
+        cosmic::app::run_single_instance::<App>(settings, flags)?;
 
-    #[cfg(not(feature = "single-instance"))]
-    cosmic::app::run::<App>(settings, flags)?;
+        #[cfg(not(feature = "single-instance"))]
+        cosmic::app::run::<App>(settings, flags)?;
+    }
 
     Ok(())
 }
@@ -159,10 +166,17 @@ pub struct AppEntry {
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
 #[derive(Clone, Debug)]
+pub enum Mode {
+    Normal,
+    GStreamer,
+}
+
+#[derive(Clone, Debug)]
 pub struct Flags {
     subcommand_opt: Option<String>,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
+    mode: Mode,
 }
 
 //TODO
@@ -205,7 +219,7 @@ pub enum Message {
     SearchActivate,
     SearchClear,
     SearchInput(String),
-    SearchResults(String, Vec<SearchResult>, bool),
+    SearchResults(String, String, Vec<SearchResult>, bool),
     SearchSubmit,
     Select(
         &'static str,
@@ -681,6 +695,7 @@ pub struct App {
     core: Core,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
+    mode: Mode,
     locale: String,
     app_themes: Vec<String>,
     apps: Arc<Apps>,
@@ -714,7 +729,7 @@ pub struct App {
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     installed_results: Option<Vec<SearchResult>>,
-    search_results: Option<(String, Vec<SearchResult>)>,
+    search_results: Option<(String, String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
 }
 
@@ -1106,7 +1121,7 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, false))
+                    message::app(Message::SearchResults(input, String::new(), results, false))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1471,7 +1486,7 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, true))
+                    message::app(Message::SearchResults(input, String::new(), results, true))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1524,7 +1539,7 @@ impl App {
                             weight: 0,
                         });
                     }
-                    message::app(Message::SearchResults(input, results, true))
+                    message::app(Message::SearchResults(input, String::new(), results, true))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1580,7 +1595,12 @@ impl App {
                             weight: 0,
                         });
                     }
-                    message::app(Message::SearchResults(input, results, true))
+                    let header = fl!(
+                        "codec-header",
+                        application = gstreamer_codec.application,
+                        description = gstreamer_codec.description
+                    );
+                    message::app(Message::SearchResults(input, header, results, true))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -1614,7 +1634,7 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, false))
+                    message::app(Message::SearchResults(input, String::new(), results, false))
                 })
                 .await
                 .unwrap_or(message::none())
@@ -2128,18 +2148,23 @@ impl App {
                 column.into()
             }
             None => match &self.search_results {
-                Some((input, results)) => {
+                Some((input, header, results)) => {
                     //TODO: paging or dynamic load
                     let results_len = cmp::min(results.len(), MAX_RESULTS);
 
-                    let mut column = widget::column::with_capacity(2)
+                    let mut column = widget::column::with_capacity(3)
                         .padding([0, space_s])
                         .spacing(space_xxs)
                         .width(Length::Fill);
+                    if !header.is_empty() {
+                        column = column.push(widget::text::body(header));
+                    }
                     //TODO: back button?
                     if results.is_empty() {
-                        column =
-                            column.push(widget::text(fl!("no-results", search = input.as_str())));
+                        column = column.push(widget::text::body(fl!(
+                            "no-results",
+                            search = input.as_str()
+                        )));
                     }
                     column = column.push(SearchResult::grid_view(
                         &results[..results_len],
@@ -2547,6 +2572,7 @@ impl Application for App {
             core,
             config_handler: flags.config_handler,
             config: flags.config,
+            mode: flags.mode,
             locale,
             app_themes,
             apps: Arc::new(Apps::new()),
@@ -2586,12 +2612,20 @@ impl Application for App {
             app.search_input = subcommand;
         }
 
+        if matches!(app.mode, Mode::GStreamer) {
+            app.core.window.show_maximize = false;
+            app.core.window.show_minimize = false;
+        }
+
         let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
 
     fn nav_model(&self) -> Option<&widget::nav_bar::Model> {
-        Some(&self.nav_model)
+        match self.mode {
+            Mode::GStreamer => None,
+            _ => Some(&self.nav_model),
+        }
     }
 
     #[cfg(feature = "single-instance")]
@@ -2870,7 +2904,7 @@ impl Application for App {
                     }
                 }
             }
-            Message::SearchResults(input, results, auto_select) => {
+            Message::SearchResults(input, header, results, auto_select) => {
                 if input == self.search_input {
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
@@ -2883,7 +2917,7 @@ impl Application for App {
                             results[0].info.clone(),
                         );
                     }
-                    self.search_results = Some((input, results));
+                    self.search_results = Some((input, header, results));
                     return self.update_scroll();
                 } else {
                     log::warn!(
@@ -2982,7 +3016,7 @@ impl Application for App {
                 }
             }
             Message::SelectSearchResult(result_i) => {
-                if let Some((_input, results)) = &self.search_results {
+                if let Some((_input, _header, results)) = &self.search_results {
                     match results.get(result_i) {
                         Some(result) => {
                             return self.select(
