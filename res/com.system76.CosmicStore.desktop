@@ -4,6 +4,7 @@ Name=COSMIC Store
 Name[pl]=Sklep z Apkami COSMIC
 Name[pt-BR]=Loja de Apps do COSMIC
 Name[hu]=COSMIC Áruház
+Name[zh_CN]=COSMIC 软件商店
 Exec=cosmic-store %u
 Terminal=false
 Type=Application
