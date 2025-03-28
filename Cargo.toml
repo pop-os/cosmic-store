@@ -83,6 +83,9 @@ debug = true
 [workspace]
 members = ["flathub-stats"]
 
+# [patch.'https://github.com/pop-os/cosmic-text.git']
+# cosmic-text = { path = "../cosmic-text" }
+
 # [patch.'https://github.com/pop-os/libcosmic.git']
 # libcosmic = { path = "../libcosmic" }
 # cosmic-config = { path = "../libcosmic/cosmic-config" }

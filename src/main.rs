@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    app::{context_drawer, message, Core, CosmicFlags, Settings, Task},
+    action,
+    app::{context_drawer, Core, CosmicFlags, Settings, Task},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
@@ -189,7 +190,7 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>, bool),
-    SearchSubmit,
+    SearchSubmit(String),
     Select(
         &'static str,
         AppId,
@@ -756,7 +757,7 @@ impl App {
                         .await;
                     });
                 }
-                message::none()
+                action::none()
             },
         )
     }
@@ -854,10 +855,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::CategoryResults(categories, results))
+                    action::app(Message::CategoryResults(categories, results))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -934,10 +935,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::ExploreResults(explore_page, results))
+                    action::app(Message::ExploreResults(explore_page, results))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -963,10 +964,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::InstalledResults(results))
+                    action::app(Message::InstalledResults(results))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1084,10 +1085,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, false))
+                    action::app(Message::SearchResults(input, results, false))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1190,17 +1191,17 @@ impl App {
                         },
                         duration
                     );
-                    message::app(Message::Backends(backends))
+                    action::app(Message::Backends(backends))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
     }
 
     fn update_config(&mut self) -> Task<Message> {
-        cosmic::app::command::set_theme(self.config.app_theme.theme())
+        cosmic::command::set_theme(self.config.app_theme.theme())
     }
 
     fn is_installed(&self, backend_name: &'static str, id: &AppId, info: &AppInfo) -> bool {
@@ -1349,10 +1350,10 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
-                    message::app(Message::Installed(installed))
+                    action::app(Message::Installed(installed))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1389,10 +1390,10 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
-                    message::app(Message::Updates(updates))
+                    action::app(Message::Updates(updates))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1413,7 +1414,7 @@ impl App {
                         })
                         .await
                         .unwrap();
-                        message::app(Message::MaybeExit)
+                        action::app(Message::MaybeExit)
                     },
                     |x| x,
                 );
@@ -1449,10 +1450,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, true))
+                    action::app(Message::SearchResults(input, results, true))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1502,10 +1503,10 @@ impl App {
                             weight: 0,
                         });
                     }
-                    message::app(Message::SearchResults(input, results, true))
+                    action::app(Message::SearchResults(input, results, true))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -1536,10 +1537,10 @@ impl App {
                         duration,
                         results.len()
                     );
-                    message::app(Message::SearchResults(input, results, false))
+                    action::app(Message::SearchResults(input, results, false))
                 })
                 .await
-                .unwrap_or(message::none())
+                .unwrap_or(action::none())
             },
             |x| x,
         )
@@ -2517,7 +2518,7 @@ impl Application for App {
     }
 
     #[cfg(feature = "single-instance")]
-    fn dbus_activation(&mut self, msg: cosmic::app::DbusActivationMessage) -> Task<Message> {
+    fn dbus_activation(&mut self, msg: cosmic::dbus_activation::Message) -> Task<Message> {
         //TODO: parse msg
         log::info!("{:?}", msg);
         if self.window_id_opt.is_none() {
@@ -2528,7 +2529,7 @@ impl Application for App {
                 ..Default::default()
             });
             self.window_id_opt = Some(window_id);
-            return task.map(|_id| message::none());
+            return task.map(|_id| action::none());
         }
         Task::none()
     }
@@ -2810,7 +2811,7 @@ impl Application for App {
                     );
                 }
             }
-            Message::SearchSubmit => {
+            Message::SearchSubmit(_search_input) => {
                 if !self.search_input.is_empty() {
                     return self.search();
                 }
@@ -3016,7 +3017,7 @@ impl Application for App {
                 if let Some(window_id) = self.window_id_opt.take() {
                     return Task::batch([
                         window::close(window_id),
-                        Task::perform(async move { message::app(Message::MaybeExit) }, |x| x),
+                        Task::perform(async move { action::app(Message::MaybeExit) }, |x| x),
                     ]);
                 }
             }
