@@ -773,6 +773,7 @@ impl App {
         apps: &Apps,
         backends: &Backends,
         filter_map: F,
+        max_results: usize,
     ) -> Vec<SearchResult> {
         let mut results: Vec<SearchResult> = apps
             .par_iter()
@@ -815,7 +816,7 @@ impl App {
         });
         // Load only enough icons to show one page of results
         //TODO: load in background
-        for result in results.iter_mut().take(MAX_RESULTS) {
+        for result in results.iter_mut().take(max_results) {
             let Some(backend) = backends.get(result.backend_name) else {
                 continue;
             };
@@ -838,8 +839,10 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                    let results = Self::generic_search(
+                        &apps,
+                        &backends,
+                        |_id, info, _installed| {
                             for category in categories {
                                 //TODO: contains doesn't work due to type mismatch
                                 if info.categories.iter().any(|x| x == category.id()) {
@@ -847,7 +850,9 @@ impl App {
                                 }
                             }
                             None
-                        });
+                        },
+                        MAX_RESULTS,
+                    );
                     let duration = start.elapsed();
                     log::info!(
                         "searched for categories {:?} in {:?}, found {} results",
@@ -879,10 +884,10 @@ impl App {
                             .iter()
                             .position(|choice_id| choice_id == &id.normalized())
                             .map(|x| x as i64)
-                        }),
+                        }, MAX_RESULTS),
                         ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
                             Some(-(info.monthly_downloads as i64))
-                        }),
+                        }, MAX_RESULTS),
                         ExplorePage::MadeForCosmic => {
                             let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -891,12 +896,12 @@ impl App {
                                 } else {
                                     None
                                 }
-                            })
+                            }, MAX_RESULTS)
                         },
                         ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
                             //TODO
                             None
-                        }),
+                        }, MAX_RESULTS),
                         ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
                             // Finds the newest release and sorts from newest to oldest
                             //TODO: appstream release info is often incomplete
@@ -914,7 +919,7 @@ impl App {
                                 }
                             }
                             Some(min_weight)
-                        }),
+                        }, MAX_RESULTS),
                         _ => {
                             let categories = explore_page.categories();
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -925,7 +930,7 @@ impl App {
                                     }
                                 }
                                 None
-                            })
+                            }, MAX_RESULTS)
                         }
                     };
                     let duration = start.elapsed();
@@ -951,13 +956,18 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |id, _info, installed| {
-                        if installed {
-                            Some(if id.is_system() { -1 } else { 0 })
-                        } else {
-                            None
-                        }
-                    });
+                    let results = Self::generic_search(
+                        &apps,
+                        &backends,
+                        |id, _info, installed| {
+                            if installed {
+                                Some(if id.is_system() { -1 } else { 0 })
+                            } else {
+                                None
+                            }
+                        },
+                        500,
+                    );
                     let duration = start.elapsed();
                     log::info!(
                         "searched for installed in {:?}, found {} results",
@@ -1020,8 +1030,10 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                    let results = Self::generic_search(
+                        &apps,
+                        &backends,
+                        |_id, info, _installed| {
                             //TODO: improve performance
                             let stats_weight = |weight: i64| {
                                 //TODO: make sure no overflows
@@ -1077,7 +1089,9 @@ impl App {
                                     },
                                 },
                             }
-                        });
+                        },
+                        MAX_RESULTS,
+                    );
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1434,15 +1448,19 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |id, _info, _installed| {
+                    let results = Self::generic_search(
+                        &apps,
+                        &backends,
+                        |id, _info, _installed| {
                             //TODO: fuzzy search with lower weight?
                             if id == &component_id {
                                 Some(0)
                             } else {
                                 None
                             }
-                        });
+                        },
+                        MAX_RESULTS,
+                    );
                     let duration = start.elapsed();
                     log::info!(
                         "searched for ID {:?} in {:?}, found {} results",
@@ -1521,15 +1539,19 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                    let results = Self::generic_search(
+                        &apps,
+                        &backends,
+                        |_id, info, _installed| {
                             //TODO: monthly downloads as weight?
                             if info.provides.contains(&provide) {
                                 Some(-(info.monthly_downloads as i64))
                             } else {
                                 None
                             }
-                        });
+                        },
+                        MAX_RESULTS,
+                    );
                     let duration = start.elapsed();
                     log::info!(
                         "searched for mime {:?} in {:?}, found {} results",
