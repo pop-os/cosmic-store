@@ -2,7 +2,7 @@
 [Desktop Entry]
 Name=COSMIC Store
 Name[pl]=Sklep COSMIC
-Name[pt-BR]=Loja de Apps do COSMIC
+Name[pt_BR]=Loja de Aplicativos
 Name[hu]=COSMIC Áruház
 Name[zh_CN]=COSMIC 软件商店
 Exec=cosmic-store %u
@@ -13,6 +13,6 @@ Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
-Keywords[pt-BR]=App;Aplicativos;Software;Programas;Loja;
+Keywords[pt_BR]=App;Aplicativos;Software;Programas;Loja;Store;
 Keywords[hu]=applikációk;bolt;szoftver;csomagkezelő;alkalmazások;programok;
 MimeType=application/x-debian-package;application/vnd.debian.binary-package;application/vnd.flatpak.ref;x-scheme-handler/appstream;x-scheme-handler/mime;
