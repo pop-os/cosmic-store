@@ -40,7 +40,7 @@ updates = Actualizări
 # Explore Pages
 editors-choice = Alegerea editorilor
 popular-apps = Aplicații populare
-made-for-cosmic = Creat pentru COSMIC
+made-for-cosmic = Create pentru COSMIC
 new-apps = Aplicații noi
 recently-updated = Actualizate recent
 development-tools = Unelte pentru dezvoltare
@@ -55,7 +55,7 @@ apps-for-learning = Aplicații pentru învățare
 # Details Page
 source-installed = {$source} (instalat)
 developer = Dezvoltator
-app-developers = Dezvoltatori {$app}
+app-developers = Dezvoltatorii {$app}
 monthly-downloads = Descărcări lunare Flathub
 licenses = Licențe
 proprietary = Proprietar
