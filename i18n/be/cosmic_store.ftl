@@ -14,6 +14,12 @@ uninstall = Выдаліць
 update = Абнавіць
 update-all = Абнавіць ўсё
 
+# Progress footer
+details = Дэталі
+dismiss = Адхіліць паведамленне
+operations-running = {$running} аперацый запушчана ({$percent}%)...
+operations-running-finished = {$running} аперацый запушчана ({$percent}%), {$finished} скончана...
+
 # Uninstall Dialog
 uninstall-app = Выдалісь {$name}
 uninstall-app-warning = Вы сапраўды хочаце выдаліць {$name}?
@@ -34,6 +40,7 @@ updates = Абнаўленні
 # Explore Pages
 editors-choice = Выбар рэдакцыі
 popular-apps = Папулярныя
+made-for-cosmic = Зроблена для COSMIC
 new-apps = Новыя
 recently-updated = Абноўленыя
 development-tools = Распрацоўка
@@ -50,8 +57,27 @@ source-installed = {$source} (усталявана)
 developer = Распрацоўшчык
 app-developers = Распрацоўшчыкі {$app}
 monthly-downloads = Штомесячныя загрузкі Flathub
+licenses = Ліцэнзіі
+proprietary = Прапрыетарная
+
+## App URLs
+bug-tracker = Памылкі
+contact = Кантакт
+donation = Ахвяраваць
+faq = Частыя пытанні
+help = Даведка
+homepage = Хатняя старонка
+translate = Перакласці
 
 # Context Pages
+
+## Operations
+cancelled = Скасавана
+operations = Аперацыі
+no-operations = Няма аперацый у гісторыі
+pending = Чакаецца
+failed = Не ўдалося
+complete = Завершана
 
 ## Settings
 settings = Налады
