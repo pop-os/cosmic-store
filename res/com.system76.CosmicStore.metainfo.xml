@@ -12,15 +12,18 @@
   <name xml:lang="pl">Sklep z apkami COSMIC</name>
   <name xml:lang="hu">COSMIC Áruház</name>
   <name xml:lang="pt_BR">Loja de Aplicativos</name>
+  <name xml:lang="pt">Loja de Aplicativos</name>
   <summary>Application store for the COSMIC desktop</summary>
   <summary xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</summary>
   <summary xml:lang="hu">Alkalmazásáruház a COSMIC asztalhoz</summary>
   <summary xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</summary>
+  <summary xml:lang="pt">Loja de aplicativos do desktop COSMIC</summary>
   <description>
       <p>Application store for the COSMIC desktop</p>
       <p xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</p>
       <p xml:lang="hu">Alkalmazásáruház a COSMIC asztalhoz</p>
       <p xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</p>
+      <p xml:lang="pt">Loja de aplicativos do desktop COSMIC</p>
   </description>
   <launchable type="desktop-id">com.system76.CosmicStore.desktop</launchable>
   <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/pop-os/cosmic-store/master/res/icons/hicolor/256x256/apps/com.system76.CosmicStore.svg</icon>
