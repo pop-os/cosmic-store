@@ -15,13 +15,13 @@
   <name xml:lang="pt">Loja de Aplicativos</name>
   <summary>Application store for the COSMIC desktop</summary>
   <summary xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</summary>
-  <summary xml:lang="hu">Alkalmazásáruház a COSMIC asztalhoz</summary>
+  <summary xml:lang="hu">Alkalmazásáruház a COSMIC asztali környezethez</summary>
   <summary xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</summary>
   <summary xml:lang="pt">Loja de aplicativos do desktop COSMIC</summary>
   <description>
       <p>Application store for the COSMIC desktop</p>
       <p xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</p>
-      <p xml:lang="hu">Alkalmazásáruház a COSMIC asztalhoz</p>
+      <p xml:lang="hu">Alkalmazásáruház a COSMIC asztali környezethez</p>
       <p xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</p>
       <p xml:lang="pt">Loja de aplicativos do desktop COSMIC</p>
   </description>
