@@ -1,4 +1,4 @@
-app-name = Tienda COSMIC
+app-name = COSMIC Store
 back = Atrás
 cancel = Cancelar
 check-for-updates = Buscar actualizaciones
@@ -15,14 +15,14 @@ update = Actualizar
 update-all = Actualizar todas
 
 # Progress footer
-details = Details
-dismiss = Dismiss message
+details = Detalles
+dismiss = Descartar mensaje
 operations-running = {$running} operaciones ejecutándose ({$percent}%)...
-operations-running-finished = {$running} operaciones ejecutándose ({$percent}%), {$finished} acabadas...
+operations-running-finished = {$running} operaciones ejecutándose ({$percent}%), {$finished} finalizadas...
 
 # Uninstall Dialog
 uninstall-app = Desinstalar {$name}
-uninstall-app-warning = ¿Está seguro que quiere desinstalar {$name}?
+uninstall-app-warning = ¿Está seguro de que quiere desinstalar {$name}?
 
 # Nav Pages
 explore = Explorar
@@ -39,18 +39,18 @@ updates = Actualizaciones
 
 # Explore Pages
 editors-choice = Selección del editor
-popular-apps = Apps populares
+popular-apps = Aplicaciones populares
 made-for-cosmic = Hechas para COSMIC
-new-apps = Apps nuevas
+new-apps = Aplicaciones recientes
 recently-updated = Recién actualizadas
 development-tools = Herramientas de desarrollo
 scientific-tools = Herramientas científicas
-productivity-apps = Apps de productividad
+productivity-apps = Aplicaciones de productividad
 graphics-and-photography-tools = Herramientas de gráficos y fotografía
-social-networking-apps = Apps de redes sociales
-games = Juegos
-music-and-video-apps = Apps de música y vídeo
-apps-for-learning = Apps para aprendizaje
+social-networking-apps = Aplicaciones de redes sociales
+games = Videojuegos
+music-and-video-apps = Aplicaciones de música y vídeo
+apps-for-learning = Aplicaciones para el aprendizaje
 
 # Details Page
 source-installed = {$source} (instalada)
@@ -74,13 +74,13 @@ translate = Traducir
 ## Operations
 cancelled = Canceladas
 operations = Operaciones
-no-operations = Sin operaciones en la historia.
-pending = En espera
+no-operations = Historial vacío.
+pending = Pendientes
 failed = Falladas
 complete = Completadas
 
 ## Settings
-settings = Ajustes
+settings = Configuración
 
 ## Release notes
 latest-version = Versión más reciente
@@ -89,6 +89,6 @@ no-description = Sin descripción disponible.
 ### Appearance
 appearance = Apariencia
 theme = Tema
-match-desktop = Automático
+match-desktop = Seguir el estilo del escritorio
 dark = Oscuro
 light = Claro
