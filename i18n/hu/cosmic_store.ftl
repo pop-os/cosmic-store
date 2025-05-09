@@ -16,13 +16,13 @@ update-all = Összes frissítése
 
 # Progress footer
 details = Részletek
-dismiss = Üzenet eltüntetése
+dismiss = Üzenet elvetése
 operations-running = {$running} művelet fut ({$percent}%)...
 operations-running-finished = {$running} művelet fut ({$percent}%), {$finished} befejeződött...
 
 # Uninstall Dialog
 uninstall-app = {$name} eltávolítása
-uninstall-app-warning = Biztosan eltávolítja a {$name} alkalmazást?
+uninstall-app-warning = Biztosan eltávolítja a(z) {$name} alkalmazást?
 
 # Nav Pages
 explore = Felfedezés
@@ -32,7 +32,7 @@ develop = Fejlesztés
 learn = Tanulás
 game = Játék
 relax = Pihenés
-socialize = Szocializálás
+socialize = Társalgás
 utilities = Segédprogramok
 installed-apps = Telepített alkalmazások
 updates = Frissítések
@@ -42,10 +42,10 @@ editors-choice = A szerkesztő választása
 popular-apps = Népszerű alkalmazások
 made-for-cosmic = COSMIC-ra tervezve
 new-apps = Új alkalmazások
-recently-updated = Nemrég frissítve
+recently-updated = Nemrég frissített
 development-tools = Fejlesztői eszközök
 scientific-tools = Tudományos eszközök
-productivity-apps = Hatékonysági alkalmazások
+productivity-apps = Termelékenységi alkalmazások
 graphics-and-photography-tools = Grafikai és fényképészeti eszközök
 social-networking-apps = Közösségi hálózati alkalmazások
 games = Játékok
@@ -56,7 +56,7 @@ apps-for-learning = Alkalmazások tanuláshoz
 source-installed = {$source} (telepítve)
 developer = Fejlesztő
 app-developers = {$app} Fejlesztői
-monthly-downloads = Flathub Havi Letöltések
+monthly-downloads = Flathub havi letöltések
 licenses = Licencek
 proprietary = Zárt forráskódú
 
@@ -89,6 +89,6 @@ no-description = Nincs leírás.
 ### Appearance
 appearance = Megjelenés
 theme = Téma
-match-desktop = Asztallal egyező
+match-desktop = Rendszertéma
 dark = Sötét
 light = Világos
