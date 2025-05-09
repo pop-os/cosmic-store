@@ -141,6 +141,7 @@ pub struct AppInfo {
     pub source_id: String,
     pub source_name: String,
     pub origin_opt: Option<String>,
+    pub mediabase_url_opt: Option<String>,
     pub name: String,
     pub summary: String,
     pub developer_name: String,
@@ -164,6 +165,7 @@ impl AppInfo {
         source_id: &str,
         source_name: &str,
         origin_opt: Option<&str>,
+        mediabase_url_opt: Option<&str>,
         component: Component,
         locale: &str,
         monthly_downloads: u64,
@@ -299,7 +301,10 @@ impl AppInfo {
                             .as_ref()
                             .map_or("", |x| get_translatable(x, locale))
                             .to_string(),
-                        url: image.url.into(),
+                        url: mediabase_url_opt
+                            .map(|base| format!("{}/{}", base, image.url))
+                            .unwrap_or_else(|| image.url.to_string())
+                            .into(),
                     });
                     break;
                 }

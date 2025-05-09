@@ -560,6 +560,7 @@ impl AppstreamCache {
             .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
         let origin_opt = e.attributes.get("origin");
         let _arch_opt = e.attributes.get("architecture");
+        let mediabase_url_opt = e.attributes.get("media_baseurl");
         let infos: Vec<_> = e
             .children
             .par_iter()
@@ -582,6 +583,7 @@ impl AppstreamCache {
                                         &self.source_id,
                                         &self.source_name,
                                         origin_opt.map(|x| x.as_str()),
+                                        mediabase_url_opt.map(|x| x.as_str()),
                                         component,
                                         &self.locale,
                                         monthly_downloads,
@@ -1015,6 +1017,7 @@ impl AppstreamCache {
                                 &self.source_id,
                                 &self.source_name,
                                 origin_opt.as_deref(),
+                                media_base_url_opt.as_deref(),
                                 component,
                                 &self.locale,
                                 monthly_downloads,
