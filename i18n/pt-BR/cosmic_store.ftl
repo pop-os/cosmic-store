@@ -26,31 +26,31 @@ uninstall-app-warning = Tem certeza de que deseja desinstalar {$name}?
 
 # Nav Pages
 explore = Explorar
-create = Criar
-work = Trabalhar
-develop = Desenvolver
-learn = Aprender
-game = Jogar
-relax = Relaxar
-socialize = Socializar
+create = Criação
+work = Trabalho
+develop = Desenvolvimento
+learn = Aprendizagem
+game = Jogos
+relax = Áudio e Vídeo
+socialize = Rede e Internet
 utilities = Utilitários
-installed-apps = Apps instalados
+installed-apps = Instalados
 updates = Atualizações
 
 # Explore Pages
-editors-choice = Escolha dos editores
-popular-apps = Aplicativos populares
+editors-choice = Escolha dos Editores
+popular-apps = Aplicativos Populares
 made-for-cosmic = Feitos para o COSMIC
-new-apps = Novos aplicativos
-recently-updated = Atualizados recentemente
-development-tools = Ferramentas de desenvolvimento
-scientific-tools = Ferramentas científicas
-productivity-apps = Aplicativos de produtividade
-graphics-and-photography-tools = Ferramentas gráficas e de fotografia
-social-networking-apps = Aplicativos de redes sociais
+new-apps = Novos Aplicativos
+recently-updated = Atualizados Recentemente
+development-tools = Ferramentas de Desenvolvimento
+scientific-tools = Ferramentas Científicas
+productivity-apps = Aplicativos de Produtividade
+graphics-and-photography-tools = Ferramentas Gráficas e de Fotografia
+social-networking-apps = Aplicativos de Rede e Internet
 games = Jogos
-music-and-video-apps = Aplicativos de música e vídeo
-apps-for-learning = Aplicativos de aprendizagem
+music-and-video-apps = Aplicativos de Música e Vídeo
+apps-for-learning = Aplicativos de Aprendizagem
 
 # Details Page
 source-installed = {$source} (instalado)
