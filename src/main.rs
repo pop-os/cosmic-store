@@ -7,6 +7,7 @@ use cosmic::{
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
+        core::SmolStr,
         event::{self, Event},
         futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
@@ -174,7 +175,7 @@ pub enum Message {
     ExploreResults(ExplorePage, Vec<SearchResult>),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
-    Key(Modifiers, Key),
+    Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
     MaybeExit,
     #[cfg(feature = "notify")]
@@ -2684,10 +2685,26 @@ impl Application for App {
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
             }
-            Message::Key(modifiers, key) => {
+            Message::Key(modifiers, key, text) => {
                 for (key_bind, action) in self.key_binds.iter() {
                     if key_bind.matches(modifiers, &key) {
                         return self.update(action.message());
+                    }
+                }
+
+                // Uncaptured keys with only shift modifiers go to the search box
+                if !modifiers.logo()
+                    && !modifiers.control()
+                    && !modifiers.alt()
+                    && matches!(key, Key::Character(_))
+                {
+                    if let Some(text) = text {
+                        self.search_active = true;
+                        self.search_input.push_str(&text);
+                        return Task::batch([
+                            widget::text_input::focus(self.search_id.clone()),
+                            self.search(),
+                        ]);
                     }
                 }
             }
@@ -3219,10 +3236,16 @@ impl Application for App {
         struct ThemeSubscription;
 
         let mut subscriptions = vec![
-            event::listen_with(|event, _status, _window_id| match event {
-                Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => {
-                    Some(Message::Key(modifiers, key))
-                }
+            event::listen_with(|event, status, _window_id| match event {
+                Event::Keyboard(KeyEvent::KeyPressed {
+                    key,
+                    modifiers,
+                    text,
+                    ..
+                }) => match status {
+                    event::Status::Ignored => Some(Message::Key(modifiers, key, text)),
+                    event::Status::Captured => None,
+                },
                 Event::Window(WindowEvent::CloseRequested) => Some(Message::WindowClose),
                 _ => None,
             }),
