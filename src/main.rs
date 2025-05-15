@@ -2672,7 +2672,8 @@ impl Application for App {
 
                 self.update_apps();
                 let mut commands = Vec::new();
-                if self.search_active {
+                //TODO: search not done if item is selected because that would clear selection
+                if self.search_active && !self.selected_opt.is_some() {
                     // Update search if active
                     commands.push(self.search());
                 }
