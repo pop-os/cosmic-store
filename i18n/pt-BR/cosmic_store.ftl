@@ -29,7 +29,7 @@ explore = Explorar
 create = Criação
 work = Trabalho
 develop = Desenvolvimento
-learn = Aprendizagem
+learn = Educação
 game = Jogos
 relax = Áudio e Vídeo
 socialize = Rede e Internet
@@ -50,24 +50,24 @@ graphics-and-photography-tools = Ferramentas Gráficas e de Fotografia
 social-networking-apps = Aplicativos de Rede e Internet
 games = Jogos
 music-and-video-apps = Aplicativos de Música e Vídeo
-apps-for-learning = Aplicativos de Aprendizagem
+apps-for-learning = Aplicativos Educacionais
 
 # Details Page
 source-installed = {$source} (instalado)
 developer = Desenvolvedor
 app-developers = Desenvolvedores de {$app}
-monthly-downloads = Downloads mensais do Flathub
+monthly-downloads = Downloads Mensais
 licenses = Licenças
 proprietary = Proprietário
 
 ## App URLs
-bug-tracker = Rastreador de bugs
+bug-tracker = Relatar um problema
 contact = Contato
-donation = Doação
-faq = FAQ
+donation = Fazer uma doação
+faq = Perguntas frequentes
 help = Ajuda
-homepage = Site
-translate = Traduzir
+homepage = Site do projeto
+translate = Contribuir com tradução
 
 # Context Pages
 
@@ -89,6 +89,6 @@ no-description = Nenhuma descrição disponível.
 ### Appearance
 appearance = Aparência
 theme = Tema
-match-desktop = Acompanhar o ambiente de trabalho
-dark = Escuro
-light = Claro
+match-desktop = Estilo do sistema
+dark = Estilo escuro
+light = Estilo claro
