@@ -242,6 +242,7 @@ pub enum Category {
     Settings,
     System,
     Utility,
+    CosmicApplet,
 }
 
 impl Category {
@@ -258,6 +259,7 @@ impl Category {
             Self::Settings => "Settings",
             Self::System => "System",
             Self::Utility => "Utility",
+            Self::CosmicApplet => "CosmicApplet",
         }
     }
 }
@@ -274,6 +276,7 @@ pub enum NavPage {
     Relax,
     Socialize,
     Utilities,
+    Applets,
     Installed,
     Updates,
 }
@@ -290,6 +293,7 @@ impl NavPage {
             Self::Relax,
             Self::Socialize,
             Self::Utilities,
+            Self::Applets,
             Self::Installed,
             Self::Updates,
         ]
@@ -306,6 +310,7 @@ impl NavPage {
             Self::Relax => fl!("relax"),
             Self::Socialize => fl!("socialize"),
             Self::Utilities => fl!("utilities"),
+            Self::Applets => fl!("applets"),
             Self::Installed => fl!("installed-apps"),
             Self::Updates => fl!("updates"),
         }
@@ -322,6 +327,7 @@ impl NavPage {
             Self::Relax => Some(&[Category::AudioVideo]),
             Self::Socialize => Some(&[Category::Network]),
             Self::Utilities => Some(&[Category::Settings, Category::System, Category::Utility]),
+            Self::Applets => Some(&[Category::CosmicApplet]),
             _ => None,
         }
     }
@@ -337,6 +343,7 @@ impl NavPage {
             Self::Relax => icon_cache_icon("store-relax-symbolic", 16),
             Self::Socialize => icon_cache_icon("store-socialize-symbolic", 16),
             Self::Utilities => icon_cache_icon("store-utilities-symbolic", 16),
+            Self::Applets => icon_cache_icon("store-applets-symbolic", 16),
             Self::Installed => icon_cache_icon("store-installed-symbolic", 16),
             Self::Updates => icon_cache_icon("store-updates-symbolic", 16),
         }
@@ -754,6 +761,7 @@ impl App {
                             &exec,
                             Vec::<(&str, &str)>::new(),
                             Some(&desktop_id),
+                            false,
                         )
                         .await;
                     });
@@ -839,12 +847,20 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
+                    let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
                     let results =
                         Self::generic_search(&apps, &backends, |_id, info, _installed| {
                             for category in categories {
-                                //TODO: contains doesn't work due to type mismatch
-                                if info.categories.iter().any(|x| x == category.id()) {
-                                    return Some(-(info.monthly_downloads as i64));
+                                //TODO: this hack makes it easier to add applets to the nav bar
+                                if matches!(category, Category::CosmicApplet) {
+                                    if info.provides.contains(&applet_provide) {
+                                        return Some(-(info.monthly_downloads as i64));
+                                    }
+                                } else {
+                                    //TODO: contains doesn't work due to type mismatch
+                                    if info.categories.iter().any(|x| x == category.id()) {
+                                        return Some(-(info.monthly_downloads as i64));
+                                    }
                                 }
                             }
                             None

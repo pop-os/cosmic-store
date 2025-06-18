@@ -33,6 +33,7 @@ impl IconCache {
             };
         }
 
+        bundle!("store-applets-symbolic", 16);
         bundle!("store-create-symbolic", 16);
         bundle!("store-develop-symbolic", 16);
         bundle!("store-game-symbolic", 16);

@@ -34,6 +34,7 @@ game = Game
 relax = Relax
 socialize = Socialize
 utilities = Utilities
+applets = Applets
 installed-apps = Installed apps
 updates = Updates
 
