@@ -34,6 +34,7 @@ game = Jogos
 relax = Áudio e Vídeo
 socialize = Rede e Internet
 utilities = Utilitários
+applets = Miniaplicativos
 installed-apps = Instalados
 updates = Atualizações
 
