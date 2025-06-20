@@ -34,6 +34,7 @@ game = Játék
 relax = Pihenés
 socialize = Társalgás
 utilities = Segédprogramok
+applets = Kisalkalmazások
 installed-apps = Telepített alkalmazások
 updates = Frissítések
 
@@ -45,7 +46,7 @@ new-apps = Új alkalmazások
 recently-updated = Nemrég frissített
 development-tools = Fejlesztői eszközök
 scientific-tools = Tudományos eszközök
-productivity-apps = Termelékenységi alkalmazások
+productivity-apps = Hatékonysági alkalmazások
 graphics-and-photography-tools = Grafikai és fényképészeti eszközök
 social-networking-apps = Közösségi hálózati alkalmazások
 games = Játékok
