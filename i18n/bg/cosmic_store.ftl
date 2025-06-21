@@ -1,4 +1,4 @@
-app-name = Магазин за програми на COSMIC
+app-name = Програми на COSMIC
 back = Назад
 cancel = Отказване
 check-for-updates = Проверка за обновления
@@ -34,6 +34,7 @@ game = Игра
 relax = Отпускане
 socialize = Общуване
 utilities = Инструменти
+applets = Графични обекти
 installed-apps = Инсталирани програми
 updates = Обновления
 
