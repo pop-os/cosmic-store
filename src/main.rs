@@ -1875,43 +1875,50 @@ impl App {
                 ])
                 .align_x(Alignment::Center)
                 .width(Length::Fill);
-                let downloads_widget = widget::column::with_children(vec![
-                    widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
-                    //TODO: description of what this means?
-                    widget::text::body(fl!("monthly-downloads")).into(),
-                ])
-                .align_x(Alignment::Center)
-                .width(Length::Fill);
+                let downloads_widget = (selected.info.monthly_downloads > 0).then(|| {
+                    widget::column::with_children(vec![
+                        widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
+                        //TODO: description of what this means?
+                        widget::text::body(fl!("monthly-downloads")).into(),
+                    ])
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill)
+                });
                 if grid_width < 416 {
+                    let size = 4 + if downloads_widget.is_some() { 3 } else { 0 };
+                    let downloads_widget_space = downloads_widget
+                        .is_some()
+                        .then(widget::divider::horizontal::default);
                     column = column.push(
-                        widget::column::with_children(vec![
-                            widget::divider::horizontal::default().into(),
-                            sources_widget.into(),
-                            widget::divider::horizontal::default().into(),
-                            developers_widget.into(),
-                            widget::divider::horizontal::default().into(),
-                            downloads_widget.into(),
-                            widget::divider::horizontal::default().into(),
-                        ])
-                        .spacing(space_xxs),
+                        widget::column::with_capacity(size)
+                            .push(widget::divider::horizontal::default())
+                            .push(sources_widget)
+                            .push(widget::divider::horizontal::default())
+                            .push(developers_widget)
+                            .push(widget::divider::horizontal::default())
+                            .push_maybe(downloads_widget)
+                            .push_maybe(downloads_widget_space)
+                            .spacing(space_xxs),
                     );
                 } else {
+                    let row_size = 4 + if downloads_widget.is_some() { 2 } else { 0 };
+                    let downloads_widget_space = downloads_widget
+                        .is_some()
+                        .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
                     column = column.push(
                         widget::column::with_children(vec![
                             widget::divider::horizontal::default().into(),
-                            widget::row::with_children(vec![
-                                sources_widget.into(),
-                                widget::divider::vertical::default()
-                                    .height(Length::Fixed(32.0))
-                                    .into(),
-                                developers_widget.into(),
-                                widget::divider::vertical::default()
-                                    .height(Length::Fixed(32.0))
-                                    .into(),
-                                downloads_widget.into(),
-                            ])
-                            .align_y(Alignment::Center)
-                            .into(),
+                            widget::row::with_capacity(row_size)
+                                .push(sources_widget)
+                                .push(
+                                    widget::divider::vertical::default()
+                                        .height(Length::Fixed(32.0)),
+                                )
+                                .push(developers_widget)
+                                .push_maybe(downloads_widget_space)
+                                .push_maybe(downloads_widget)
+                                .align_y(Alignment::Center)
+                                .into(),
                             widget::divider::horizontal::default().into(),
                         ])
                         .spacing(space_xxs),
