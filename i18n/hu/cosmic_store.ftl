@@ -22,7 +22,7 @@ operations-running-finished = {$running} művelet fut ({$percent}%), {$finished}
 
 # Uninstall Dialog
 uninstall-app = {$name} eltávolítása
-uninstall-app-warning = Biztosan eltávolítja a(z) {$name} alkalmazást?
+uninstall-app-warning = Biztosan eltávolítod a(z) {$name} alkalmazást?
 
 # Nav Pages
 explore = Felfedezés
