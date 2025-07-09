@@ -1,8 +1,8 @@
 app-name = Sklep COSMIC
 back = Powrót
 cancel = Anuluj
-check-for-updates = Sprawdź uaktualnienia
-checking-for-updates = Sprawdzam uaktualnienia...
+check-for-updates = Sprawdź aktualizacje
+checking-for-updates = Sprawdzam aktualizacje...
 install = Zainstaluj
 no-installed-applications = Brak zainstalowanycha aplikacji.
 no-updates = Wszystkie zainstalowane aplikacje są aktualne.
@@ -34,6 +34,7 @@ game = Gry
 relax = Relaks
 socialize = Społeczne
 utilities = Użytkowe
+applets = Aplety
 installed-apps = Zainstalowane aplikacje
 updates = Aktualizacje
 
