@@ -13,6 +13,7 @@ see-all = See all
 uninstall = Uninstall
 update = Update
 update-all = Update all
+place-on-desktop = Place on desktop
 
 # Progress footer
 details = Details

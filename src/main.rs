@@ -1725,6 +1725,7 @@ impl App {
                 }
                 let is_installed =
                     self.is_installed(selected.backend_name, &selected.id, &selected.info);
+                let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
                 let mut update_opt = None;
                 if let Some(updates) = &self.updates {
                     for (backend_name, package) in updates {
@@ -1792,11 +1793,19 @@ impl App {
                 } else if is_installed {
                     //TODO: what if there are multiple desktop IDs?
                     if let Some(desktop_id) = selected.info.desktop_ids.first() {
-                        buttons.push(
-                            widget::button::suggested(fl!("open"))
-                                .on_press(Message::OpenDesktopId(desktop_id.clone()))
-                                .into(),
-                        );
+                        if selected.info.provides.contains(&applet_provide) {
+                            buttons.push(
+                                widget::button::suggested(fl!("place-on-desktop"))
+                                    .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                    .into(),
+                            );
+                        } else {
+                            buttons.push(
+                                widget::button::suggested(fl!("open"))
+                                    .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                    .into(),
+                            );
+                        }
                     }
                     if let Some(update) = update_opt {
                         buttons.push(
