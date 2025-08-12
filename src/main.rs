@@ -16,7 +16,9 @@ use cosmic::{
         window::{self, Event as WindowEvent},
         Alignment, Length, Limits, Size, Subscription,
     },
-    theme, widget, Application, ApplicationExt, Element,
+    theme,
+    widget::{self, segmented_button::Selectable},
+    Application, ApplicationExt, Element,
 };
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
@@ -25,6 +27,7 @@ use std::{
     cmp,
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     env,
+    fmt::Debug,
     future::pending,
     path::Path,
     process,
@@ -213,6 +216,8 @@ pub enum Message {
     Updates(Vec<(&'static str, Package)>),
     WindowClose,
     WindowNew,
+    SelectPlacement(cosmic::widget::segmented_button::Entity),
+    PlaceApplet,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -226,6 +231,7 @@ pub enum ContextPage {
 pub enum DialogPage {
     FailedOperation(u64),
     Uninstall(&'static str, AppId, Arc<AppInfo>),
+    Place,
 }
 
 // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
@@ -708,6 +714,9 @@ pub struct App {
     installed_results: Option<Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
+    applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
+    applet_place_panel: cosmic::widget::segmented_button::Entity,
+    applet_place_dock: cosmic::widget::segmented_button::Entity,
 }
 
 impl App {
@@ -1796,7 +1805,7 @@ impl App {
                         if selected.info.provides.contains(&applet_provide) {
                             buttons.push(
                                 widget::button::suggested(fl!("place-on-desktop"))
-                                    .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                    .on_press(Message::DialogPage(DialogPage::Place))
                                     .into(),
                             );
                         } else {
@@ -2499,6 +2508,14 @@ impl Application for App {
         //TODO: is this going to be set correctly?
         let window_id_opt = core.main_window_id();
 
+        // Build buttons for applet placement dialog
+
+        let mut applet_placement_buttons =
+            cosmic::widget::segmented_button::SingleSelectModel::builder().build();
+        let applet_place_panel = applet_placement_buttons.insert().text(fl!("panel")).id();
+        let applet_place_dock = applet_placement_buttons.insert().text(fl!("dock")).id();
+        applet_placement_buttons.activate_position(0);
+
         let mut app = App {
             core,
             config_handler: flags.config_handler,
@@ -2534,6 +2551,9 @@ impl Application for App {
             installed_results: None,
             search_results: None,
             selected_opt: None,
+            applet_placement_buttons,
+            applet_place_panel,
+            applet_place_dock,
         };
 
         if let Some(subcommand) = flags.subcommand_opt {
@@ -3082,6 +3102,28 @@ impl Application for App {
                     log::error!("failed to get current executable path: {}", err);
                 }
             },
+            Message::SelectPlacement(selection) => {
+                self.applet_placement_buttons.activate(selection);
+            }
+            Message::PlaceApplet => {
+                self.dialog_pages.pop_front();
+
+                let desktop_id = if Some(self.applet_placement_buttons.active())
+                    == self.applet_placement_buttons.entity_at(0)
+                {
+                    Some("com.system76.CosmicSettings.Panel")
+                } else if Some(self.applet_placement_buttons.active())
+                    == self.applet_placement_buttons.entity_at(1)
+                {
+                    Some("com.system76.CosmicSettings.Dock")
+                } else {
+                    None
+                };
+
+                if desktop_id != None {
+                    return self.open_desktop_id(desktop_id.unwrap().to_string());
+                }
+            }
         }
 
         Task::none()
@@ -3138,6 +3180,25 @@ impl Application for App {
                 .icon(widget::icon::from_name(Self::APP_ID).size(64))
                 .primary_action(
                     widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
+                )
+                .secondary_action(
+                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                ),
+            DialogPage::Place => widget::dialog()
+                .title(fl!("place-applet"))
+                .body(fl!("place-applet-desc"))
+                .control(
+                    widget::row().push(
+                        cosmic::widget::segmented_control::horizontal(
+                            &self.applet_placement_buttons,
+                        )
+                        .on_activate(Message::SelectPlacement)
+                        .minimum_button_width(0),
+                    ),
+                )
+                .primary_action(
+                    widget::button::suggested(fl!("place-and-refine"))
+                        .on_press(Message::PlaceApplet),
                 )
                 .secondary_action(
                     widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
