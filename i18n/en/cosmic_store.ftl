@@ -13,6 +13,12 @@ see-all = See all
 uninstall = Uninstall
 update = Update
 update-all = Update all
+place-on-desktop = Place on desktop
+place-applet = Place applet
+place-applet-desc = Choose where to add the applet before refining its position.
+panel = Panel
+dock = Dock
+place-and-refine = Place and refine
 
 # Progress footer
 details = Details
