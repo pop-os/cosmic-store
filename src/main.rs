@@ -17,7 +17,7 @@ use cosmic::{
         Alignment, Length, Limits, Size, Subscription,
     },
     theme,
-    widget::{self, segmented_button::Selectable},
+    widget::{self},
     Application, ApplicationExt, Element,
 };
 use localize::LANGUAGE_SORTER;
@@ -715,8 +715,6 @@ pub struct App {
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
-    applet_place_panel: cosmic::widget::segmented_button::Entity,
-    applet_place_dock: cosmic::widget::segmented_button::Entity,
 }
 
 impl App {
@@ -2512,8 +2510,6 @@ impl Application for App {
 
         let mut applet_placement_buttons =
             cosmic::widget::segmented_button::SingleSelectModel::builder().build();
-        let applet_place_panel = applet_placement_buttons.insert().text(fl!("panel")).id();
-        let applet_place_dock = applet_placement_buttons.insert().text(fl!("dock")).id();
         applet_placement_buttons.activate_position(0);
 
         let mut app = App {
@@ -2552,8 +2548,6 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
-            applet_place_panel,
-            applet_place_dock,
         };
 
         if let Some(subcommand) = flags.subcommand_opt {
