@@ -3104,21 +3104,37 @@ impl Application for App {
             Message::PlaceApplet => {
                 self.dialog_pages.pop_front();
 
-                let desktop_id = if Some(self.applet_placement_buttons.active())
-                    == self.applet_placement_buttons.entity_at(0)
-                {
-                    Some("com.system76.CosmicSettings.Panel")
-                } else if Some(self.applet_placement_buttons.active())
+                let settings_desktop_id = "com.system76.CosmicSettings";
+                let exec = if Some(self.applet_placement_buttons.active())
                     == self.applet_placement_buttons.entity_at(1)
                 {
-                    Some("com.system76.CosmicSettings.Dock")
+                    "cosmic-settings dock-applet"
                 } else {
-                    None
+                    "cosmic-settings panel-applet"
                 };
 
-                if desktop_id != None {
-                    return self.open_desktop_id(desktop_id.unwrap().to_string());
-                }
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || Some((exec, settings_desktop_id)))
+                            .await
+                            .unwrap_or(None)
+                    },
+                    |result| {
+                        #[cfg(feature = "desktop")]
+                        if let Some((exec, settings_desktop_id)) = result {
+                            tokio::spawn(async move {
+                                cosmic::desktop::spawn_desktop_exec(
+                                    &exec,
+                                    Vec::<(&str, &str)>::new(),
+                                    Some(&settings_desktop_id),
+                                    false,
+                                )
+                                .await;
+                            });
+                        }
+                        action::none()
+                    },
+                );
             }
         }
 
