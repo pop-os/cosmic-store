@@ -2510,6 +2510,8 @@ impl Application for App {
 
         let mut applet_placement_buttons =
             cosmic::widget::segmented_button::SingleSelectModel::builder().build();
+        let _ = applet_placement_buttons.insert().text(fl!("panel")).id();
+        let _ = applet_placement_buttons.insert().text(fl!("dock")).id();
         applet_placement_buttons.activate_position(0);
 
         let mut app = App {
