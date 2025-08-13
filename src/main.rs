@@ -72,6 +72,9 @@ mod priority;
 
 mod stats;
 
+use clap_lex::RawArgs;
+use std::error::Error;
+
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
@@ -80,7 +83,29 @@ const MAX_RESULTS: usize = 100;
 
 /// Runs application with these settings
 #[rustfmt::skip]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
+    let raw_args = RawArgs::from_args();
+    let mut cursor = raw_args.cursor();
+
+    //Parse the arguments
+    while let Some(arg) = raw_args.next_os(&mut cursor) {
+        match arg.to_str() {
+            Some("--help") | Some("-h") => {
+                print_help();
+                return Ok(());
+            }
+            Some("--version") | Some("-V") => {
+                println!(
+                    "cosmic-store {} (git commit {})",
+                    env!("CARGO_PKG_VERSION"),
+                    env!("VERGEN_GIT_SHA")
+                );
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
     localize::localize();
@@ -3519,3 +3544,18 @@ impl Application for App {
         Subscription::batch(subscriptions)
     }
 }
+
+fn print_help() {
+    println!(    
+        r#"COSMIC Store
+Designed for the COSMIC™ desktop environment, cosmic-store is the official graphical app store for discovering, installing, and managing software.
+	    
+Project home page: https://github.com/pop-os/cosmic-store
+	    
+Options:
+  -h, --help       Show this message
+  -v, --version    Show the version of cosmic-store"#
+    );
+}
+
+

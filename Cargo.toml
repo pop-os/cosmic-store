@@ -3,6 +3,7 @@ name = "cosmic-store"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.71"
+build = "build.rs"
 
 [dependencies]
 chrono = "0.4"
@@ -19,6 +20,8 @@ serde = { version = "1", features = ["rc", "serde_derive"] }
 spdx = { git = "https://github.com/jackpot51/spdx.git" }
 tokio = { version = "1", features = ["sync"] }
 xdg = "2"
+# CLI arguments
+clap_lex = "0.7"
 # Internationalization
 i18n-embed = { version = "0.15", features = [
     "fluent-system",
@@ -53,6 +56,9 @@ packagekit-zbus = { version = "0.1", optional = true }
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
 features = ["multi-window", "tokio", "winit"]
+
+[build-dependencies]
+vergen = { version = "8", features = ["git", "gitcl"] }
 
 [features]
 #todo : add a11y back to default
