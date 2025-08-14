@@ -136,6 +136,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(codec) = flags.subcommand_opt.as_ref().and_then(|x| GStreamerCodec::parse(&x)) {
         // GStreamer installer dialog
+        //TODO: better way to set correct size
+        settings = settings.size_limits(Limits::NONE.width(640.0).height(640.0));
         flags.mode = Mode::GStreamer { codec, selected: BTreeSet::new() };
         cosmic::app::run::<App>(settings, flags)?;
     } else {
