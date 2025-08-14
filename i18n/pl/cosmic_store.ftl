@@ -13,6 +13,12 @@ see-all = Zobacz wszystkie
 uninstall = Odinstaluj
 update = Zaktualizuj
 update-all = Zaktualizuj wszystkie
+place-on-desktop = Umieść na pulpicie
+place-applet = Umieść aplet
+place-applet-desc = Wybierz gdzie umieścić aplet przed doprecyzowaniem jego pozycji.
+panel = Panel
+dock = Dok
+place-and-refine = Umieść i doprecyzuj
 
 # Progress footer
 details = Detale
