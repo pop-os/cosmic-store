@@ -2805,7 +2805,15 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                return Task::batch([self.update_installed(), self.update_updates()]);
+                let mut tasks = Vec::with_capacity(2);
+                tasks.push(self.update_installed());
+                match self.mode {
+                    Mode::Normal => {
+                        tasks.push(self.update_updates());
+                    }
+                    Mode::GStreamer { .. } => {}
+                }
+                return Task::batch(tasks);
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
@@ -2924,9 +2932,14 @@ impl Application for App {
                     // Update search if active
                     commands.push(self.search());
                 }
-                commands.push(self.installed_results());
-                for explore_page in ExplorePage::all() {
-                    commands.push(self.explore_results(*explore_page));
+                match self.mode {
+                    Mode::Normal => {
+                        commands.push(self.installed_results());
+                        for explore_page in ExplorePage::all() {
+                            commands.push(self.explore_results(*explore_page));
+                        }
+                    }
+                    Mode::GStreamer { .. } => {}
                 }
                 return Task::batch(commands);
             }
