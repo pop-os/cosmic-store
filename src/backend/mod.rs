@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{AppId, AppInfo, AppstreamCache, Operation};
+use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -34,6 +34,12 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>>;
+    fn gstreamer_packages(
+        &self,
+        _gstreamer_codec: &GStreamerCodec,
+    ) -> Result<Vec<Package>, Box<dyn Error>> {
+        Ok(Vec::new())
+    }
     fn operation(
         &self,
         op: &Operation,
