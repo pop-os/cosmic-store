@@ -3,6 +3,7 @@ back = Back
 cancel = Cancel
 check-for-updates = Check for updates
 checking-for-updates = Checking for updates...
+close = Close
 install = Install
 no-installed-applications = No installed applications.
 no-updates = All installed applications are up to date.
@@ -29,6 +30,8 @@ codec-footer =
      • These restrictions do not apply in your country of legal residence
      • You have permission to use this software (for example, a patent license)
      • You are using this software for research purposes only
+codec-error = There were errors during package installation.
+codec-installed = The packages have been installed.
 
 # Progress footer
 details = Details

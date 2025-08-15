@@ -97,7 +97,6 @@ struct Cli {
 }
 
 /// Runs application with these settings
-#[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
@@ -134,11 +133,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mode: Mode::Normal,
     };
 
-    if let Some(codec) = flags.subcommand_opt.as_ref().and_then(|x| GStreamerCodec::parse(&x)) {
+    if let Some(codec) = flags
+        .subcommand_opt
+        .as_ref()
+        .and_then(|x| GStreamerCodec::parse(&x))
+    {
         // GStreamer installer dialog
-        //TODO: better way to set correct size
-        settings = settings.size_limits(Limits::NONE.width(640.0).height(640.0));
-        flags.mode = Mode::GStreamer { codec, selected: BTreeSet::new() };
+        settings = settings.no_main_window(true);
+        flags.mode = Mode::GStreamer {
+            codec,
+            selected: BTreeSet::new(),
+            installing: false,
+        };
         cosmic::app::run::<App>(settings, flags)?;
     } else {
         #[cfg(feature = "single-instance")]
@@ -188,6 +194,7 @@ pub enum Mode {
     GStreamer {
         codec: GStreamerCodec,
         selected: BTreeSet<usize>,
+        installing: bool,
     },
 }
 
@@ -223,6 +230,7 @@ pub enum Message {
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     GStreamerExit(GStreamerExitCode),
+    GStreamerInstall,
     GStreamerToggle(usize),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
@@ -749,7 +757,6 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
-    window_id_opt: Option<window::Id>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
     //TODO: use hashset?
@@ -1282,8 +1289,13 @@ impl App {
         cosmic::command::set_theme(self.config.app_theme.theme())
     }
 
-    fn is_installed(&self, backend_name: &'static str, id: &AppId, info: &AppInfo) -> bool {
-        if let Some(installed) = &self.installed {
+    fn is_installed_inner(
+        installed_opt: &Option<Vec<(&'static str, Package)>>,
+        backend_name: &'static str,
+        id: &AppId,
+        info: &AppInfo,
+    ) -> bool {
+        if let Some(installed) = installed_opt {
             for (installed_backend_name, package) in installed {
                 if *installed_backend_name == backend_name
                     && package.info.source_id == info.source_id
@@ -1311,6 +1323,10 @@ impl App {
             }
         }
         false
+    }
+
+    fn is_installed(&self, backend_name: &'static str, id: &AppId, info: &AppInfo) -> bool {
+        Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
     //TODO: run in background
@@ -1681,7 +1697,7 @@ impl App {
     }
 
     fn update_title(&mut self) -> Task<Message> {
-        if let Some(window_id) = &self.window_id_opt {
+        if let Some(window_id) = &self.core.main_window_id() {
             self.set_window_title(fl!("app-name"), window_id.clone())
         } else {
             Task::none()
@@ -2615,9 +2631,6 @@ impl Application for App {
             }
         }
 
-        //TODO: is this going to be set correctly?
-        let window_id_opt = core.main_window_id();
-
         // Build buttons for applet placement dialog
 
         let mut applet_placement_buttons =
@@ -2652,7 +2665,6 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
-            window_id_opt,
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),
@@ -2674,8 +2686,7 @@ impl Application for App {
         match app.mode {
             Mode::Normal => {}
             Mode::GStreamer { .. } => {
-                app.core.window.show_maximize = false;
-                app.core.window.show_minimize = false;
+                app.core.window.use_template = false;
             }
         }
 
@@ -2693,7 +2704,7 @@ impl Application for App {
     #[cfg(feature = "single-instance")]
     fn dbus_activation(&mut self, msg: cosmic::dbus_activation::Message) -> Task<Message> {
         let mut tasks = Vec::with_capacity(2);
-        if self.window_id_opt.is_none() {
+        if self.core.main_window_id().is_none() {
             // Create window if required
             let (window_id, task) = window::open(window::Settings {
                 min_size: Some(Size::new(360.0, 180.0)),
@@ -2701,7 +2712,7 @@ impl Application for App {
                 exit_on_close_request: false,
                 ..Default::default()
             });
-            self.window_id_opt = Some(window_id);
+            self.core.set_main_window_id(Some(window_id));
             tasks.push(task.map(|_id| action::none()));
         }
         if let cosmic::dbus_activation::Details::ActivateAction { action, .. } = msg.msg {
@@ -2850,6 +2861,50 @@ impl Application for App {
                     process::exit(code as i32);
                 }
             },
+            Message::GStreamerInstall => {
+                let mut ops = Vec::new();
+                match &mut self.mode {
+                    Mode::Normal => {}
+                    Mode::GStreamer {
+                        selected,
+                        installing,
+                        ..
+                    } => match &self.search_results {
+                        Some((_input, results)) => {
+                            for (i, result) in results.iter().enumerate() {
+                                let installed = Self::is_installed_inner(
+                                    &self.installed,
+                                    result.backend_name,
+                                    &result.id,
+                                    &result.info,
+                                );
+                                if installed != selected.contains(&i) {
+                                    let kind = if installed {
+                                        OperationKind::Uninstall
+                                    } else {
+                                        OperationKind::Install
+                                    };
+                                    eprintln!(
+                                        "{:?} {:?} from backend {} and info {:?}",
+                                        kind, result.id, result.backend_name, result.info
+                                    );
+                                    ops.push(Operation {
+                                        kind,
+                                        backend_name: result.backend_name,
+                                        package_ids: vec![result.id.clone()],
+                                        infos: vec![result.info.clone()],
+                                    });
+                                }
+                            }
+                            *installing = true;
+                        }
+                        None => {}
+                    },
+                }
+                for op in ops {
+                    self.operation(op);
+                }
+            }
             Message::GStreamerToggle(i) => match &mut self.mode {
                 Mode::Normal => {}
                 Mode::GStreamer { selected, .. } => {
@@ -2908,7 +2963,7 @@ impl Application for App {
                 }
             },
             Message::MaybeExit => {
-                if self.window_id_opt.is_none() && self.pending_operations.is_empty() {
+                if self.core.main_window_id().is_none() && self.pending_operations.is_empty() {
                     // Exit if window is closed and there are no pending operations
                     process::exit(0);
                 }
@@ -3010,13 +3065,57 @@ impl Application for App {
                             results[0].info.clone(),
                         );
                     }
-                    self.search_results = Some((input, results));
-                    // Clear selected results for gstreamer mode
+                    let mut tasks = Vec::with_capacity(2);
                     match &mut self.mode {
                         Mode::Normal => {}
-                        Mode::GStreamer { selected, .. } => selected.clear(),
+                        Mode::GStreamer { selected, .. } => {
+                            // Update selected results for gstreamer mode
+                            selected.clear();
+                            if results.is_empty() {
+                                // No results, means we should exit
+                                return self
+                                    .update(Message::GStreamerExit(GStreamerExitCode::NotFound));
+                            }
+                            for (i, result) in results.iter().enumerate() {
+                                if Self::is_installed_inner(
+                                    &self.installed,
+                                    result.backend_name,
+                                    &result.id,
+                                    &result.info,
+                                ) {
+                                    selected.insert(i);
+                                }
+                            }
+                            // Create window if needed
+                            if self.core.main_window_id().is_none() {
+                                // Create window if required
+                                let size = Size::new(640.0, 464.0);
+                                let mut settings = window::Settings {
+                                    decorations: false,
+                                    exit_on_close_request: false,
+                                    min_size: Some(size),
+                                    resizable: true,
+                                    size,
+                                    transparent: true,
+                                    ..Default::default()
+                                };
+
+                                #[cfg(target_os = "linux")]
+                                {
+                                    // Use the dialog ID to make it float
+                                    settings.platform_specific.application_id =
+                                        "com.system76.CosmicStoreDialog".to_string();
+                                }
+
+                                let (window_id, task) = window::open(settings);
+                                self.core.set_main_window_id(Some(window_id));
+                                tasks.push(task.map(|_id| action::none()));
+                            }
+                        }
                     }
-                    return self.update_scroll();
+                    self.search_results = Some((input, results));
+                    tasks.push(self.update_scroll());
+                    return Task::batch(tasks);
                 } else {
                     log::warn!(
                         "received {} results for {:?} after search changed to {:?}",
@@ -3229,7 +3328,8 @@ impl Application for App {
                 self.waiting_updates.clear();
             }
             Message::WindowClose => {
-                if let Some(window_id) = self.window_id_opt.take() {
+                if let Some(window_id) = self.core.main_window_id() {
+                    self.core.set_main_window_id(None);
                     return Task::batch([
                         window::close(window_id),
                         Task::perform(async move { action::app(Message::MaybeExit) }, |x| x),
@@ -3471,7 +3571,10 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
         let cosmic_theme::Spacing {
-            space_s, space_xxs, ..
+            space_s,
+            space_xs,
+            space_xxs,
+            ..
         } = theme::active().cosmic().spacing;
 
         let content: Element<_> = match &self.mode {
@@ -3488,8 +3591,12 @@ impl Application for App {
                 .into()
             })
             .into(),
-            Mode::GStreamer { codec, selected } => {
-                //TODO: translate
+            Mode::GStreamer {
+                codec,
+                selected,
+                installing,
+            } => {
+                //TODO: share code with DialogPage?
                 let mut dialog = widget::dialog()
                     .icon(widget::icon::from_name("dialog-question").size(64))
                     .title(fl!("codec-title"))
@@ -3498,60 +3605,107 @@ impl Application for App {
                         application = codec.application.as_str(),
                         description = codec.description.as_str()
                     ));
-                match &self.search_results {
-                    Some((_input, results)) => {
-                        let mut list = widget::list_column();
-                        for (i, result) in results.iter().enumerate() {
-                            list = list.add(
-                                widget::mouse_area(
-                                    widget::button::custom(
-                                        widget::row::with_children(vec![
-                                            widget::column::with_children(vec![
-                                                widget::text::body(&result.info.name).into(),
-                                                widget::text::caption(&result.info.summary).into(),
-                                            ])
-                                            .into(),
-                                            widget::horizontal_space().into(),
-                                            if selected.contains(&i) {
-                                                widget::icon::from_name("checkbox-checked-symbolic")
+                if *installing {
+                    let mut list = widget::list_column();
+
+                    for (_id, (op, progress)) in self.pending_operations.iter().rev() {
+                        list = list.add(widget::column::with_children(vec![
+                            widget::progress_bar(0.0..=100.0, *progress)
+                                .height(Length::Fixed(4.0))
+                                .into(),
+                            widget::Space::with_height(space_xs).into(),
+                            widget::text(op.pending_text(*progress as i32)).into(),
+                        ]));
+                    }
+
+                    for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
+                        list = list.add(widget::column::with_children(vec![
+                            widget::text(op.pending_text(*progress as i32)).into(),
+                            widget::text(error).into(),
+                        ]));
+                    }
+
+                    for (_id, op) in self.complete_operations.iter().rev() {
+                        list = list.add(widget::text(op.completed_text()));
+                    }
+
+                    dialog = dialog.control(widget::scrollable(list));
+                    if self.pending_operations.is_empty() {
+                        let code = if self.failed_operations.is_empty() {
+                            dialog = dialog.control(widget::text(fl!("codec-installed")));
+                            GStreamerExitCode::Success
+                        } else {
+                            dialog = dialog.control(widget::text(fl!("codec-error")));
+                            GStreamerExitCode::Error
+                        };
+                        dialog = dialog.secondary_action(
+                            widget::button::standard(fl!("close"))
+                                .on_press(Message::GStreamerExit(code)),
+                        );
+                    }
+                } else {
+                    match &self.search_results {
+                        Some((_input, results)) => {
+                            let mut list = widget::list_column();
+                            for (i, result) in results.iter().enumerate() {
+                                list = list.add(
+                                    widget::mouse_area(
+                                        widget::button::custom(
+                                            widget::row::with_children(vec![
+                                                widget::column::with_children(vec![
+                                                    widget::text::body(&result.info.name).into(),
+                                                    widget::text::caption(&result.info.summary)
+                                                        .into(),
+                                                ])
+                                                .into(),
+                                                widget::horizontal_space().into(),
+                                                if selected.contains(&i) {
+                                                    widget::icon::from_name(
+                                                        "checkbox-checked-symbolic",
+                                                    )
                                                     .size(16)
                                                     .into()
-                                            } else {
-                                                widget::Space::with_width(Length::Fixed(16.0))
-                                                    .into()
-                                            },
-                                        ])
-                                        .spacing(space_s)
-                                        .align_y(Alignment::Center),
+                                                } else {
+                                                    widget::Space::with_width(Length::Fixed(16.0))
+                                                        .into()
+                                                },
+                                            ])
+                                            .spacing(space_s)
+                                            .align_y(Alignment::Center),
+                                        )
+                                        .width(Length::Fill)
+                                        .class(theme::Button::MenuItem)
+                                        .force_enabled(true),
                                     )
-                                    .width(Length::Fill)
-                                    .class(theme::Button::MenuItem)
-                                    .force_enabled(true),
-                                )
-                                .on_press(Message::GStreamerToggle(i)),
-                            )
+                                    .on_press(Message::GStreamerToggle(i)),
+                                );
+                            }
+                            dialog = dialog.control(widget::scrollable(list)).control(
+                                widget::row::with_children(vec![
+                                    widget::icon::from_name("dialog-warning").size(16).into(),
+                                    widget::text(fl!("codec-footer")).into(),
+                                ])
+                                .spacing(space_xxs),
+                            );
                         }
-                        dialog = dialog.control(list);
+                        None => {
+                            //TODO: loading indicator?
+                            //column = column.push(widget::text("Loading..."));
+                        }
                     }
-                    None => {
-                        //TODO: loading indicator?
-                        //column = column.push(widget::text("Loading..."));
+                    let mut install_button = widget::button::suggested(fl!("install"));
+                    if !selected.is_empty() {
+                        install_button = install_button.on_press(Message::GStreamerInstall);
                     }
-                }
-                dialog
-                    .control(
-                        widget::row::with_children(vec![
-                            widget::icon::from_name("dialog-warning").size(16).into(),
-                            widget::text(fl!("codec-footer")).into(),
-                        ])
-                        .spacing(space_xxs),
-                    )
-                    .primary_action(widget::button::suggested(fl!("install")))
-                    .secondary_action(
+                    dialog = dialog.primary_action(install_button).secondary_action(
                         widget::button::standard(fl!("cancel"))
                             .on_press(Message::GStreamerExit(GStreamerExitCode::UserAbort)),
                     )
-                    .width(640)
+                }
+                dialog
+                    .control(widget::vertical_space())
+                    .width(Length::Fill)
+                    .height(Length::Fill)
                     .into()
             }
         };
@@ -3617,7 +3771,7 @@ impl Application for App {
             }
 
             #[cfg(feature = "notify")]
-            if self.window_id_opt.is_none() {
+            if self.core.main_window_id().is_none() {
                 struct NotificationSubscription;
                 subscriptions.push(Subscription::run_with_id(
                     TypeId::of::<NotificationSubscription>(),
