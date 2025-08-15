@@ -3,20 +3,39 @@ back = Vissza
 cancel = Mégse
 check-for-updates = Frissítések keresése
 checking-for-updates = Frissítések keresése...
+close = Bezárás
 install = Telepítés
 no-installed-applications = Nincsenek telepített alkalmazások.
 no-updates = Minden telepített alkalmazás naprakész.
-no-results = Nincs találat a következőre: "{$search}".
+no-results = Nincs találat a következőre: „{$search}”.
 notification-in-progress = Telepítések és frissítések folyamatban.
 open = Megnyitás
 see-all = Összes mutatása
 uninstall = Eltávolítás
 update = Frissítés
 update-all = Összes frissítése
+place-on-desktop = Elhelyezés az asztalon
+place-applet = Kisalkalmazás elhelyezése
+place-applet-desc = Válaszd ki, hova szeretnéd elhelyezni a kisalkalmazást, mielőtt pontosítanád a helyét.
+panel = Panel
+dock = Dokk
+place-and-refine = Elhelyezés és pontosítás
+
+# Codec dialog
+codec-title = További csomagok telepítése?
+codec-header = „{$application}” további csomagokat igényel, amelyek biztosítják: „{$description}”.
+codec-footer =
+    Ezeknek a kiegészítő csomagoknak a használata egyes országokban korlátozott lehet.
+    Ellenőrizned kell, hogy az alábbiak közül legalább egy igaz:
+     • Ezek a korlátozások nem vonatkoznak a lakóhelyed szerinti országra
+     • Van engedélyed a szoftver használatára (például szabadalmi licenc)
+     • Csak kutatási célokra használod ezt a szoftvert
+codec-error = Hiba történt a csomagok telepítése közben.
+codec-installed = A csomagok telepítve lettek.
 
 # Progress footer
 details = Részletek
-dismiss = Üzenet elvetése
+dismiss = Üzenet bezárása
 operations-running = {$running} művelet fut ({$percent}%)...
 operations-running-finished = {$running} művelet fut ({$percent}%), {$finished} befejeződött...
 
