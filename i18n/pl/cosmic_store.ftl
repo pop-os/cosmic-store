@@ -3,6 +3,7 @@ back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź aktualizacje
 checking-for-updates = Sprawdzam aktualizacje...
+close = Zamknij
 install = Zainstaluj
 no-installed-applications = Brak zainstalowanycha aplikacji.
 no-updates = Wszystkie zainstalowane aplikacje są aktualne.
@@ -19,6 +20,20 @@ place-applet-desc = Wybierz gdzie umieścić aplet przed doprecyzowaniem jego po
 panel = Panel
 dock = Dok
 place-and-refine = Umieść i doprecyzuj
+
+# Codec dialog
+codec-title = Zainstalować dodatkowe pakiety?Install additional packages?
+codec-header = "{$application}" wymaga dodatkowych pakietów zapewniających "{$description}".
+codec-footer =
+    Użycie tych pakietów może być obłożone obostrzeniami w niektórych państwach.
+    Musisz stwierdzić, że jedno z poniższych jest prawdziwe:
+    The use of these additional packages may be restricted in some countries.
+    You must verify that one of the following is true:
+     • Te obostrzenia nie obowiązują w twoim kraju zamieszkania
+     • Masz pozwolenie na użycie tego oprogaramowania (na przykład licencję patentową)
+     • Używasz tego oprogramowania tylko do celów badawczych
+codec-error = Wystąpiły błędy podczas instalacji pakietów.
+codec-installed = Pakiety zostały zainstalowane.
 
 # Progress footer
 details = Detale
