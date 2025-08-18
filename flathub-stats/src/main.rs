@@ -24,7 +24,7 @@ fn leap_year(year: u16) -> bool {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let year = 2025;
-    let month = 4;
+    let month = 7;
     let days = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
