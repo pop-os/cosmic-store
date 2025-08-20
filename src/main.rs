@@ -178,6 +178,14 @@ pub struct AppEntry {
 
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
+struct DefaultSource {
+    backend_name: &'static str,
+    id: &'static str,
+    name: &'static str,
+    data: &'static [u8],
+    enabled: bool,
+}
+
 #[derive(Clone, Debug)]
 #[repr(i32)]
 pub enum GStreamerExitCode {
@@ -1839,27 +1847,17 @@ impl App {
             .into()
     }
 
-    fn repositories(&self) -> Element<Message> {
-        let backend_name = "flatpak-user";
-        let Some(backend) = self.backends.get(backend_name) else {
-            return widget::text(fl!("no-flatpak")).into();
-        };
-
-        struct DefaultSource {
-            id: &'static str,
-            name: &'static str,
-            data: &'static [u8],
-            enabled: bool,
-        }
-
-        let mut default_sources = [
+    fn default_sources(&self) -> Vec<DefaultSource> {
+        let mut default_sources = vec![
             DefaultSource {
+                backend_name: "flatpak-user",
                 id: "flathub",
                 name: "Flathub",
                 data: include_bytes!("../res/flathub.flatpakrepo"),
                 enabled: false,
             },
             DefaultSource {
+                backend_name: "flatpak-user",
                 id: "cosmic",
                 name: "COSMIC Flatpak",
                 data: include_bytes!("../res/cosmic.flatpakrepo"),
@@ -1867,13 +1865,26 @@ impl App {
             },
         ];
 
-        //TODO: check source URL
-        for cache in backend.info_caches() {
-            for default_source in default_sources.iter_mut() {
-                if cache.source_id == default_source.id {
-                    default_source.enabled = true;
+        //TODO: check source URL?
+        for (backend_name, backend) in self.backends.iter() {
+            for cache in backend.info_caches() {
+                for default_source in default_sources.iter_mut() {
+                    if *backend_name == default_source.backend_name
+                        && cache.source_id == default_source.id
+                    {
+                        default_source.enabled = true;
+                    }
                 }
             }
+        }
+
+        default_sources
+    }
+
+    fn repositories(&self) -> Element<Message> {
+        let default_sources = self.default_sources();
+        if default_sources.is_empty() {
+            return widget::text(fl!("no-flatpak")).into();
         }
 
         let mut sections = Vec::with_capacity(1);
@@ -1882,6 +1893,7 @@ impl App {
             for default_source in default_sources.iter() {
                 let mut toggler = widget::toggler(default_source.enabled);
                 if !self.repos_changing {
+                    let backend_name = default_source.backend_name;
                     let id = default_source.id.to_string();
                     let data = default_source.data.to_vec();
                     toggler = toggler.on_toggle(move |enabled| {
@@ -2631,21 +2643,27 @@ impl App {
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));
-                        #[cfg(feature = "flatpak")]
                         if matches!(nav_page, NavPage::Applets) {
-                            //TODO: function for checking for flathub/cosmic
-                            column = column.push(
-                                widget::column::with_children(vec![
-                                    widget::Space::with_height(space_l).into(),
-                                    widget::button::standard(fl!("manage-repositories"))
-                                        .on_press(Message::ToggleContextPage(
-                                            ContextPage::Repositories,
-                                        ))
-                                        .into(),
-                                ])
-                                .align_x(Alignment::Center)
-                                .width(Length::Fill),
-                            );
+                            let default_sources = self.default_sources();
+                            if !default_sources.is_empty()
+                                && default_sources.iter().any(|x| !x.enabled)
+                            {
+                                column = column.push(
+                                    widget::column::with_children(vec![
+                                        widget::Space::with_height(space_m).into(),
+                                        widget::text(fl!("enable-flathub-cosmic")).into(),
+                                        widget::Space::with_height(space_m).into(),
+                                        widget::button::standard(fl!("manage-repositories"))
+                                            .on_press(Message::ToggleContextPage(
+                                                ContextPage::Repositories,
+                                            ))
+                                            .into(),
+                                        widget::Space::with_height(space_l).into(),
+                                    ])
+                                    .align_x(Alignment::Center)
+                                    .width(Length::Fill),
+                                );
+                            }
                         }
                         //TODO: ensure category matches?
                         match &self.category_results {

@@ -63,6 +63,7 @@ installed-apps = Installed apps
 updates = Updates
 
 ## Applets page
+enable-flathub-cosmic = Please enable Flathub and COSMIC Flatpak to see available applets.
 manage-repositories = Manage repositories
 
 # Explore Pages
