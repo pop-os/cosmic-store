@@ -68,7 +68,7 @@ mod localize;
 #[cfg(feature = "logind")]
 mod logind;
 
-use operation::{Operation, OperationKind};
+use operation::{Operation, OperationKind, RepositoryRemoveError};
 mod operation;
 
 use priority::priority;
@@ -245,6 +245,8 @@ pub enum Message {
     PendingDismiss,
     PendingError(u64, String),
     PendingProgress(u64, f32),
+    RepositoryAdd(&'static str, String, Vec<u8>),
+    RepositoryRemove(&'static str, String),
     ScrollView(scrollable::Viewport),
     SearchActivate,
     SearchClear,
@@ -280,12 +282,14 @@ pub enum Message {
 pub enum ContextPage {
     Operations,
     ReleaseNotes(usize, String),
+    Repositories,
     Settings,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogPage {
     FailedOperation(u64),
+    RepositoryRemove(&'static str, RepositoryRemoveError),
     Uninstall(&'static str, AppId, Arc<AppInfo>),
     Place,
 }
@@ -752,6 +756,7 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, f32, String)>,
+    repos_changing: bool,
     scrollable_id: widget::Id,
     scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
@@ -835,6 +840,13 @@ impl App {
     }
 
     fn operation(&mut self, operation: Operation) {
+        if matches!(
+            operation.kind,
+            OperationKind::RepositoryAdd { .. } | OperationKind::RepositoryRemove { .. }
+        ) {
+            self.repos_changing = true;
+        }
+
         let id = self.pending_operation_id;
         self.pending_operation_id += 1;
         self.progress_operations.insert(id);
@@ -1827,6 +1839,68 @@ impl App {
             .into()
     }
 
+    fn repositories(&self) -> Element<Message> {
+        let backend_name = "flatpak-user";
+        let Some(backend) = self.backends.get(backend_name) else {
+            return widget::text(fl!("no-flatpak")).into();
+        };
+
+        struct DefaultSource {
+            id: &'static str,
+            name: &'static str,
+            data: &'static [u8],
+            enabled: bool,
+        }
+
+        let mut default_sources = [
+            DefaultSource {
+                id: "flathub",
+                name: "Flathub",
+                data: include_bytes!("../res/flathub.flatpakrepo"),
+                enabled: false,
+            },
+            DefaultSource {
+                id: "cosmic",
+                name: "COSMIC Flatpak",
+                data: include_bytes!("../res/cosmic.flatpakrepo"),
+                enabled: false,
+            },
+        ];
+
+        //TODO: check source URL
+        for cache in backend.info_caches() {
+            for default_source in default_sources.iter_mut() {
+                if cache.source_id == default_source.id {
+                    default_source.enabled = true;
+                }
+            }
+        }
+
+        let mut sections = Vec::with_capacity(1);
+        {
+            let mut section = widget::settings::section().title(fl!("default-sources"));
+            for default_source in default_sources.iter() {
+                let mut toggler = widget::toggler(default_source.enabled);
+                if !self.repos_changing {
+                    let id = default_source.id.to_string();
+                    let data = default_source.data.to_vec();
+                    toggler = toggler.on_toggle(move |enabled| {
+                        if enabled {
+                            Message::RepositoryAdd(backend_name, id.clone(), data.clone())
+                        } else {
+                            Message::RepositoryRemove(backend_name, id.clone())
+                        }
+                    });
+                }
+                section = section
+                    .add(widget::settings::item::builder(default_source.name).control(toggler));
+            }
+            sections.push(section.into());
+        }
+
+        widget::settings::view_column(sections).into()
+    }
+
     fn view_responsive(&self, size: Size) -> Element<Message> {
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
@@ -2552,11 +2626,27 @@ impl App {
                     }
                     //TODO: reduce duplication
                     nav_page => {
-                        let mut column = widget::column::with_capacity(2)
+                        let mut column = widget::column::with_capacity(3)
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));
+                        #[cfg(feature = "flatpak")]
+                        if matches!(nav_page, NavPage::Applets) {
+                            //TODO: function for checking for flathub/cosmic
+                            column = column.push(
+                                widget::column::with_children(vec![
+                                    widget::Space::with_height(space_l).into(),
+                                    widget::button::standard(fl!("manage-repositories"))
+                                        .on_press(Message::ToggleContextPage(
+                                            ContextPage::Repositories,
+                                        ))
+                                        .into(),
+                                ])
+                                .align_x(Alignment::Center)
+                                .width(Length::Fill),
+                            );
+                        }
                         //TODO: ensure category matches?
                         match &self.category_results {
                             Some((_, results)) => {
@@ -2660,6 +2750,7 @@ impl Application for App {
             progress_operations: BTreeSet::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
+            repos_changing: false,
             scrollable_id: widget::Id::unique(),
             scroll_views: HashMap::new(),
             search_active: false,
@@ -2805,6 +2896,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
+                self.repos_changing = false;
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
                 match self.mode {
@@ -2843,6 +2935,17 @@ impl Application for App {
                 self.dialog_pages.pop_front();
             }
             Message::DialogConfirm => match self.dialog_pages.pop_front() {
+                Some(DialogPage::RepositoryRemove(backend_name, repo_rm)) => {
+                    self.operation(Operation {
+                        kind: OperationKind::RepositoryRemove {
+                            id: repo_rm.id,
+                            force: true,
+                        },
+                        backend_name,
+                        package_ids: Vec::new(),
+                        infos: Vec::new(),
+                    });
+                }
                 Some(DialogPage::Uninstall(backend_name, id, info)) => {
                     return self.update(Message::Operation(
                         OperationKind::Uninstall,
@@ -2934,6 +3037,13 @@ impl Application for App {
                 }
                 match self.mode {
                     Mode::Normal => {
+                        if let Some(categories) = self
+                            .nav_model
+                            .active_data::<NavPage>()
+                            .and_then(|nav_page| nav_page.categories())
+                        {
+                            commands.push(self.categories(categories));
+                        }
                         commands.push(self.installed_results());
                         for explore_page in ExplorePage::all() {
                             commands.push(self.explore_results(*explore_page));
@@ -3015,6 +3125,14 @@ impl Application for App {
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
+
+                    // If repos were changing, update backends
+                    if self.repos_changing {
+                        return Task::batch([
+                            self.update_notification(),
+                            self.update_backends(true),
+                        ]);
+                    }
                 }
                 return Task::batch([
                     self.update_notification(),
@@ -3034,13 +3152,38 @@ impl Application for App {
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
+
+                    // If repos were changing, update backends
+                    if self.repos_changing {
+                        return Task::batch([
+                            self.update_notification(),
+                            self.update_backends(true),
+                        ]);
+                    }
                 }
+                return self.update_notification();
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
                     *progress = new_progress;
                 }
                 return self.update_notification();
+            }
+            Message::RepositoryAdd(backend_name, id, data) => {
+                self.operation(Operation {
+                    kind: OperationKind::RepositoryAdd { id, data },
+                    backend_name,
+                    package_ids: Vec::new(),
+                    infos: Vec::new(),
+                });
+            }
+            Message::RepositoryRemove(backend_name, id) => {
+                self.operation(Operation {
+                    kind: OperationKind::RepositoryRemove { id, force: false },
+                    backend_name,
+                    package_ids: Vec::new(),
+                    infos: Vec::new(),
+                });
             }
             Message::ScrollView(viewport) => {
                 self.scroll_views.insert(self.scroll_context(), viewport);
@@ -3424,6 +3567,11 @@ impl Application for App {
                 Message::ToggleContextPage(ContextPage::ReleaseNotes(*i, app_name.clone())),
             )
             .title(app_name),
+            ContextPage::Repositories => context_drawer::context_drawer(
+                self.repositories(),
+                Message::ToggleContextPage(ContextPage::Repositories),
+            )
+            .title(fl!("software-repositories")),
         })
     }
 
@@ -3445,6 +3593,23 @@ impl Application for App {
                     .icon(widget::icon::from_name("dialog-error").size(64))
                     //TODO: retry action
                     .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
+            DialogPage::RepositoryRemove(_backend_name, repo_rm) => {
+                let mut list = widget::list::list_column();
+                for (_id, name) in repo_rm.installed.iter() {
+                    //TODO: show icons
+                    list = list.add(widget::text(name));
+                }
+                widget::dialog()
+                    .title(fl!("repository-remove-title", id = repo_rm.id.as_str()))
+                    .body(fl!("repository-remove-body"))
+                    .control(widget::scrollable(list))
+                    .primary_action(
+                        widget::button::destructive(fl!("remove")).on_press(Message::DialogConfirm),
+                    )
+                    .secondary_action(
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
@@ -3577,6 +3742,21 @@ impl Application for App {
                     .padding(8)
                     .into()
             }],
+            Mode::GStreamer { .. } => Vec::new(),
+        }
+    }
+
+    fn header_end(&self) -> Vec<Element<Message>> {
+        match self.mode {
+            Mode::Normal => {
+                vec![widget::tooltip(
+                    widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
+                        .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
+                    widget::text(fl!("manage-repositories")),
+                    widget::tooltip::Position::Bottom,
+                )
+                .into()]
+            }
             Mode::GStreamer { .. } => Vec::new(),
         }
     }
@@ -3830,22 +4010,41 @@ impl Application for App {
                     let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                     let res = match backend_opt {
                         Some(backend) => {
+                            let on_progress = {
+                                let msg_tx = msg_tx.clone();
+                                Box::new(move |progress| -> () {
+                                    let _ = futures::executor::block_on(async {
+                                        msg_tx
+                                            .lock()
+                                            .await
+                                            .send(Message::PendingProgress(id, progress))
+                                            .await
+                                    });
+                                })
+                            };
                             let msg_tx = msg_tx.clone();
                             tokio::task::spawn_blocking(move || {
-                                backend
-                                    .operation(
-                                        &op,
-                                        Box::new(move |progress| -> () {
+                                match backend.operation(&op, on_progress) {
+                                    Ok(()) => Ok(()),
+                                    Err(err) => match err.downcast_ref::<RepositoryRemoveError>() {
+                                        Some(repo_rm) => {
                                             let _ = futures::executor::block_on(async {
                                                 msg_tx
                                                     .lock()
                                                     .await
-                                                    .send(Message::PendingProgress(id, progress))
+                                                    .send(Message::DialogPage(
+                                                        DialogPage::RepositoryRemove(
+                                                            op.backend_name,
+                                                            repo_rm.clone(),
+                                                        ),
+                                                    ))
                                                     .await
                                             });
-                                        }),
-                                    )
-                                    .map_err(|err| err.to_string())
+                                            Ok(())
+                                        }
+                                        None => Err(err.to_string()),
+                                    },
+                                }
                             })
                             .await
                             .unwrap()
@@ -3861,7 +4060,7 @@ impl Application for App {
                             let _ = msg_tx
                                 .lock()
                                 .await
-                                .send(Message::PendingError(id, err.to_string()))
+                                .send(Message::PendingError(id, err))
                                 .await;
                         }
                     }

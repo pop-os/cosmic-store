@@ -386,13 +386,15 @@ impl Backend for Packagekit {
         let (_tx_details, tx_packages) = {
             let tx = self.transaction()?;
             log::info!("resolve packages for {:?}", package_names);
-            let filter = match op.kind {
+            let filter = match &op.kind {
                 OperationKind::Install | OperationKind::Update => {
                     FilterKind::NotInstalled as u64
                         | FilterKind::Newest as u64
                         | FilterKind::Arch as u64
                 }
                 OperationKind::Uninstall => FilterKind::Installed as u64,
+                // Other operations not supported
+                _ => 0,
             };
             tx.resolve(filter, &package_names)?;
             transaction_handle(tx, |_, _| {})?
@@ -403,7 +405,7 @@ impl Backend for Packagekit {
         }
         let tx = self.transaction()?;
         tx.set_hints(&["interactive=true"])?;
-        match op.kind {
+        match &op.kind {
             OperationKind::Install => {
                 if !package_paths.is_empty() {
                     log::info!("installing package files {:?}", package_paths);
@@ -424,6 +426,12 @@ impl Backend for Packagekit {
                 log::info!("updating packages {:?}", package_ids);
                 //TODO: transaction flags?
                 tx.update_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+            }
+            OperationKind::RepositoryAdd { .. } => {
+                return Err("packagekit backend does not support adding repositories".into());
+            }
+            OperationKind::RepositoryRemove { .. } => {
+                return Err("packagekit backend does not support removing repositories".into());
             }
         }
         let _tx_packages = transaction_handle(tx, |total_percentage, progress| {

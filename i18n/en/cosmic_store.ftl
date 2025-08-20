@@ -39,6 +39,11 @@ dismiss = Dismiss message
 operations-running = {$running} operations running ({$percent}%)...
 operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
 
+# Repository remove dialog
+repository-remove-title = Remove "{$id}" repository?
+repository-remove-body = Removing this repository will delete the following applications and items. They will need to be reinstalled if the repository is added again.
+remove = Remove
+
 # Uninstall Dialog
 uninstall-app = Uninstall {$name}
 uninstall-app-warning = Are you sure you want to uninstall {$name}?
@@ -56,6 +61,9 @@ utilities = Utilities
 applets = Applets
 installed-apps = Installed apps
 updates = Updates
+
+## Applets page
+manage-repositories = Manage repositories
 
 # Explore Pages
 editors-choice = Editor's Choice
@@ -105,6 +113,11 @@ settings = Settings
 ## Release notes
 latest-version = Latest version
 no-description = No description available.
+
+## Repositories
+default-sources = Default Sources
+no-flatpak = No flatpak support
+software-repositories = Software Repositories
 
 ### Appearance
 appearance = Appearance
