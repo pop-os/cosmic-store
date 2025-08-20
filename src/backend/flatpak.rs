@@ -1,5 +1,5 @@
 use cosmic::widget;
-use libflatpak::{gio::Cancellable, glib, prelude::*, Installation, Ref, Transaction};
+use libflatpak::{gio::Cancellable, glib, prelude::*, Installation, Ref, Remote, Transaction};
 use std::{
     cell::Cell,
     collections::HashMap,
@@ -10,7 +10,9 @@ use std::{
 };
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind};
+use crate::{
+    AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind, RepositoryRemoveError,
+};
 
 #[derive(Debug)]
 pub struct Flatpak {
@@ -369,7 +371,7 @@ impl Backend for Flatpak {
                 callback(total_progress)
             });
         });
-        match op.kind {
+        match &op.kind {
             OperationKind::Install => {
                 for info in op.infos.iter() {
                     if !info.package_paths.is_empty() {
@@ -488,6 +490,54 @@ impl Backend for Flatpak {
                         tx.add_update(&r_str, &[], None)?;
                     }
                 }
+            }
+            OperationKind::RepositoryAdd(adds) => {
+                drop(tx);
+                let mut remotes = Vec::with_capacity(adds.len());
+                for add in adds.iter() {
+                    remotes.push(Remote::from_file(&add.id, &glib::Bytes::from(&add.data))?);
+                }
+                for remote in remotes {
+                    inst.add_remote(&remote, true, Cancellable::NONE)?;
+                }
+                return Ok(());
+            }
+            OperationKind::RepositoryRemove(rms, force) => {
+                let mut installed = Vec::new();
+                for r in inst.list_installed_refs(Cancellable::NONE)? {
+                    let Some(origin) = r.origin() else {
+                        continue;
+                    };
+                    if !rms.iter().any(|rm| &rm.id == &origin) {
+                        continue;
+                    }
+                    if *force {
+                        let Some(ref_str) = r.format_ref() else {
+                            continue;
+                        };
+                        tx.add_uninstall(ref_str.as_str())?;
+                    } else {
+                        let Some(name) = r.name() else { continue };
+                        let appdata_name = r.appdata_name().unwrap_or_else(|| name.clone());
+                        installed.push((name.to_string(), appdata_name.to_string()));
+                    }
+                }
+                if !installed.is_empty() {
+                    installed.sort_by(|a, b| crate::LANGUAGE_SORTER.compare(&a.1, &b.1));
+                    return Err(RepositoryRemoveError {
+                        rms: rms.clone(),
+                        installed,
+                    }
+                    .into());
+                }
+                if *force {
+                    tx.run(Cancellable::NONE)?;
+                }
+                drop(tx);
+                for rm in rms.iter() {
+                    inst.remove_remote(&rm.id, Cancellable::NONE)?;
+                }
+                return Ok(());
             }
         }
         tx.run(Cancellable::NONE)?;

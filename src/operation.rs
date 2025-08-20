@@ -1,12 +1,14 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use crate::{AppId, AppInfo};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum OperationKind {
     Install,
     Uninstall,
     Update,
+    RepositoryAdd(Vec<RepositoryAdd>),
+    RepositoryRemove(Vec<RepositoryRemove>, bool),
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -17,13 +19,75 @@ pub struct Operation {
     pub infos: Vec<Arc<AppInfo>>,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RepositoryAdd {
+    pub id: String,
+    pub data: Vec<u8>,
+}
+
+impl RepositoryAdd {
+    fn ids(adds: &Vec<Self>) -> Vec<String> {
+        adds.iter().map(|x| x.id.clone()).collect()
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RepositoryRemove {
+    pub id: String,
+    pub name: String,
+}
+
+impl RepositoryRemove {
+    fn ids(rms: &Vec<Self>) -> Vec<String> {
+        rms.iter().map(|x| x.id.clone()).collect()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepositoryRemoveError {
+    pub rms: Vec<RepositoryRemove>,
+    pub installed: Vec<(String, String)>,
+}
+
+impl fmt::Display for RepositoryRemoveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "failed to remove repositories {:?} as it still has {} installed {}",
+            RepositoryRemove::ids(&self.rms),
+            self.installed.len(),
+            if self.installed.len() == 1 {
+                "item"
+            } else {
+                "items"
+            }
+        )
+    }
+}
+
+impl std::error::Error for RepositoryRemoveError {}
+
 impl Operation {
     pub fn pending_text(&self, progress: i32) -> String {
         //TODO: translate
-        let verb = match self.kind {
+        let verb = match &self.kind {
             OperationKind::Install => "Installing",
             OperationKind::Uninstall => "Uninstalling",
             OperationKind::Update => "Updating",
+            OperationKind::RepositoryAdd(adds) => {
+                return format!(
+                    "Adding repositories {:?} ({}%)",
+                    RepositoryAdd::ids(adds),
+                    progress
+                );
+            }
+            OperationKind::RepositoryRemove(rms, _force) => {
+                return format!(
+                    "Removing repositories {:?} ({}%)",
+                    RepositoryRemove::ids(rms),
+                    progress
+                );
+            }
         };
         format!(
             "{} {} from {} ({}%)...",
@@ -33,10 +97,16 @@ impl Operation {
 
     pub fn completed_text(&self) -> String {
         //TODO: translate
-        let verb = match self.kind {
+        let verb = match &self.kind {
             OperationKind::Install => "Installed",
             OperationKind::Uninstall => "Uninstalled",
             OperationKind::Update => "Updated",
+            OperationKind::RepositoryAdd(adds) => {
+                return format!("Added repositories {:?}", RepositoryAdd::ids(adds));
+            }
+            OperationKind::RepositoryRemove(rms, _force) => {
+                return format!("Removed repositories {:?}", RepositoryRemove::ids(rms));
+            }
         };
         format!(
             "{} {} from {}",
@@ -46,10 +116,28 @@ impl Operation {
 
     pub fn failed_dialog(&self, err: &str) -> (String, String) {
         //TODO: translate
-        let verb = match self.kind {
+        let verb = match &self.kind {
             OperationKind::Install => "install",
             OperationKind::Uninstall => "uninstall",
             OperationKind::Update => "update",
+            OperationKind::RepositoryAdd(adds) => {
+                return (
+                    format!("Failed to add repositories"),
+                    format!(
+                        "Failed to add repositories {:?}:\n{err}",
+                        RepositoryAdd::ids(adds)
+                    ),
+                );
+            }
+            OperationKind::RepositoryRemove(rms, _force) => {
+                return (
+                    format!("Failed to remove repositories"),
+                    format!(
+                        "Failed to remove repositories {:?}:\n{err}",
+                        RepositoryRemove::ids(rms)
+                    ),
+                );
+            }
         };
         //TODO: get ids and names from all packages
         (
