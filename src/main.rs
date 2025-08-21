@@ -69,7 +69,7 @@ mod localize;
 #[cfg(feature = "logind")]
 mod logind;
 
-use operation::{Operation, OperationKind, RepositoryRemoveError};
+use operation::{Operation, OperationKind, RepositoryAdd, RepositoryRemove, RepositoryRemoveError};
 mod operation;
 
 use priority::priority;
@@ -179,12 +179,44 @@ pub struct AppEntry {
 
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
-struct DefaultSource {
+enum SourceKind {
+    Recommended { data: &'static [u8], enabled: bool },
+    Custom,
+}
+
+struct Source {
     backend_name: &'static str,
-    id: &'static str,
-    name: &'static str,
-    data: &'static [u8],
-    enabled: bool,
+    id: String,
+    name: String,
+    kind: SourceKind,
+    requires: Vec<String>,
+}
+
+impl Source {
+    fn add(&self) -> Option<RepositoryAdd> {
+        match self.kind {
+            SourceKind::Recommended {
+                data,
+                enabled: false,
+            } => Some(RepositoryAdd {
+                id: self.id.clone(),
+                data: data.to_vec(),
+            }),
+            _ => None,
+        }
+    }
+
+    fn remove(&self) -> Option<RepositoryRemove> {
+        match self.kind {
+            SourceKind::Recommended { enabled: true, .. } | SourceKind::Custom => {
+                Some(RepositoryRemove {
+                    id: self.id.clone(),
+                    name: self.name.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -254,8 +286,9 @@ pub enum Message {
     PendingDismiss,
     PendingError(u64, String),
     PendingProgress(u64, f32),
-    RepositoryAdd(&'static str, String, Vec<u8>),
-    RepositoryRemove(&'static str, String),
+    RepositoryAdd(&'static str, Vec<RepositoryAdd>),
+    RepositoryAddDialog(&'static str),
+    RepositoryRemove(&'static str, Vec<RepositoryRemove>),
     ScrollView(scrollable::Viewport),
     SearchActivate,
     SearchClear,
@@ -298,6 +331,7 @@ pub enum ContextPage {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogPage {
     FailedOperation(u64),
+    RepositoryAddError(String),
     RepositoryRemove(&'static str, RepositoryRemoveError),
     Uninstall(&'static str, AppId, Arc<AppInfo>),
     Place,
@@ -852,7 +886,7 @@ impl App {
     fn operation(&mut self, operation: Operation) {
         if matches!(
             operation.kind,
-            OperationKind::RepositoryAdd { .. } | OperationKind::RepositoryRemove { .. }
+            OperationKind::RepositoryAdd(..) | OperationKind::RepositoryRemove(..)
         ) {
             self.repos_changing = true;
         }
@@ -1849,70 +1883,155 @@ impl App {
             .into()
     }
 
-    fn default_sources(&self) -> Vec<DefaultSource> {
-        let mut default_sources = vec![
-            DefaultSource {
+    fn sources(&self) -> Vec<Source> {
+        let mut sources = Vec::new();
+        if self.backends.contains_key("flatpak-user") {
+            sources.push(Source {
                 backend_name: "flatpak-user",
-                id: "flathub",
-                name: "Flathub",
-                data: include_bytes!("../res/flathub.flatpakrepo"),
-                enabled: false,
-            },
-            DefaultSource {
+                id: "flathub".to_string(),
+                name: "Flathub".to_string(),
+                kind: SourceKind::Recommended {
+                    data: include_bytes!("../res/flathub.flatpakrepo"),
+                    enabled: false,
+                },
+                requires: Vec::new(),
+            });
+            sources.push(Source {
                 backend_name: "flatpak-user",
-                id: "cosmic",
-                name: "COSMIC Flatpak",
-                data: include_bytes!("../res/cosmic.flatpakrepo"),
-                enabled: false,
-            },
-        ];
+                id: "cosmic".to_string(),
+                name: "COSMIC Flatpak".to_string(),
+                kind: SourceKind::Recommended {
+                    data: include_bytes!("../res/cosmic.flatpakrepo"),
+                    enabled: false,
+                },
+                //TODO: can this be defined in flatpakrepo file?
+                requires: vec!["flathub".to_string()],
+            });
+        }
 
         //TODO: check source URL?
         for (backend_name, backend) in self.backends.iter() {
             for cache in backend.info_caches() {
-                for default_source in default_sources.iter_mut() {
-                    if *backend_name == default_source.backend_name
-                        && cache.source_id == default_source.id
-                    {
-                        default_source.enabled = true;
+                let mut found_source = false;
+                for source in sources.iter_mut() {
+                    if *backend_name == source.backend_name && cache.source_id == source.id {
+                        match &mut source.kind {
+                            SourceKind::Recommended { enabled, .. } => {
+                                *enabled = true;
+                            }
+                            SourceKind::Custom => {}
+                        }
+                        found_source = true;
                     }
+                }
+                //TODO: allow other backends to show sources?
+                if !found_source && *backend_name == "flatpak-user" {
+                    sources.push(Source {
+                        backend_name: *backend_name,
+                        id: cache.source_id.clone(),
+                        name: cache.source_name.clone(),
+                        kind: SourceKind::Custom,
+                        requires: Vec::new(),
+                    })
                 }
             }
         }
 
-        default_sources
+        sources
     }
 
     fn repositories(&self) -> Element<Message> {
-        let default_sources = self.default_sources();
-        if default_sources.is_empty() {
+        if !cfg!(feature = "flatpak") {
             return widget::text(fl!("no-flatpak")).into();
         }
 
-        let mut sections = Vec::with_capacity(1);
-        {
-            let mut section = widget::settings::section().title(fl!("default-sources"));
-            for default_source in default_sources.iter() {
-                let mut toggler = widget::toggler(default_source.enabled);
-                if !self.repos_changing {
-                    let backend_name = default_source.backend_name;
-                    let id = default_source.id.to_string();
-                    let data = default_source.data.to_vec();
-                    toggler = toggler.on_toggle(move |enabled| {
-                        if enabled {
-                            Message::RepositoryAdd(backend_name, id.clone(), data.clone())
-                        } else {
-                            Message::RepositoryRemove(backend_name, id.clone())
+        let sources = self.sources();
+        let mut recommended = widget::settings::section().title(fl!("recommended-flatpak-sources"));
+        let mut custom = widget::settings::section().header(
+            widget::row::with_children(vec![
+                widget::column::with_children(vec![
+                    widget::text::heading(fl!("custom-flatpak-sources")).into(),
+                    widget::text::body(fl!("import-flatpakrepo")).into(),
+                ])
+                .into(),
+                widget::horizontal_space().into(),
+                widget::button::standard(fl!("import"))
+                    .on_press_maybe(if self.repos_changing {
+                        None
+                    } else {
+                        Some(Message::RepositoryAddDialog("flatpak-user"))
+                    })
+                    .into(),
+            ])
+            .align_y(Alignment::Center),
+        );
+        for source in sources.iter() {
+            match source.kind {
+                SourceKind::Recommended { enabled, .. } => {
+                    let mut toggler = widget::toggler(enabled);
+                    if !self.repos_changing {
+                        let mut adds = Vec::new();
+                        let mut rms = Vec::new();
+                        if let Some(add) = source.add() {
+                            adds.push(add);
                         }
-                    });
+                        if let Some(rm) = source.remove() {
+                            rms.push(rm);
+                        }
+                        for other in sources.iter() {
+                            if source.backend_name == other.backend_name {
+                                // Add other sources required by this source
+                                if source.requires.contains(&other.id) {
+                                    if let Some(add) = other.add() {
+                                        adds.push(add);
+                                    }
+                                }
+
+                                // Remove other sources that require this source
+                                if other.requires.contains(&source.id) {
+                                    if let Some(rm) = other.remove() {
+                                        rms.push(rm);
+                                    }
+                                }
+                            }
+                        }
+
+                        let backend_name = source.backend_name;
+                        toggler = toggler.on_toggle(move |enabled| {
+                            if enabled {
+                                Message::RepositoryAdd(backend_name, adds.clone())
+                            } else {
+                                Message::RepositoryRemove(backend_name, rms.clone())
+                            }
+                        });
+                    }
+                    recommended = recommended.add(
+                        widget::settings::item::builder(source.name.clone())
+                            .description(source.id.clone())
+                            .control(toggler),
+                    );
                 }
-                section = section
-                    .add(widget::settings::item::builder(default_source.name).control(toggler));
+                SourceKind::Custom => {
+                    let mut button =
+                        widget::button::icon(widget::icon::from_name("edit-delete-symbolic"));
+                    if !self.repos_changing {
+                        if let Some(rm) = source.remove() {
+                            button = button.on_press(Message::RepositoryRemove(
+                                source.backend_name,
+                                vec![rm.clone()],
+                            ));
+                        }
+                    }
+                    custom = custom.add(
+                        widget::settings::item::builder(source.name.clone())
+                            .description(source.id.clone())
+                            .control(button),
+                    );
+                }
             }
-            sections.push(section.into());
         }
 
-        widget::settings::view_column(sections).into()
+        widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
 
     fn view_responsive(&self, size: Size) -> Element<Message> {
@@ -2647,9 +2766,14 @@ impl App {
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));
                         if matches!(nav_page, NavPage::Applets) {
-                            let default_sources = self.default_sources();
-                            if !default_sources.is_empty()
-                                && default_sources.iter().any(|x| !x.enabled)
+                            let sources = self.sources();
+                            if !sources.is_empty()
+                                && sources.iter().any(|source| {
+                                    matches!(
+                                        source.kind,
+                                        SourceKind::Recommended { enabled: false, .. }
+                                    )
+                                })
                             {
                                 column = column.push(
                                     widget::column::with_children(vec![
@@ -2959,10 +3083,7 @@ impl Application for App {
             Message::DialogConfirm => match self.dialog_pages.pop_front() {
                 Some(DialogPage::RepositoryRemove(backend_name, repo_rm)) => {
                     self.operation(Operation {
-                        kind: OperationKind::RepositoryRemove {
-                            id: repo_rm.id,
-                            force: true,
-                        },
+                        kind: OperationKind::RepositoryRemove(repo_rm.rms, true),
                         backend_name,
                         package_ids: Vec::new(),
                         infos: Vec::new(),
@@ -3191,17 +3312,76 @@ impl Application for App {
                 }
                 return self.update_notification();
             }
-            Message::RepositoryAdd(backend_name, id, data) => {
+            Message::RepositoryAdd(backend_name, adds) => {
                 self.operation(Operation {
-                    kind: OperationKind::RepositoryAdd { id, data },
+                    kind: OperationKind::RepositoryAdd(adds),
                     backend_name,
                     package_ids: Vec::new(),
                     infos: Vec::new(),
                 });
             }
-            Message::RepositoryRemove(backend_name, id) => {
+            Message::RepositoryAddDialog(backend_name) => {
+                //TODO: support other backends?
+                if backend_name == "flatpak-user" {
+                    #[cfg(feature = "xdg-portal")]
+                    return Task::perform(
+                        async move {
+                            use cosmic::dialog::file_chooser::{self, FileFilter};
+                            let error_dialog = |err| {
+                                action::app(Message::DialogPage(DialogPage::RepositoryAddError(
+                                    err,
+                                )))
+                            };
+                            let filter = FileFilter::new("Flatpak repo file").glob("*.flatpakrepo");
+                            let dialog = file_chooser::open::Dialog::new().filter(filter);
+                            let path = match dialog.open_file().await {
+                                Ok(response) => {
+                                    let url = response.url();
+                                    match url.scheme() {
+                                        "file" => url.to_file_path().unwrap(),
+                                        other => {
+                                            return error_dialog(format!(
+                                                "{url} has unknown scheme: {other}"
+                                            ));
+                                        }
+                                    }
+                                }
+                                Err(file_chooser::Error::Cancelled) => {
+                                    return action::none();
+                                }
+                                Err(err) => {
+                                    return error_dialog(format!(
+                                        "failed to import repository: {err}"
+                                    ));
+                                }
+                            };
+                            let id = match path.file_stem() {
+                                Some(stem) => stem.to_string_lossy().to_string(),
+                                None => {
+                                    return error_dialog(format!(
+                                        "{path:?} does not have file stem"
+                                    ));
+                                }
+                            };
+                            let data = match tokio::fs::read(&path).await {
+                                Ok(ok) => ok,
+                                Err(err) => {
+                                    return error_dialog(format!("failed to read {path:?}: {err}"));
+                                }
+                            };
+                            action::app(Message::RepositoryAdd(
+                                backend_name,
+                                vec![RepositoryAdd { id, data }],
+                            ))
+                        },
+                        |x| x,
+                    );
+                }
+                log::error!("no support for adding repositories to {}", backend_name);
+            }
+            Message::RepositoryRemove(backend_name, rms) => {
                 self.operation(Operation {
-                    kind: OperationKind::RepositoryRemove { id, force: false },
+                    kind: OperationKind::RepositoryRemove(rms, false),
                     backend_name,
                     package_ids: Vec::new(),
                     infos: Vec::new(),
@@ -3618,6 +3798,16 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
+            DialogPage::RepositoryAddError(err) => {
+                widget::dialog()
+                    .title(fl!("repository-add-error-title"))
+                    .body(err)
+                    .icon(widget::icon::from_name("dialog-error").size(64))
+                    //TODO: retry action
+                    .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
             DialogPage::RepositoryRemove(_backend_name, repo_rm) => {
                 let mut list = widget::list::list_column();
                 //TODO: fix max dialog height in libcosmic?
@@ -3632,7 +3822,10 @@ impl Application for App {
                     scrollable_height += 32.0;
                 }
                 widget::dialog()
-                    .title(fl!("repository-remove-title", id = repo_rm.id.as_str()))
+                    .title(fl!(
+                        "repository-remove-title",
+                        name = repo_rm.rms[0].name.as_str()
+                    ))
                     .body(fl!("repository-remove-body"))
                     .control(
                         widget::scrollable(list).height(if let Some(size) = self.size.get() {

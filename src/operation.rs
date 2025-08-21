@@ -7,8 +7,8 @@ pub enum OperationKind {
     Install,
     Uninstall,
     Update,
-    RepositoryAdd { id: String, data: Vec<u8> },
-    RepositoryRemove { id: String, force: bool },
+    RepositoryAdd(Vec<RepositoryAdd>),
+    RepositoryRemove(Vec<RepositoryRemove>, bool),
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -19,9 +19,33 @@ pub struct Operation {
     pub infos: Vec<Arc<AppInfo>>,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RepositoryAdd {
+    pub id: String,
+    pub data: Vec<u8>,
+}
+
+impl RepositoryAdd {
+    fn ids(adds: &Vec<Self>) -> Vec<String> {
+        adds.iter().map(|x| x.id.clone()).collect()
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RepositoryRemove {
+    pub id: String,
+    pub name: String,
+}
+
+impl RepositoryRemove {
+    fn ids(rms: &Vec<Self>) -> Vec<String> {
+        rms.iter().map(|x| x.id.clone()).collect()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryRemoveError {
-    pub id: String,
+    pub rms: Vec<RepositoryRemove>,
     pub installed: Vec<(String, String)>,
 }
 
@@ -29,8 +53,8 @@ impl fmt::Display for RepositoryRemoveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "failed to remove repository {} as it still has {} installed {}",
-            self.id,
+            "failed to remove repositories {:?} as it still has {} installed {}",
+            RepositoryRemove::ids(&self.rms),
             self.installed.len(),
             if self.installed.len() == 1 {
                 "item"
@@ -50,11 +74,19 @@ impl Operation {
             OperationKind::Install => "Installing",
             OperationKind::Uninstall => "Uninstalling",
             OperationKind::Update => "Updating",
-            OperationKind::RepositoryAdd { id, .. } => {
-                return format!("Adding repository {} ({}%)", id, progress);
+            OperationKind::RepositoryAdd(adds) => {
+                return format!(
+                    "Adding repositories {:?} ({}%)",
+                    RepositoryAdd::ids(adds),
+                    progress
+                );
             }
-            OperationKind::RepositoryRemove { id, .. } => {
-                return format!("Removing repository {} ({}%)", id, progress);
+            OperationKind::RepositoryRemove(rms, _force) => {
+                return format!(
+                    "Removing repositories {:?} ({}%)",
+                    RepositoryRemove::ids(rms),
+                    progress
+                );
             }
         };
         format!(
@@ -69,11 +101,11 @@ impl Operation {
             OperationKind::Install => "Installed",
             OperationKind::Uninstall => "Uninstalled",
             OperationKind::Update => "Updated",
-            OperationKind::RepositoryAdd { id, .. } => {
-                return format!("Added repository {}", id);
+            OperationKind::RepositoryAdd(adds) => {
+                return format!("Added repositories {:?}", RepositoryAdd::ids(adds));
             }
-            OperationKind::RepositoryRemove { id, .. } => {
-                return format!("Removed repository {}", id);
+            OperationKind::RepositoryRemove(rms, _force) => {
+                return format!("Removed repositories {:?}", RepositoryRemove::ids(rms));
             }
         };
         format!(
@@ -88,16 +120,22 @@ impl Operation {
             OperationKind::Install => "install",
             OperationKind::Uninstall => "uninstall",
             OperationKind::Update => "update",
-            OperationKind::RepositoryAdd { id, .. } => {
+            OperationKind::RepositoryAdd(adds) => {
                 return (
-                    format!("Failed to add repository {}", id),
-                    format!("Failed to add repository {}:\n{err}", id),
+                    format!("Failed to add repositories"),
+                    format!(
+                        "Failed to add repositories {:?}:\n{err}",
+                        RepositoryAdd::ids(adds)
+                    ),
                 );
             }
-            OperationKind::RepositoryRemove { id, .. } => {
+            OperationKind::RepositoryRemove(rms, _force) => {
                 return (
-                    format!("Failed to remove repository {}", id),
-                    format!("Failed to remove repository {}:\n{err}", id),
+                    format!("Failed to remove repositories"),
+                    format!(
+                        "Failed to remove repositories {:?}:\n{err}",
+                        RepositoryRemove::ids(rms)
+                    ),
                 );
             }
         };

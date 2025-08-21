@@ -39,8 +39,11 @@ dismiss = Dismiss message
 operations-running = {$running} operations running ({$percent}%)...
 operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
 
+# Repository add error dialog
+repository-add-error-title = "Failed to add repository"
+
 # Repository remove dialog
-repository-remove-title = Remove "{$id}" repository?
+repository-remove-title = Remove "{$name}" repository?
 repository-remove-body = Removing this repository will delete the following applications and items. They will need to be reinstalled if the repository is added again.
 remove = Remove
 
@@ -116,7 +119,10 @@ latest-version = Latest version
 no-description = No description available.
 
 ## Repositories
-default-sources = Default Sources
+recommended-flatpak-sources = Recommended Flatpak Sources
+custom-flatpak-sources = Custom Flatpak Sources
+import-flatpakrepo = Import .flatpakrepo file to add a custom source
+import = Import
 no-flatpak = No flatpak support
 software-repositories = Software Repositories
 

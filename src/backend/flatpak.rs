@@ -491,17 +491,24 @@ impl Backend for Flatpak {
                     }
                 }
             }
-            OperationKind::RepositoryAdd { id, data } => {
+            OperationKind::RepositoryAdd(adds) => {
                 drop(tx);
-                let remote = Remote::from_file(&id, &glib::Bytes::from(data))?;
-                inst.add_remote(&remote, true, Cancellable::NONE)?;
+                let mut remotes = Vec::with_capacity(adds.len());
+                for add in adds.iter() {
+                    remotes.push(Remote::from_file(&add.id, &glib::Bytes::from(&add.data))?);
+                }
+                for remote in remotes {
+                    inst.add_remote(&remote, true, Cancellable::NONE)?;
+                }
                 return Ok(());
             }
-            OperationKind::RepositoryRemove { id, force } => {
+            OperationKind::RepositoryRemove(rms, force) => {
                 let mut installed = Vec::new();
                 for r in inst.list_installed_refs(Cancellable::NONE)? {
-                    let Some(origin) = r.origin() else { continue };
-                    if origin != *id {
+                    let Some(origin) = r.origin() else {
+                        continue;
+                    };
+                    if !rms.iter().any(|rm| &rm.id == &origin) {
                         continue;
                     }
                     if *force {
@@ -518,7 +525,7 @@ impl Backend for Flatpak {
                 if !installed.is_empty() {
                     installed.sort_by(|a, b| crate::LANGUAGE_SORTER.compare(&a.1, &b.1));
                     return Err(RepositoryRemoveError {
-                        id: id.clone(),
+                        rms: rms.clone(),
                         installed,
                     }
                     .into());
@@ -527,7 +534,9 @@ impl Backend for Flatpak {
                     tx.run(Cancellable::NONE)?;
                 }
                 drop(tx);
-                inst.remove_remote(&id, Cancellable::NONE)?;
+                for rm in rms.iter() {
+                    inst.remove_remote(&rm.id, Cancellable::NONE)?;
+                }
                 return Ok(());
             }
         }
