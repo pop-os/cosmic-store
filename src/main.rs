@@ -51,6 +51,9 @@ mod backend;
 use config::{AppTheme, Config, CONFIG_VERSION};
 mod config;
 
+#[cfg(feature = "wayland")]
+use cosmic_panel_config::CosmicPanelConfig;
+
 use editors_choice::EDITORS_CHOICE;
 mod editors_choice;
 
@@ -273,7 +276,7 @@ pub enum Message {
     WindowClose,
     WindowNew,
     SelectPlacement(cosmic::widget::segmented_button::Entity),
-    PlaceApplet,
+    PlaceApplet(AppId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -287,7 +290,7 @@ pub enum ContextPage {
 pub enum DialogPage {
     FailedOperation(u64),
     Uninstall(&'static str, AppId, Arc<AppInfo>),
-    Place,
+    Place(AppId),
 }
 
 // From https://specifications.freedesktop.org/menu-spec/latest/apa.html
@@ -1929,7 +1932,9 @@ impl App {
                         if selected.info.provides.contains(&applet_provide) {
                             buttons.push(
                                 widget::button::suggested(fl!("place-on-desktop"))
-                                    .on_press(Message::DialogPage(DialogPage::Place))
+                                    .on_press(Message::DialogPage(DialogPage::Place(
+                                        selected.id.clone(),
+                                    )))
                                     .into(),
                             );
                         } else {
@@ -3363,18 +3368,75 @@ impl Application for App {
             Message::SelectPlacement(selection) => {
                 self.applet_placement_buttons.activate(selection);
             }
-            Message::PlaceApplet => {
+            Message::PlaceApplet(id) => {
                 self.dialog_pages.pop_front();
 
-                let settings_desktop_id = "com.system76.CosmicSettings";
-                let exec = if Some(self.applet_placement_buttons.active())
+                // Panel or Dock specific references
+                let panel_info = if Some(self.applet_placement_buttons.active())
                     == self.applet_placement_buttons.entity_at(1)
                 {
-                    "cosmic-settings dock-applet"
+                    ("Dock", "cosmic-settings dock-applet")
                 } else {
-                    "cosmic-settings panel-applet"
+                    ("Panel", "cosmic-settings panel-applet")
                 };
 
+                // Load in panel or dock configs for adding new applet
+                let panel_config_helper = CosmicPanelConfig::cosmic_config(panel_info.0).ok();
+                let mut applet_config =
+                    panel_config_helper
+                        .as_ref()
+                        .and_then(|panel_config_helper| {
+                            let panel_config =
+                                CosmicPanelConfig::get_entry(panel_config_helper).ok()?;
+                            (panel_config.name == panel_info.0).then_some(panel_config)
+                        });
+                let Some(applet_config) = applet_config.as_mut() else {
+                    return Task::none();
+                };
+
+                // check if the applet is already added to the panel
+                let applet_id = id.raw().to_owned();
+                let mut applet_exists = false;
+                if let Some(center) = applet_config.plugins_center.as_ref() {
+                    if center.iter().any(|a| a.as_str() == applet_id) {
+                        applet_exists = true;
+                    }
+                }
+                if let Some(wings) = applet_config.plugins_wings.as_ref() {
+                    if wings
+                        .0
+                        .iter()
+                        .chain(wings.1.iter())
+                        .any(|a| a.as_str() == applet_id)
+                    {
+                        applet_exists = true;
+                    }
+                }
+
+                // if applet doesn't already exist, continue adding
+                if !applet_exists {
+                    // add applet to the end of the left wing (matching the applet settings behaviour)
+                    let list = if let Some((list, _)) = applet_config.plugins_wings.as_mut() {
+                        list
+                    } else {
+                        applet_config.plugins_wings = Some((Vec::new(), Vec::new()));
+                        &mut applet_config.plugins_wings.as_mut().unwrap().0
+                    };
+                    list.push(id.raw().to_string());
+
+                    // save config
+                    if let Some(save_helper) = panel_config_helper.as_ref() {
+                        if let Err(e) = applet_config.write_entry(save_helper) {
+                            log::error!("Failed to save applet: {:?}", e);
+                        }
+                    } else {
+                        log::error!("No panel config helper. Failed to save applet.");
+                    };
+                }
+
+                // launch the applet settings
+                let settings_desktop_id = "com.system76.CosmicSettings";
+                let exec = panel_info.1;
                 return Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || Some((exec, settings_desktop_id)))
@@ -3458,7 +3520,7 @@ impl Application for App {
                 .secondary_action(
                     widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                 ),
-            DialogPage::Place => widget::dialog()
+            DialogPage::Place(id) => widget::dialog()
                 .title(fl!("place-applet"))
                 .body(fl!("place-applet-desc"))
                 .control(
@@ -3472,7 +3534,7 @@ impl Application for App {
                 )
                 .primary_action(
                     widget::button::suggested(fl!("place-and-refine"))
-                        .on_press(Message::PlaceApplet),
+                        .on_press(Message::PlaceApplet(id.clone())),
                 )
                 .secondary_action(
                     widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
