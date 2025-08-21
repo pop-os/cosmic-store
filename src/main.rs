@@ -25,6 +25,7 @@ use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
 use std::{
     any::TypeId,
+    cell::Cell,
     cmp,
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     env,
@@ -123,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut settings = Settings::default();
     settings = settings.theme(config.app_theme.theme());
-    settings = settings.size_limits(Limits::NONE.min_width(360.0).min_height(180.0));
+    settings = settings.size_limits(Limits::NONE.min_width(420.0).min_height(300.0));
     settings = settings.exit_on_close(false);
 
     let mut flags = Flags {
@@ -770,6 +771,7 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
+    size: Cell<Option<Size>>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
     //TODO: use hashset?
@@ -1914,6 +1916,7 @@ impl App {
     }
 
     fn view_responsive(&self, size: Size) -> Element<Message> {
+        self.size.set(Some(size));
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
             space_l,
@@ -2774,6 +2777,7 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
+            size: Cell::new(None),
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),
@@ -2816,7 +2820,7 @@ impl Application for App {
         if self.core.main_window_id().is_none() {
             // Create window if required
             let (window_id, task) = window::open(window::Settings {
-                min_size: Some(Size::new(360.0, 180.0)),
+                min_size: Some(Size::new(420.0, 300.0)),
                 decorations: false,
                 exit_on_close_request: false,
                 ..Default::default()
@@ -3616,14 +3620,32 @@ impl Application for App {
             }
             DialogPage::RepositoryRemove(_backend_name, repo_rm) => {
                 let mut list = widget::list::list_column();
-                for (_id, name) in repo_rm.installed.iter() {
+                //TODO: fix max dialog height in libcosmic?
+                let mut scrollable_height = 0.0;
+                for (i, (_id, name)) in repo_rm.installed.iter().enumerate() {
+                    if i > 0 {
+                        //TODO: add correct padding per item
+                        scrollable_height += 0.0;
+                    }
                     //TODO: show icons
                     list = list.add(widget::text(name));
+                    scrollable_height += 32.0;
                 }
                 widget::dialog()
                     .title(fl!("repository-remove-title", id = repo_rm.id.as_str()))
                     .body(fl!("repository-remove-body"))
-                    .control(widget::scrollable(list))
+                    .control(
+                        widget::scrollable(list).height(if let Some(size) = self.size.get() {
+                            let max_size = (size.height - 192.0).min(480.0);
+                            if scrollable_height > max_size {
+                                Length::Fixed(max_size)
+                            } else {
+                                Length::Shrink
+                            }
+                        } else {
+                            Length::Fill
+                        }),
+                    )
                     .primary_action(
                         widget::button::destructive(fl!("remove")).on_press(Message::DialogConfirm),
                     )
