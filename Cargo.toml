@@ -50,7 +50,6 @@ notify-rust = { version = "=4.11.2", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
-#cosmic-dock-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
