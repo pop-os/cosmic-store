@@ -3826,7 +3826,10 @@ impl Application for App {
                         "repository-remove-title",
                         name = repo_rm.rms[0].name.as_str()
                     ))
-                    .body(fl!("repository-remove-body"))
+                    .body(fl!(
+                        "repository-remove-body",
+                        dependency = repo_rm.rms.get(1).map_or("none", |rm| rm.name.as_str())
+                    ))
                     .control(
                         widget::scrollable(list).height(if let Some(size) = self.size.get() {
                             let max_size = (size.height - 192.0).min(480.0);

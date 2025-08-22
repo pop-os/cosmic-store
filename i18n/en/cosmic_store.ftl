@@ -44,7 +44,10 @@ repository-add-error-title = "Failed to add repository"
 
 # Repository remove dialog
 repository-remove-title = Remove "{$name}" repository?
-repository-remove-body = Removing this repository will delete the following applications and items. They will need to be reinstalled if the repository is added again.
+repository-remove-body = Removing this repository will { $dependency ->
+    [none] delete
+    *[other] remove "{$dependency}" and delete
+} the following applications and items. They will need to be reinstalled if the repository is added again.
 remove = Remove
 
 # Uninstall Dialog
