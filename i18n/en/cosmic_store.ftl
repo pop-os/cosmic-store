@@ -48,7 +48,10 @@ repository-remove-body = Removing this repository will { $dependency ->
     [none] delete
     *[other] remove "{$dependency}" and delete
 } the following applications and items. They will need to be reinstalled if the repository is added again.
+add = Add
+adding = Adding...
 remove = Remove
+removing = Removing...
 
 # Uninstall Dialog
 uninstall-app = Uninstall {$name}

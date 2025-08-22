@@ -799,7 +799,7 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, f32, String)>,
-    repos_changing: bool,
+    repos_changing: Vec<(&'static str, String, bool)>,
     scrollable_id: widget::Id,
     scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
@@ -884,11 +884,20 @@ impl App {
     }
 
     fn operation(&mut self, operation: Operation) {
-        if matches!(
-            operation.kind,
-            OperationKind::RepositoryAdd(..) | OperationKind::RepositoryRemove(..)
-        ) {
-            self.repos_changing = true;
+        match &operation.kind {
+            OperationKind::RepositoryAdd(adds) => {
+                for add in adds.iter() {
+                    self.repos_changing
+                        .push((operation.backend_name, add.id.clone(), true));
+                }
+            }
+            OperationKind::RepositoryRemove(rms, _) => {
+                for rm in rms.iter() {
+                    self.repos_changing
+                        .push((operation.backend_name, rm.id.clone(), false));
+                }
+            }
+            _ => {}
         }
 
         let id = self.pending_operation_id;
@@ -1956,77 +1965,84 @@ impl App {
                 .into(),
                 widget::horizontal_space().into(),
                 widget::button::standard(fl!("import"))
-                    .on_press_maybe(if self.repos_changing {
-                        None
-                    } else {
+                    .on_press_maybe(if self.repos_changing.is_empty() {
                         Some(Message::RepositoryAddDialog("flatpak-user"))
+                    } else {
+                        None
                     })
                     .into(),
             ])
             .align_y(Alignment::Center),
         );
         for source in sources.iter() {
-            match source.kind {
-                SourceKind::Recommended { enabled, .. } => {
-                    let mut toggler = widget::toggler(enabled);
-                    if !self.repos_changing {
-                        let mut adds = Vec::new();
-                        let mut rms = Vec::new();
-                        if let Some(add) = source.add() {
+            let mut adds = Vec::new();
+            let mut rms = Vec::new();
+            if let Some(add) = source.add() {
+                adds.push(add);
+            }
+            if let Some(rm) = source.remove() {
+                rms.push(rm);
+            }
+            for other in sources.iter() {
+                if source.backend_name == other.backend_name {
+                    // Add other sources required by this source
+                    if source.requires.contains(&other.id) {
+                        if let Some(add) = other.add() {
                             adds.push(add);
                         }
-                        if let Some(rm) = source.remove() {
+                    }
+
+                    // Remove other sources that require this source
+                    if other.requires.contains(&source.id) {
+                        if let Some(rm) = other.remove() {
                             rms.push(rm);
                         }
-                        for other in sources.iter() {
-                            if source.backend_name == other.backend_name {
-                                // Add other sources required by this source
-                                if source.requires.contains(&other.id) {
-                                    if let Some(add) = other.add() {
-                                        adds.push(add);
-                                    }
-                                }
-
-                                // Remove other sources that require this source
-                                if other.requires.contains(&source.id) {
-                                    if let Some(rm) = other.remove() {
-                                        rms.push(rm);
-                                    }
-                                }
-                            }
-                        }
-
-                        let backend_name = source.backend_name;
-                        toggler = toggler.on_toggle(move |enabled| {
-                            if enabled {
-                                Message::RepositoryAdd(backend_name, adds.clone())
-                            } else {
-                                Message::RepositoryRemove(backend_name, rms.clone())
-                            }
-                        });
                     }
-                    recommended = recommended.add(
-                        widget::settings::item::builder(source.name.clone())
-                            .description(source.id.clone())
-                            .control(toggler),
-                    );
+                }
+            }
+
+            let item =
+                widget::settings::item::builder(source.name.clone()).description(source.id.clone());
+            let element = match self
+                .repos_changing
+                .iter()
+                .find(|x| x.0 == source.backend_name && x.1 == source.id)
+                .map(|x| x.2)
+            {
+                Some(adding) => item.control(widget::text(if adding {
+                    fl!("adding")
+                } else {
+                    fl!("removing")
+                })),
+                None => {
+                    if !adds.is_empty() {
+                        item.control(widget::button::suggested(fl!("add")).on_press_maybe(
+                            if self.repos_changing.is_empty() {
+                                Some(Message::RepositoryAdd(source.backend_name, adds.clone()))
+                            } else {
+                                None
+                            },
+                        ))
+                    } else if !rms.is_empty() {
+                        item.control(widget::button::destructive(fl!("remove")).on_press_maybe(
+                            if self.repos_changing.is_empty() {
+                                Some(Message::RepositoryRemove(source.backend_name, rms.clone()))
+                            } else {
+                                None
+                            },
+                        ))
+                    } else {
+                        item.control(widget::horizontal_space())
+                    }
+                }
+            };
+
+            match source.kind {
+                SourceKind::Recommended { .. } => {
+                    recommended = recommended.add(element);
                 }
                 SourceKind::Custom => {
-                    let mut button =
-                        widget::button::icon(widget::icon::from_name("edit-delete-symbolic"));
-                    if !self.repos_changing {
-                        if let Some(rm) = source.remove() {
-                            button = button.on_press(Message::RepositoryRemove(
-                                source.backend_name,
-                                vec![rm.clone()],
-                            ));
-                        }
-                    }
-                    custom = custom.add(
-                        widget::settings::item::builder(source.name.clone())
-                            .description(source.id.clone())
-                            .control(button),
-                    );
+                    custom = custom.add(element);
                 }
             }
         }
@@ -2895,7 +2911,7 @@ impl Application for App {
             progress_operations: BTreeSet::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
-            repos_changing: false,
+            repos_changing: Vec::new(),
             scrollable_id: widget::Id::unique(),
             scroll_views: HashMap::new(),
             search_active: false,
@@ -3042,7 +3058,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
-                self.repos_changing = false;
+                self.repos_changing.clear();
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
                 match self.mode {
@@ -3270,7 +3286,7 @@ impl Application for App {
                     self.progress_operations.clear();
 
                     // If repos were changing, update backends
-                    if self.repos_changing {
+                    if !self.repos_changing.is_empty() {
                         return Task::batch([
                             self.update_notification(),
                             self.update_backends(true),
@@ -3297,7 +3313,7 @@ impl Application for App {
                     self.progress_operations.clear();
 
                     // If repos were changing, update backends
-                    if self.repos_changing {
+                    if !self.repos_changing.is_empty() {
                         return Task::batch([
                             self.update_notification(),
                             self.update_backends(true),
