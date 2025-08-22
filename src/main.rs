@@ -2016,7 +2016,7 @@ impl App {
                 })),
                 None => {
                     if !adds.is_empty() {
-                        item.control(widget::button::suggested(fl!("add")).on_press_maybe(
+                        item.control(widget::button::text(fl!("add")).on_press_maybe(
                             if self.repos_changing.is_empty() {
                                 Some(Message::RepositoryAdd(source.backend_name, adds.clone()))
                             } else {
@@ -2024,7 +2024,7 @@ impl App {
                             },
                         ))
                     } else if !rms.is_empty() {
-                        item.control(widget::button::destructive(fl!("remove")).on_press_maybe(
+                        item.control(widget::button::text(fl!("remove")).on_press_maybe(
                             if self.repos_changing.is_empty() {
                                 Some(Message::RepositoryRemove(source.backend_name, rms.clone()))
                             } else {
@@ -4158,6 +4158,11 @@ impl Application for App {
         // Uncomment to debug layout:
         //content.explain(cosmic::iced::Color::WHITE)
         content
+    }
+
+    fn view_window(&self, _id: window::Id) -> Element<Message> {
+        // When closing the main window, view_window may be called after the main window is unset
+        widget::horizontal_space().into()
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
