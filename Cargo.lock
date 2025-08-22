@@ -240,6 +240,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.99"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
+
+[[package]]
 name = "apply"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -629,6 +635,12 @@ dependencies = [
  "rustc-demangle",
  "windows-targets 0.52.6",
 ]
+
+[[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
@@ -1134,7 +1146,7 @@ dependencies = [
  "known-folders",
  "notify",
  "once_cell",
- "ron",
+ "ron 0.9.0",
  "serde",
  "tokio",
  "tracing",
@@ -1164,6 +1176,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmic-panel-config"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/cosmic-panel#9da7dc180f87613aa7edae5e9e692d695ffdde3f"
+dependencies = [
+ "anyhow",
+ "cosmic-config",
+ "ron 0.8.1",
+ "serde",
+ "smithay-client-toolkit",
+ "tracing",
+ "wayland-protocols-wlr",
+ "xdg-shell-wrapper-config",
+]
+
+[[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
 source = "git+https://github.com/pop-os/cosmic-protocols?rev=178eb0b#178eb0b14a0e5c192f64f6dee6c40341a8e5ee51"
@@ -1183,7 +1210,7 @@ version = "0.1.0"
 source = "git+https://github.com/pop-os/cosmic-settings-daemon#19f10525ff00d76558147ea060bd856a87122353"
 dependencies = [
  "cosmic-config",
- "ron",
+ "ron 0.9.0",
  "serde",
  "serde_with",
  "thiserror 2.0.14",
@@ -1200,6 +1227,7 @@ dependencies = [
  "bitcode",
  "chrono",
  "clap",
+ "cosmic-panel-config",
  "dirs 6.0.0",
  "env_logger",
  "flate2",
@@ -1265,7 +1293,7 @@ dependencies = [
  "dirs 6.0.0",
  "lazy_static",
  "palette",
- "ron",
+ "ron 0.9.0",
  "serde",
  "serde_json",
  "thiserror 2.0.14",
@@ -2610,7 +2638,7 @@ version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d9b05277c7e8da2c93a568989bb6207bef0112e8d17df7a6eda4a3cf143bc5e"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-channel",
  "futures-core",
@@ -2755,6 +2783,7 @@ source = "git+https://github.com/pop-os/libcosmic.git#8412dd593913b85618ec30e8b9
 dependencies = [
  "bitflags 2.9.1",
  "bytes",
+ "cosmic-client-toolkit",
  "dnd",
  "glam 0.25.0",
  "iced_accessibility",
@@ -2838,6 +2867,7 @@ version = "0.14.0-dev"
 source = "git+https://github.com/pop-os/libcosmic.git#8412dd593913b85618ec30e8b92a58aaa0ad6bb8"
 dependencies = [
  "bytes",
+ "cosmic-client-toolkit",
  "dnd",
  "iced_accessibility",
  "iced_core",
@@ -2899,6 +2929,7 @@ name = "iced_widget"
 version = "0.14.0-dev"
 source = "git+https://github.com/pop-os/libcosmic.git#8412dd593913b85618ec30e8b92a58aaa0ad6bb8"
 dependencies = [
+ "cosmic-client-toolkit",
  "dnd",
  "iced_accessibility",
  "iced_renderer",
@@ -2918,22 +2949,29 @@ name = "iced_winit"
 version = "0.14.0-dev"
 source = "git+https://github.com/pop-os/libcosmic.git#8412dd593913b85618ec30e8b92a58aaa0ad6bb8"
 dependencies = [
+ "cosmic-client-toolkit",
  "dnd",
  "iced_accessibility",
  "iced_futures",
  "iced_graphics",
  "iced_runtime",
  "log",
+ "raw-window-handle",
  "rustc-hash 2.1.1",
  "rustix 0.38.44",
  "thiserror 1.0.69",
  "tracing",
  "wasm-bindgen-futures",
+ "wayland-backend",
  "wayland-client",
+ "wayland-protocols",
  "web-sys",
  "winapi",
  "window_clipboard",
  "winit",
+ "xkbcommon",
+ "xkbcommon-dl",
+ "xkeysym",
 ]
 
 [[package]]
@@ -3538,6 +3576,7 @@ dependencies = [
  "ashpd",
  "auto_enums",
  "chrono",
+ "cosmic-client-toolkit",
  "cosmic-config",
  "cosmic-freedesktop-icons",
  "cosmic-settings-config",
@@ -3563,7 +3602,7 @@ dependencies = [
  "palette",
  "raw-window-handle",
  "rfd",
- "ron",
+ "ron 0.9.0",
  "rustix 1.0.8",
  "serde",
  "shlex",
@@ -5132,7 +5171,7 @@ version = "0.12.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d429f34c8092b2d42c7c93cec323bb4adeb7c67698f70839adec842ec10c7ceb"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -5231,11 +5270,23 @@ dependencies = [
 
 [[package]]
 name = "ron"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
+dependencies = [
+ "base64 0.21.7",
+ "bitflags 2.9.1",
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
+name = "ron"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63f3aa105dea217ef30d89581b65a4d527a19afc95ef5750be3890e8d3c5b837"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bitflags 2.9.1",
  "serde",
  "serde_derive",
@@ -5578,7 +5629,7 @@ version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2c45cd61fefa9db6f254525d46e392b852e0e61d9a1fd36e5bd183450a556d5"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -6566,7 +6617,7 @@ version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b84ea542ae85c715f07b082438a4231c3760539d902e11d093847a0b22963032"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "data-url",
  "flate2",
  "fontdb 0.18.0",
@@ -7688,6 +7739,15 @@ checksum = "ec1cdab258fb55c0da61328dc52c8764709b249011b2cad0454c72f0bf10a1f6"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "xdg-shell-wrapper-config"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/cosmic-panel#9da7dc180f87613aa7edae5e9e692d695ffdde3f"
+dependencies = [
+ "serde",
+ "wayland-protocols-wlr",
 ]
 
 [[package]]
