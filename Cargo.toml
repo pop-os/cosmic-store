@@ -67,18 +67,20 @@ default = [
     "single-instance",
     "wgpu",
     "wayland",
+    "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
 desktop = ["libcosmic/desktop"]
 desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
-flatpak = ["dep:libflatpak"]
+flatpak = ["dep:libflatpak", "xdg-portal"]
 logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus"]
 pkgar = []
 single-instance = ["libcosmic/single-instance"]
-wgpu = ["libcosmic/wgpu"]
 wayland = ["libcosmic/wayland", "dep:cosmic-panel-config"]
+wgpu = ["libcosmic/wgpu"]
+xdg-portal = ["libcosmic/xdg-portal"]
 
 [profile.release-with-debug]
 inherits = "release"

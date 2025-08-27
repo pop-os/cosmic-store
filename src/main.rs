@@ -25,6 +25,7 @@ use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
 use std::{
     any::TypeId,
+    cell::Cell,
     cmp,
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     env,
@@ -71,7 +72,7 @@ mod localize;
 #[cfg(feature = "logind")]
 mod logind;
 
-use operation::{Operation, OperationKind};
+use operation::{Operation, OperationKind, RepositoryAdd, RepositoryRemove, RepositoryRemoveError};
 mod operation;
 
 use priority::priority;
@@ -126,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut settings = Settings::default();
     settings = settings.theme(config.app_theme.theme());
-    settings = settings.size_limits(Limits::NONE.min_width(360.0).min_height(180.0));
+    settings = settings.size_limits(Limits::NONE.min_width(420.0).min_height(300.0));
     settings = settings.exit_on_close(false);
 
     let mut flags = Flags {
@@ -180,6 +181,46 @@ pub struct AppEntry {
 }
 
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
+
+enum SourceKind {
+    Recommended { data: &'static [u8], enabled: bool },
+    Custom,
+}
+
+struct Source {
+    backend_name: &'static str,
+    id: String,
+    name: String,
+    kind: SourceKind,
+    requires: Vec<String>,
+}
+
+impl Source {
+    fn add(&self) -> Option<RepositoryAdd> {
+        match self.kind {
+            SourceKind::Recommended {
+                data,
+                enabled: false,
+            } => Some(RepositoryAdd {
+                id: self.id.clone(),
+                data: data.to_vec(),
+            }),
+            _ => None,
+        }
+    }
+
+    fn remove(&self) -> Option<RepositoryRemove> {
+        match self.kind {
+            SourceKind::Recommended { enabled: true, .. } | SourceKind::Custom => {
+                Some(RepositoryRemove {
+                    id: self.id.clone(),
+                    name: self.name.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 #[repr(i32)]
@@ -248,6 +289,9 @@ pub enum Message {
     PendingDismiss,
     PendingError(u64, String),
     PendingProgress(u64, f32),
+    RepositoryAdd(&'static str, Vec<RepositoryAdd>),
+    RepositoryAddDialog(&'static str),
+    RepositoryRemove(&'static str, Vec<RepositoryRemove>),
     ScrollView(scrollable::Viewport),
     SearchActivate,
     SearchClear,
@@ -283,12 +327,15 @@ pub enum Message {
 pub enum ContextPage {
     Operations,
     ReleaseNotes(usize, String),
+    Repositories,
     Settings,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogPage {
     FailedOperation(u64),
+    RepositoryAddError(String),
+    RepositoryRemove(&'static str, RepositoryRemoveError),
     Uninstall(&'static str, AppId, Arc<AppInfo>),
     Place(AppId),
 }
@@ -755,11 +802,13 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, f32, String)>,
+    repos_changing: Vec<(&'static str, String, bool)>,
     scrollable_id: widget::Id,
     scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
+    size: Cell<Option<Size>>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
     //TODO: use hashset?
@@ -838,6 +887,22 @@ impl App {
     }
 
     fn operation(&mut self, operation: Operation) {
+        match &operation.kind {
+            OperationKind::RepositoryAdd(adds) => {
+                for add in adds.iter() {
+                    self.repos_changing
+                        .push((operation.backend_name, add.id.clone(), true));
+                }
+            }
+            OperationKind::RepositoryRemove(rms, _) => {
+                for rm in rms.iter() {
+                    self.repos_changing
+                        .push((operation.backend_name, rm.id.clone(), false));
+                }
+            }
+            _ => {}
+        }
+
         let id = self.pending_operation_id;
         self.pending_operation_id += 1;
         self.progress_operations.insert(id);
@@ -1830,7 +1895,166 @@ impl App {
             .into()
     }
 
+    fn sources(&self) -> Vec<Source> {
+        let mut sources = Vec::new();
+        if self.backends.contains_key("flatpak-user") {
+            sources.push(Source {
+                backend_name: "flatpak-user",
+                id: "flathub".to_string(),
+                name: "Flathub".to_string(),
+                kind: SourceKind::Recommended {
+                    data: include_bytes!("../res/flathub.flatpakrepo"),
+                    enabled: false,
+                },
+                requires: Vec::new(),
+            });
+            sources.push(Source {
+                backend_name: "flatpak-user",
+                id: "cosmic".to_string(),
+                name: "COSMIC Flatpak".to_string(),
+                kind: SourceKind::Recommended {
+                    data: include_bytes!("../res/cosmic.flatpakrepo"),
+                    enabled: false,
+                },
+                //TODO: can this be defined in flatpakrepo file?
+                requires: vec!["flathub".to_string()],
+            });
+        }
+
+        //TODO: check source URL?
+        for (backend_name, backend) in self.backends.iter() {
+            for cache in backend.info_caches() {
+                let mut found_source = false;
+                for source in sources.iter_mut() {
+                    if *backend_name == source.backend_name && cache.source_id == source.id {
+                        match &mut source.kind {
+                            SourceKind::Recommended { enabled, .. } => {
+                                *enabled = true;
+                            }
+                            SourceKind::Custom => {}
+                        }
+                        found_source = true;
+                    }
+                }
+                //TODO: allow other backends to show sources?
+                if !found_source && *backend_name == "flatpak-user" {
+                    sources.push(Source {
+                        backend_name: *backend_name,
+                        id: cache.source_id.clone(),
+                        name: cache.source_name.clone(),
+                        kind: SourceKind::Custom,
+                        requires: Vec::new(),
+                    })
+                }
+            }
+        }
+
+        sources
+    }
+
+    fn repositories(&self) -> Element<Message> {
+        if !cfg!(feature = "flatpak") {
+            return widget::text(fl!("no-flatpak")).into();
+        }
+
+        let sources = self.sources();
+        let mut recommended = widget::settings::section().title(fl!("recommended-flatpak-sources"));
+        let mut custom = widget::settings::section().header(
+            widget::row::with_children(vec![
+                widget::column::with_children(vec![
+                    widget::text::heading(fl!("custom-flatpak-sources")).into(),
+                    widget::text::body(fl!("import-flatpakrepo")).into(),
+                ])
+                .into(),
+                widget::horizontal_space().into(),
+                widget::button::standard(fl!("import"))
+                    .on_press_maybe(if self.repos_changing.is_empty() {
+                        Some(Message::RepositoryAddDialog("flatpak-user"))
+                    } else {
+                        None
+                    })
+                    .into(),
+            ])
+            .align_y(Alignment::Center),
+        );
+        for source in sources.iter() {
+            let mut adds = Vec::new();
+            let mut rms = Vec::new();
+            if let Some(add) = source.add() {
+                adds.push(add);
+            }
+            if let Some(rm) = source.remove() {
+                rms.push(rm);
+            }
+            for other in sources.iter() {
+                if source.backend_name == other.backend_name {
+                    // Add other sources required by this source
+                    if source.requires.contains(&other.id) {
+                        if let Some(add) = other.add() {
+                            adds.push(add);
+                        }
+                    }
+
+                    // Remove other sources that require this source
+                    if other.requires.contains(&source.id) {
+                        if let Some(rm) = other.remove() {
+                            rms.push(rm);
+                        }
+                    }
+                }
+            }
+
+            let item =
+                widget::settings::item::builder(source.name.clone()).description(source.id.clone());
+            let element = match self
+                .repos_changing
+                .iter()
+                .find(|x| x.0 == source.backend_name && x.1 == source.id)
+                .map(|x| x.2)
+            {
+                Some(adding) => item.control(widget::text(if adding {
+                    fl!("adding")
+                } else {
+                    fl!("removing")
+                })),
+                None => {
+                    if !adds.is_empty() {
+                        item.control(widget::button::text(fl!("add")).on_press_maybe(
+                            if self.repos_changing.is_empty() {
+                                Some(Message::RepositoryAdd(source.backend_name, adds.clone()))
+                            } else {
+                                None
+                            },
+                        ))
+                    } else if !rms.is_empty() {
+                        item.control(widget::button::text(fl!("remove")).on_press_maybe(
+                            if self.repos_changing.is_empty() {
+                                Some(Message::RepositoryRemove(source.backend_name, rms.clone()))
+                            } else {
+                                None
+                            },
+                        ))
+                    } else {
+                        item.control(widget::horizontal_space())
+                    }
+                }
+            };
+
+            match source.kind {
+                SourceKind::Recommended { .. } => {
+                    recommended = recommended.add(element);
+                }
+                SourceKind::Custom => {
+                    custom = custom.add(element);
+                }
+            }
+        }
+
+        widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
+    }
+
     fn view_responsive(&self, size: Size) -> Element<Message> {
+        self.size.set(Some(size));
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
             space_l,
@@ -2557,11 +2781,38 @@ impl App {
                     }
                     //TODO: reduce duplication
                     nav_page => {
-                        let mut column = widget::column::with_capacity(2)
+                        let mut column = widget::column::with_capacity(3)
                             .padding([0, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));
+                        if matches!(nav_page, NavPage::Applets) {
+                            let sources = self.sources();
+                            if !sources.is_empty()
+                                && sources.iter().any(|source| {
+                                    matches!(
+                                        source.kind,
+                                        SourceKind::Recommended { enabled: false, .. }
+                                    )
+                                })
+                            {
+                                column = column.push(
+                                    widget::column::with_children(vec![
+                                        widget::Space::with_height(space_m).into(),
+                                        widget::text(fl!("enable-flathub-cosmic")).into(),
+                                        widget::Space::with_height(space_m).into(),
+                                        widget::button::standard(fl!("manage-repositories"))
+                                            .on_press(Message::ToggleContextPage(
+                                                ContextPage::Repositories,
+                                            ))
+                                            .into(),
+                                        widget::Space::with_height(space_l).into(),
+                                    ])
+                                    .align_x(Alignment::Center)
+                                    .width(Length::Fill),
+                                );
+                            }
+                        }
                         //TODO: ensure category matches?
                         match &self.category_results {
                             Some((_, results)) => {
@@ -2665,11 +2916,13 @@ impl Application for App {
             progress_operations: BTreeSet::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
+            repos_changing: Vec::new(),
             scrollable_id: widget::Id::unique(),
             scroll_views: HashMap::new(),
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
+            size: Cell::new(None),
             installed: None,
             updates: None,
             waiting_installed: Vec::new(),
@@ -2712,7 +2965,7 @@ impl Application for App {
         if self.core.main_window_id().is_none() {
             // Create window if required
             let (window_id, task) = window::open(window::Settings {
-                min_size: Some(Size::new(360.0, 180.0)),
+                min_size: Some(Size::new(420.0, 300.0)),
                 decorations: false,
                 exit_on_close_request: false,
                 ..Default::default()
@@ -2810,6 +3063,7 @@ impl Application for App {
             }
             Message::Backends(backends) => {
                 self.backends = backends;
+                self.repos_changing.clear();
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
                 match self.mode {
@@ -2848,6 +3102,14 @@ impl Application for App {
                 self.dialog_pages.pop_front();
             }
             Message::DialogConfirm => match self.dialog_pages.pop_front() {
+                Some(DialogPage::RepositoryRemove(backend_name, repo_rm)) => {
+                    self.operation(Operation {
+                        kind: OperationKind::RepositoryRemove(repo_rm.rms, true),
+                        backend_name,
+                        package_ids: Vec::new(),
+                        infos: Vec::new(),
+                    });
+                }
                 Some(DialogPage::Uninstall(backend_name, id, info)) => {
                     return self.update(Message::Operation(
                         OperationKind::Uninstall,
@@ -2939,6 +3201,13 @@ impl Application for App {
                 }
                 match self.mode {
                     Mode::Normal => {
+                        if let Some(categories) = self
+                            .nav_model
+                            .active_data::<NavPage>()
+                            .and_then(|nav_page| nav_page.categories())
+                        {
+                            commands.push(self.categories(categories));
+                        }
                         commands.push(self.installed_results());
                         for explore_page in ExplorePage::all() {
                             commands.push(self.explore_results(*explore_page));
@@ -3020,6 +3289,14 @@ impl Application for App {
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
+
+                    // If repos were changing, update backends
+                    if !self.repos_changing.is_empty() {
+                        return Task::batch([
+                            self.update_notification(),
+                            self.update_backends(true),
+                        ]);
+                    }
                 }
                 return Task::batch([
                     self.update_notification(),
@@ -3039,13 +3316,97 @@ impl Application for App {
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
+
+                    // If repos were changing, update backends
+                    if !self.repos_changing.is_empty() {
+                        return Task::batch([
+                            self.update_notification(),
+                            self.update_backends(true),
+                        ]);
+                    }
                 }
+                return self.update_notification();
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
                     *progress = new_progress;
                 }
                 return self.update_notification();
+            }
+            Message::RepositoryAdd(backend_name, adds) => {
+                self.operation(Operation {
+                    kind: OperationKind::RepositoryAdd(adds),
+                    backend_name,
+                    package_ids: Vec::new(),
+                    infos: Vec::new(),
+                });
+            }
+            Message::RepositoryAddDialog(backend_name) => {
+                //TODO: support other backends?
+                if backend_name == "flatpak-user" {
+                    #[cfg(feature = "xdg-portal")]
+                    return Task::perform(
+                        async move {
+                            use cosmic::dialog::file_chooser::{self, FileFilter};
+                            let error_dialog = |err| {
+                                action::app(Message::DialogPage(DialogPage::RepositoryAddError(
+                                    err,
+                                )))
+                            };
+                            let filter = FileFilter::new("Flatpak repo file").glob("*.flatpakrepo");
+                            let dialog = file_chooser::open::Dialog::new().filter(filter);
+                            let path = match dialog.open_file().await {
+                                Ok(response) => {
+                                    let url = response.url();
+                                    match url.scheme() {
+                                        "file" => url.to_file_path().unwrap(),
+                                        other => {
+                                            return error_dialog(format!(
+                                                "{url} has unknown scheme: {other}"
+                                            ));
+                                        }
+                                    }
+                                }
+                                Err(file_chooser::Error::Cancelled) => {
+                                    return action::none();
+                                }
+                                Err(err) => {
+                                    return error_dialog(format!(
+                                        "failed to import repository: {err}"
+                                    ));
+                                }
+                            };
+                            let id = match path.file_stem() {
+                                Some(stem) => stem.to_string_lossy().to_string(),
+                                None => {
+                                    return error_dialog(format!(
+                                        "{path:?} does not have file stem"
+                                    ));
+                                }
+                            };
+                            let data = match tokio::fs::read(&path).await {
+                                Ok(ok) => ok,
+                                Err(err) => {
+                                    return error_dialog(format!("failed to read {path:?}: {err}"));
+                                }
+                            };
+                            action::app(Message::RepositoryAdd(
+                                backend_name,
+                                vec![RepositoryAdd { id, data }],
+                            ))
+                        },
+                        |x| x,
+                    );
+                }
+                log::error!("no support for adding repositories to {}", backend_name);
+            }
+            Message::RepositoryRemove(backend_name, rms) => {
+                self.operation(Operation {
+                    kind: OperationKind::RepositoryRemove(rms, false),
+                    backend_name,
+                    package_ids: Vec::new(),
+                    infos: Vec::new(),
+                });
             }
             Message::ScrollView(viewport) => {
                 self.scroll_views.insert(self.scroll_context(), viewport);
@@ -3486,6 +3847,11 @@ impl Application for App {
                 Message::ToggleContextPage(ContextPage::ReleaseNotes(*i, app_name.clone())),
             )
             .title(app_name),
+            ContextPage::Repositories => context_drawer::context_drawer(
+                self.repositories(),
+                Message::ToggleContextPage(ContextPage::Repositories),
+            )
+            .title(fl!("software-repositories")),
         })
     }
 
@@ -3507,6 +3873,57 @@ impl Application for App {
                     .icon(widget::icon::from_name("dialog-error").size(64))
                     //TODO: retry action
                     .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
+            DialogPage::RepositoryAddError(err) => {
+                widget::dialog()
+                    .title(fl!("repository-add-error-title"))
+                    .body(err)
+                    .icon(widget::icon::from_name("dialog-error").size(64))
+                    //TODO: retry action
+                    .primary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
+            DialogPage::RepositoryRemove(_backend_name, repo_rm) => {
+                let mut list = widget::list::list_column();
+                //TODO: fix max dialog height in libcosmic?
+                let mut scrollable_height = 0.0;
+                for (i, (_id, name)) in repo_rm.installed.iter().enumerate() {
+                    if i > 0 {
+                        //TODO: add correct padding per item
+                        scrollable_height += 0.0;
+                    }
+                    //TODO: show icons
+                    list = list.add(widget::text(name));
+                    scrollable_height += 32.0;
+                }
+                widget::dialog()
+                    .title(fl!(
+                        "repository-remove-title",
+                        name = repo_rm.rms[0].name.as_str()
+                    ))
+                    .body(fl!(
+                        "repository-remove-body",
+                        dependency = repo_rm.rms.get(1).map_or("none", |rm| rm.name.as_str())
+                    ))
+                    .control(
+                        widget::scrollable(list).height(if let Some(size) = self.size.get() {
+                            let max_size = (size.height - 192.0).min(480.0);
+                            if scrollable_height > max_size {
+                                Length::Fixed(max_size)
+                            } else {
+                                Length::Shrink
+                            }
+                        } else {
+                            Length::Fill
+                        }),
+                    )
+                    .primary_action(
+                        widget::button::destructive(fl!("remove")).on_press(Message::DialogConfirm),
+                    )
+                    .secondary_action(
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
@@ -3639,6 +4056,21 @@ impl Application for App {
                     .padding(8)
                     .into()
             }],
+            Mode::GStreamer { .. } => Vec::new(),
+        }
+    }
+
+    fn header_end(&self) -> Vec<Element<Message>> {
+        match self.mode {
+            Mode::Normal => {
+                vec![widget::tooltip(
+                    widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
+                        .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
+                    widget::text(fl!("manage-repositories")),
+                    widget::tooltip::Position::Bottom,
+                )
+                .into()]
+            }
             Mode::GStreamer { .. } => Vec::new(),
         }
     }
@@ -3790,6 +4222,11 @@ impl Application for App {
         content
     }
 
+    fn view_window(&self, _id: window::Id) -> Element<Message> {
+        // When closing the main window, view_window may be called after the main window is unset
+        widget::horizontal_space().into()
+    }
+
     fn subscription(&self) -> Subscription<Self::Message> {
         struct ConfigSubscription;
         struct ThemeSubscription;
@@ -3892,22 +4329,41 @@ impl Application for App {
                     let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
                     let res = match backend_opt {
                         Some(backend) => {
+                            let on_progress = {
+                                let msg_tx = msg_tx.clone();
+                                Box::new(move |progress| -> () {
+                                    let _ = futures::executor::block_on(async {
+                                        msg_tx
+                                            .lock()
+                                            .await
+                                            .send(Message::PendingProgress(id, progress))
+                                            .await
+                                    });
+                                })
+                            };
                             let msg_tx = msg_tx.clone();
                             tokio::task::spawn_blocking(move || {
-                                backend
-                                    .operation(
-                                        &op,
-                                        Box::new(move |progress| -> () {
+                                match backend.operation(&op, on_progress) {
+                                    Ok(()) => Ok(()),
+                                    Err(err) => match err.downcast_ref::<RepositoryRemoveError>() {
+                                        Some(repo_rm) => {
                                             let _ = futures::executor::block_on(async {
                                                 msg_tx
                                                     .lock()
                                                     .await
-                                                    .send(Message::PendingProgress(id, progress))
+                                                    .send(Message::DialogPage(
+                                                        DialogPage::RepositoryRemove(
+                                                            op.backend_name,
+                                                            repo_rm.clone(),
+                                                        ),
+                                                    ))
                                                     .await
                                             });
-                                        }),
-                                    )
-                                    .map_err(|err| err.to_string())
+                                            Ok(())
+                                        }
+                                        None => Err(err.to_string()),
+                                    },
+                                }
                             })
                             .await
                             .unwrap()
@@ -3923,7 +4379,7 @@ impl Application for App {
                             let _ = msg_tx
                                 .lock()
                                 .await
-                                .send(Message::PendingError(id, err.to_string()))
+                                .send(Message::PendingError(id, err))
                                 .await;
                         }
                     }
