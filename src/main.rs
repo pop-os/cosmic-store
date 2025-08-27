@@ -1959,24 +1959,13 @@ impl App {
 
         let sources = self.sources();
         let mut recommended = widget::settings::section().title(fl!("recommended-flatpak-sources"));
-        let mut custom = widget::settings::section().header(
-            widget::row::with_children(vec![
-                widget::column::with_children(vec![
-                    widget::text::heading(fl!("custom-flatpak-sources")).into(),
-                    widget::text::body(fl!("import-flatpakrepo")).into(),
-                ])
-                .into(),
-                widget::horizontal_space().into(),
-                widget::button::standard(fl!("import"))
-                    .on_press_maybe(if self.repos_changing.is_empty() {
-                        Some(Message::RepositoryAddDialog("flatpak-user"))
-                    } else {
-                        None
-                    })
-                    .into(),
-            ])
-            .align_y(Alignment::Center),
-        );
+        let mut custom = widget::settings::section().header(widget::column::with_children(vec![
+            widget::text::heading(fl!("custom-flatpak-sources")).into(),
+            widget::text::body(fl!("import-flatpakrepo")).into(),
+        ]));
+
+        let mut has_custom_sources = false;
+
         for source in sources.iter() {
             let mut adds = Vec::new();
             let mut rms = Vec::new();
@@ -2045,10 +2034,30 @@ impl App {
                     recommended = recommended.add(element);
                 }
                 SourceKind::Custom => {
+                    has_custom_sources = true;
                     custom = custom.add(element);
                 }
             }
         }
+        // Add list item when no custom sources exist
+        if !has_custom_sources {
+            custom = custom.add(widget::text::body(fl!("no-custom-flatpak-sources")));
+        }
+
+        let custom = widget::column::with_children(vec![
+            custom.into(),
+            widget::container(widget::button::standard(fl!("import")).on_press_maybe(
+                if self.repos_changing.is_empty() {
+                    Some(Message::RepositoryAddDialog("flatpak-user"))
+                } else {
+                    None
+                },
+            ))
+            .width(Length::Fill)
+            .align_x(Alignment::End)
+            .into(),
+        ])
+        .spacing(theme::spacing().space_xxs);
 
         widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
@@ -2131,7 +2140,7 @@ impl App {
                 }
 
                 let mut column = widget::column::with_capacity(2)
-                    .padding([0, space_s])
+                    .padding([0, space_s, space_m, space_s])
                     .spacing(space_m)
                     .width(Length::Fill);
                 column = column.push(
@@ -2297,8 +2306,7 @@ impl App {
                 }
                 //TODO: proper image scroller
                 if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
-                    //TODO: get proper image dimensions
-                    let image_height = Length::Fixed(480.0);
+                    let image_height = Length::Fixed(320.0);
                     let mut row = widget::row::with_capacity(3).align_y(Alignment::Center);
                     {
                         let mut button = widget::button::icon(
@@ -2320,8 +2328,9 @@ impl App {
                     let image_element = if let Some(image) =
                         selected.screenshot_images.get(&selected.screenshot_shown)
                     {
-                        widget::container(widget::image(image.clone()).height(image_height))
+                        widget::container(widget::image(image.clone()))
                             .center_x(Length::Fill)
+                            .center_y(image_height)
                             .into()
                     } else {
                         widget::Space::new(Length::Fill, image_height).into()
@@ -2451,7 +2460,7 @@ impl App {
                     let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                     let mut column = widget::column::with_capacity(2)
-                        .padding([0, space_s])
+                        .padding([0, space_s, space_m, space_s])
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
@@ -2478,7 +2487,7 @@ impl App {
                         match self.explore_page_opt {
                             Some(explore_page) => {
                                 let mut column = widget::column::with_capacity(3)
-                                    .padding([0, space_s])
+                                    .padding([0, space_s, space_m, space_s])
                                     .spacing(space_xxs)
                                     .width(Length::Fill);
                                 column = column.push(
@@ -2515,7 +2524,7 @@ impl App {
                                 let explore_pages = ExplorePage::all();
                                 let mut column =
                                     widget::column::with_capacity(explore_pages.len() * 2)
-                                        .padding([0, space_s])
+                                        .padding([0, space_s, space_m, space_s])
                                         .spacing(space_xxs)
                                         .width(Length::Fill);
                                 for explore_page in explore_pages.iter() {
@@ -2570,7 +2579,7 @@ impl App {
                     }
                     NavPage::Installed => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s])
+                            .padding([0, space_s, space_m, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(NavPage::Installed.title()));
@@ -2634,7 +2643,7 @@ impl App {
                     //TODO: reduce duplication
                     NavPage::Updates => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s])
+                            .padding([0, space_s, space_m, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         match &self.updates {
@@ -2782,7 +2791,7 @@ impl App {
                     //TODO: reduce duplication
                     nav_page => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s])
+                            .padding([0, space_s, space_m, space_s])
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));

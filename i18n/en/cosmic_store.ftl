@@ -128,6 +128,7 @@ no-description = No description available.
 recommended-flatpak-sources = Recommended Flatpak Sources
 custom-flatpak-sources = Custom Flatpak Sources
 import-flatpakrepo = Import .flatpakrepo file to add a custom source
+no-custom-flatpak-sources = No custom Flatpak sources
 import = Import
 no-flatpak = No flatpak support
 software-repositories = Software Repositories
