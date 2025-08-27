@@ -832,13 +832,7 @@ impl App {
                     if !desktop_id.ends_with(".desktop") {
                         desktop_id.push_str(".desktop");
                     }
-                    let xdg_dirs = match xdg::BaseDirectories::with_prefix("applications") {
-                        Ok(ok) => ok,
-                        Err(err) => {
-                            log::warn!("failed to find applications xdg directories: {}", err);
-                            return None;
-                        }
-                    };
+                    let xdg_dirs = xdg::BaseDirectories::with_prefix("applications");
                     let path = match xdg_dirs.find_data_file(&desktop_id) {
                         Some(some) => some,
                         None => {
