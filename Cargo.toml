@@ -1,15 +1,14 @@
 [package]
 name = "cosmic-store"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.71"
+edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 freedesktop_entry_parser = "1"
-lazy_static = "1"
 log = "0.4"
 open = "5"
 paste = "1"

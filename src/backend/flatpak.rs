@@ -1,5 +1,5 @@
 use cosmic::widget;
-use libflatpak::{gio::Cancellable, glib, prelude::*, Installation, Ref, Remote, Transaction};
+use libflatpak::{Installation, Ref, Remote, Transaction, gio::Cancellable, glib, prelude::*};
 use std::{
     cell::Cell,
     collections::HashMap,

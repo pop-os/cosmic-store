@@ -1,10 +1,11 @@
 use appstream::{
+    Component, Image, MarkupTranslatableString, ParseError, Release, Screenshot,
     enums::{
         ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, Provide, ReleaseKind,
         ReleaseUrgency,
     },
     url::Url,
-    xmltree, Component, Image, MarkupTranslatableString, ParseError, Release, Screenshot,
+    xmltree,
 };
 use cosmic::widget;
 use flate2::read::GzDecoder;
@@ -21,7 +22,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{stats, AppIcon, AppId, AppInfo};
+use crate::{AppIcon, AppId, AppInfo, stats};
 
 const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
@@ -564,7 +565,7 @@ impl AppstreamCache {
             .children
             .par_iter()
             .filter_map(|node| {
-                if let xmltree::XMLNode::Element(ref e) = node {
+                if let xmltree::XMLNode::Element(e) = node {
                     if &*e.name == "component" {
                         match Component::try_from(e) {
                             Ok(component) => {
@@ -670,11 +671,11 @@ impl AppstreamCache {
                                                     }
                                                     None => {
                                                         log::warn!(
-                                                        "unsupported cached icon {:?} for {:?} in {:?}",
-                                                        cached,
-                                                        component.id,
-                                                        path
-                                                    );
+                                                            "unsupported cached icon {:?} for {:?} in {:?}",
+                                                            cached,
+                                                            component.id,
+                                                            path
+                                                        );
                                                     }
                                                 }
                                             }
@@ -738,11 +739,11 @@ impl AppstreamCache {
                                                     }
                                                     None => {
                                                         log::warn!(
-                                                        "unsupported desktop-id launchable {:?} for {:?} in {:?}",
-                                                        desktop_id,
-                                                        component.id,
-                                                        path
-                                                    );
+                                                            "unsupported desktop-id launchable {:?} for {:?} in {:?}",
+                                                            desktop_id,
+                                                            component.id,
+                                                            path
+                                                        );
                                                     }
                                                 }
                                             }
@@ -782,11 +783,11 @@ impl AppstreamCache {
                                                     }
                                                     None => {
                                                         log::warn!(
-                                                        "unsupported ids provide {:?} for {:?} in {:?}",
-                                                        id,
-                                                        component.id,
-                                                        path
-                                                    );
+                                                            "unsupported ids provide {:?} for {:?} in {:?}",
+                                                            id,
+                                                            component.id,
+                                                            path
+                                                        );
                                                     }
                                                 }
                                             }
@@ -813,11 +814,11 @@ impl AppstreamCache {
                                                     }
                                                     None => {
                                                         log::warn!(
-                                                        "unsupported mediatypes provide {:?} for {:?} in {:?}",
-                                                        mediatype,
-                                                        component.id,
-                                                        path
-                                                    );
+                                                            "unsupported mediatypes provide {:?} for {:?} in {:?}",
+                                                            mediatype,
+                                                            component.id,
+                                                            path
+                                                        );
                                                     }
                                                 }
                                             }

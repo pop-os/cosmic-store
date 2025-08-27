@@ -1,4 +1,4 @@
-use libflatpak::{gio::Cancellable, prelude::*, Installation, Transaction};
+use libflatpak::{Installation, Transaction, gio::Cancellable, prelude::*};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
