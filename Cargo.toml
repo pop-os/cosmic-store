@@ -18,13 +18,13 @@ reqwest = "0.12"
 serde = { version = "1", features = ["rc", "serde_derive"] }
 spdx = { git = "https://github.com/jackpot51/spdx.git" }
 tokio = { version = "1", features = ["sync"] }
-xdg = "2"
+xdg = "3"
 # Internationalization
-i18n-embed = { version = "0.15", features = [
+i18n-embed = { version = "0.16", features = [
     "fluent-system",
     "desktop-requester",
 ] }
-i18n-embed-fl = "0.9"
+i18n-embed-fl = "0.10"
 rust-embed = "8"
 icu_collator = "1.5"
 icu_provider = { version = "1.5", features = ["sync"] }
@@ -41,11 +41,11 @@ dirs = "6"
 # flatpak feature
 libflatpak = { version = "0.6", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
-logind-zbus = { version = "4", optional = true }
-nix = { version = "0.29", features = ["user"], optional = true }
-zbus = { version = "4", optional = true }
-# notify feature. Pinned for zbus 4
-notify-rust = { version = "=4.11.2", optional = true }
+logind-zbus = { version = "5", optional = true }
+nix = { version = "0.30", features = ["user"], optional = true }
+zbus = { version = "5", optional = true }
+# notify feature
+notify-rust = { version = "4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
