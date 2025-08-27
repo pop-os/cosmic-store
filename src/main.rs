@@ -3,11 +3,12 @@
 
 use clap::Parser;
 use cosmic::{
-    action,
-    app::{context_drawer, Core, CosmicFlags, Settings, Task},
+    Application, ApplicationExt, Element, action,
+    app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
     iced::{
+        Alignment, Length, Limits, Size, Subscription,
         core::SmolStr,
         event::{self, Event},
         futures::{self, SinkExt},
@@ -15,11 +16,9 @@ use cosmic::{
         stream,
         widget::scrollable,
         window::{self, Event as WindowEvent},
-        Alignment, Length, Limits, Size, Subscription,
     },
     theme,
     widget::{self},
-    Application, ApplicationExt, Element,
 };
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
@@ -49,7 +48,7 @@ mod appstream_cache;
 use backend::{Backends, Package};
 mod backend;
 
-use config::{AppTheme, Config, CONFIG_VERSION};
+use config::{AppTheme, CONFIG_VERSION, Config};
 mod config;
 
 #[cfg(feature = "wayland")]
@@ -64,7 +63,7 @@ mod gstreamer;
 use icon_cache::{icon_cache_handle, icon_cache_icon};
 mod icon_cache;
 
-use key_bind::{key_binds, KeyBind};
+use key_bind::{KeyBind, key_binds};
 mod key_bind;
 
 mod localize;
@@ -1599,11 +1598,7 @@ impl App {
                     let results =
                         Self::generic_search(&apps, &backends, |id, _info, _installed| {
                             //TODO: fuzzy search with lower weight?
-                            if id == &component_id {
-                                Some(0)
-                            } else {
-                                None
-                            }
+                            if id == &component_id { Some(0) } else { None }
                         });
                     let duration = start.elapsed();
                     log::info!(
@@ -1830,22 +1825,24 @@ impl App {
             AppTheme::Light => 2,
             AppTheme::System => 0,
         };
-        widget::settings::view_column(vec![widget::settings::section()
-            .title(fl!("appearance"))
-            .add(
-                widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
-                    &self.app_themes,
-                    Some(app_theme_selected),
-                    move |index| {
-                        Message::AppTheme(match index {
-                            1 => AppTheme::Dark,
-                            2 => AppTheme::Light,
-                            _ => AppTheme::System,
-                        })
-                    },
-                )),
-            )
-            .into()])
+        widget::settings::view_column(vec![
+            widget::settings::section()
+                .title(fl!("appearance"))
+                .add(
+                    widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
+                        &self.app_themes,
+                        Some(app_theme_selected),
+                        move |index| {
+                            Message::AppTheme(match index {
+                                1 => AppTheme::Dark,
+                                2 => AppTheme::Light,
+                                _ => AppTheme::System,
+                            })
+                        },
+                    )),
+                )
+                .into(),
+        ])
         .into()
     }
 
@@ -2723,31 +2720,37 @@ impl App {
                                         }
                                     }
                                     let controls = if let Some(progress) = progress_opt {
-                                        vec![widget::progress_bar(0.0..=100.0, progress)
-                                            .height(Length::Fixed(4.0))
-                                            .into()]
+                                        vec![
+                                            widget::progress_bar(0.0..=100.0, progress)
+                                                .height(Length::Fixed(4.0))
+                                                .into(),
+                                        ]
                                     } else if waiting_refresh {
                                         vec![]
                                     } else {
-                                        vec![widget::button::standard(fl!("update"))
-                                            .on_press(Message::Operation(
-                                                OperationKind::Update,
-                                                backend_name,
-                                                package.id.clone(),
-                                                package.info.clone(),
-                                            ))
-                                            .into()]
+                                        vec![
+                                            widget::button::standard(fl!("update"))
+                                                .on_press(Message::Operation(
+                                                    OperationKind::Update,
+                                                    backend_name,
+                                                    package.id.clone(),
+                                                    package.info.clone(),
+                                                ))
+                                                .into(),
+                                        ]
                                     };
-                                    let top_controls = Some(vec![widget::button::icon(
-                                        widget::icon::from_name("help-info-symbolic"),
-                                    )
-                                    .on_press(Message::ToggleContextPage(
-                                        ContextPage::ReleaseNotes(
-                                            updates_i,
-                                            package.info.name.clone(),
-                                        ),
-                                    ))
-                                    .into()]);
+                                    let top_controls = Some(vec![
+                                        widget::button::icon(widget::icon::from_name(
+                                            "help-info-symbolic",
+                                        ))
+                                        .on_press(Message::ToggleContextPage(
+                                            ContextPage::ReleaseNotes(
+                                                updates_i,
+                                                package.info.name.clone(),
+                                            ),
+                                        ))
+                                        .into(),
+                                    ]);
                                     if col >= cols {
                                         grid = grid.insert_row();
                                         col = 0;
@@ -3530,7 +3533,7 @@ impl Application for App {
                                 result.id.clone(),
                                 result.icon_opt.clone(),
                                 result.info.clone(),
-                            )
+                            );
                         }
                         None => {
                             log::error!("failed to find installed result with index {}", result_i);
@@ -3571,7 +3574,7 @@ impl Application for App {
                                 result.id.clone(),
                                 result.icon_opt.clone(),
                                 result.info.clone(),
-                            )
+                            );
                         }
                         None => {
                             log::error!("failed to find category result with index {}", result_i);
@@ -3588,7 +3591,7 @@ impl Application for App {
                                 result.id.clone(),
                                 result.icon_opt.clone(),
                                 result.info.clone(),
-                            )
+                            );
                         }
                         None => {
                             log::error!(
@@ -3609,7 +3612,7 @@ impl Application for App {
                                 result.id.clone(),
                                 result.icon_opt.clone(),
                                 result.info.clone(),
-                            )
+                            );
                         }
                         None => {
                             log::error!("failed to find search result with index {}", result_i);
@@ -4072,13 +4075,15 @@ impl Application for App {
     fn header_end(&self) -> Vec<Element<Message>> {
         match self.mode {
             Mode::Normal => {
-                vec![widget::tooltip(
-                    widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
-                        .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
-                    widget::text(fl!("manage-repositories")),
-                    widget::tooltip::Position::Bottom,
-                )
-                .into()]
+                vec![
+                    widget::tooltip(
+                        widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
+                            .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
+                        widget::text(fl!("manage-repositories")),
+                        widget::tooltip::Position::Bottom,
+                    )
+                    .into(),
+                ]
             }
             Mode::GStreamer { .. } => Vec::new(),
         }

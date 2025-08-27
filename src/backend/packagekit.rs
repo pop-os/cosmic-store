@@ -1,8 +1,8 @@
 use cosmic::widget;
 use packagekit_zbus::{
-    zbus::{blocking::Connection, zvariant},
     PackageKit::PackageKitProxyBlocking,
     Transaction::TransactionProxyBlocking,
+    zbus::{blocking::Connection, zvariant},
 };
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 

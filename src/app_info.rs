@@ -1,6 +1,7 @@
 use appstream::{
+    Component,
     enums::{Bundle, Icon, ImageKind, Launchable, ProjectUrl, Provide},
-    xmltree, Component,
+    xmltree,
 };
 use std::{error::Error, fmt::Write};
 
