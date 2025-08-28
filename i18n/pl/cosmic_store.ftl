@@ -41,6 +41,20 @@ dismiss = Odrzuć wiadomość
 operations-running = {$running} bieżące działania ({$percent}%)...
 operations-running-finished = {$running} bieżące działania ({$percent}%), {$finished} ukończone...
 
+# Repository add error dialog
+repository-add-error-title = "Nieudane dodanie repozytorium"
+
+# Repository remove dialog
+repository-remove-title = Usunąć "{$name}" repozytorium?
+repository-remove-body = Usuwając to repozytorium { $dependency ->
+    [none] usuniesz
+    *[other] usuniesz "{$dependency}" i usuniesz
+} następujące aplikacje i elementy. Będą one musiały być zainstalowane ponownie jeśli to repozytorum zostanie ponownie dodane.
+add = Dodaj
+adding = Dodawanie...
+remove = Usuń
+removing = Usuwanie...
+
 # Uninstall Dialog
 uninstall-app = Odinstaluj {$name}
 uninstall-app-warning = Czy na pewno chcesz odinstalować {$name}?
@@ -58,6 +72,10 @@ utilities = Użytkowe
 applets = Aplety
 installed-apps = Zainstalowane aplikacje
 updates = Aktualizacje
+
+## Applets page
+enable-flathub-cosmic = Musisz włączyć Flathub i COSMIC Flatpak by widzieć dostępne aplety.
+manage-repositories = Zarządzanie repozytoriami
 
 # Explore Pages
 editors-choice = Wybór Redakcji
@@ -107,6 +125,15 @@ settings = Ustawienia
 ## Release notes
 latest-version = Najnowsza wersja
 no-description = Brak opisu.
+
+## Repositories
+recommended-flatpak-sources = Polecane Źródła Flatpak
+custom-flatpak-sources = Własne Źródła Flatpak
+import-flatpakrepo = Importuj plik .flatpakrepo by dodać własne źródła
+no-custom-flatpak-sources = Brak własnych źródeł Flatpak
+import = Importuj
+no-flatpak = Flatpak nie jest wspierany
+software-repositories = Repozytoria Oprogramowania
 
 ### Appearance
 appearance = Wygląd
