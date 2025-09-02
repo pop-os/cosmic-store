@@ -39,6 +39,20 @@ dismiss = Üzenet bezárása
 operations-running = {$running} művelet fut ({$percent}%)...
 operations-running-finished = {$running} művelet fut ({$percent}%), {$finished} befejeződött...
 
+# Repository add error dialog
+repository-add-error-title = „Nem sikerült hozzáadni a tárolót”
+
+# Repository remove dialog
+repository-remove-title = Törlöd a(z) „{$name}” tárolót?
+repository-remove-body = A tároló eltávolítása { $dependency ->
+    [none] törli
+    *[other] eltávolítja ezt: „{$dependency}”, és törli
+} a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
+add = Hozzáadás
+adding = Hozzáadás...
+remove = Eltávolítás
+removing = Eltávolítás...
+
 # Uninstall Dialog
 uninstall-app = {$name} eltávolítása
 uninstall-app-warning = Biztosan eltávolítod a(z) {$name} alkalmazást?
@@ -56,6 +70,10 @@ utilities = Segédprogramok
 applets = Kisalkalmazások
 installed-apps = Telepített alkalmazások
 updates = Frissítések
+
+## Applets page
+enable-flathub-cosmic = Engedélyezd a Flathubot és a COSMIC Flatpakot, hogy lásd az elérhető kisalkalmazásokat.
+manage-repositories = Tárolók kezelése
 
 # Explore Pages
 editors-choice = A szerkesztő választása
@@ -105,6 +123,14 @@ settings = Beállítások
 ## Release notes
 latest-version = Legújabb verzió
 no-description = Nincs leírás.
+
+## Repositories
+recommended-flatpak-sources = Ajánlott Flatpak-források
+custom-flatpak-sources = Egyéni Flatpak-források
+import-flatpakrepo = .flatpakrepo fájl importálása egyéni forrás hozzáadásához
+import = Importálás
+no-flatpak = Nincs Flatpak-támogatás
+software-repositories = Szoftvertárolók
 
 ### Appearance
 appearance = Megjelenés
