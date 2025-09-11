@@ -1,4 +1,4 @@
-app-name = متجر تطبيقات كُوزمِك
+app-name = متجر تطبيقات COSMIC
 back = عُد
 cancel = ألغِ
 check-for-updates = التمس التحديثات
