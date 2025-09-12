@@ -15,6 +15,7 @@ StartupNotify=true
 Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
+Keywords[ar]=متجر;تطبيق;تطبيقات;برامج
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
 Keywords[pt]=App;Aplicativos;Software;Programas;Loja;Store;
 Keywords[hu]=applikációk;bolt;szoftver;csomagkezelő;alkalmazások;programok;
