@@ -155,7 +155,7 @@ impl Packagekit {
         })
     }
 
-    fn transaction(&self) -> Result<TransactionProxyBlocking, Box<dyn Error>> {
+    fn transaction(&self) -> Result<TransactionProxyBlocking<'_>, Box<dyn Error>> {
         //TODO: use async?
         let pk = PackageKitProxyBlocking::new(&self.connection)?;
         //TODO: set locale?

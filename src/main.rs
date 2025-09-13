@@ -1761,7 +1761,7 @@ impl App {
         }
     }
 
-    fn operations(&self) -> Element<Message> {
+    fn operations(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xs, space_m, ..
         } = theme::active().cosmic().spacing;
@@ -1813,7 +1813,7 @@ impl App {
             .into()
     }
 
-    fn settings(&self) -> Element<Message> {
+    fn settings(&self) -> Element<'_, Message> {
         let app_theme_selected = match self.config.app_theme {
             AppTheme::Dark => 1,
             AppTheme::Light => 2,
@@ -1840,7 +1840,7 @@ impl App {
         .into()
     }
 
-    fn release_notes(&self, index: usize) -> Element<Message> {
+    fn release_notes(&self, index: usize) -> Element<'_, Message> {
         let (version, date, summary, url) = {
             self.updates
                 .as_deref()
@@ -1943,7 +1943,7 @@ impl App {
         sources
     }
 
-    fn repositories(&self) -> Element<Message> {
+    fn repositories(&self) -> Element<'_, Message> {
         if !cfg!(feature = "flatpak") {
             return widget::text(fl!("no-flatpak")).into();
         }
@@ -2053,7 +2053,7 @@ impl App {
         widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
 
-    fn view_responsive(&self, size: Size) -> Element<Message> {
+    fn view_responsive(&self, size: Size) -> Element<'_, Message> {
         self.size.set(Some(size));
         let spacing = theme::active().cosmic().spacing;
         let cosmic_theme::Spacing {
@@ -2404,9 +2404,8 @@ impl App {
                                 }
                             }
                         }
-                        Err(err) => {
+                        Err(_) => {
                             license_col = license_col.push(widget::text::body(license));
-                            license_col = license_col.push(widget::text::body(format!("{}", err)));
                         }
                     }
                     column = column.push(license_col);
@@ -3832,7 +3831,7 @@ impl Application for App {
         Task::none()
     }
 
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<'_, Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -3861,7 +3860,7 @@ impl Application for App {
         })
     }
 
-    fn dialog(&self) -> Option<Element<Message>> {
+    fn dialog(&self) -> Option<Element<'_, Message>> {
         let dialog_page = match self.dialog_pages.front() {
             Some(some) => some,
             None => return None,
@@ -3967,7 +3966,7 @@ impl Application for App {
         Some(dialog.into())
     }
 
-    fn footer(&self) -> Option<Element<Message>> {
+    fn footer(&self) -> Option<Element<'_, Message>> {
         if self.progress_operations.is_empty() {
             return None;
         }
@@ -4046,7 +4045,7 @@ impl Application for App {
         Some(container.into())
     }
 
-    fn header_start(&self) -> Vec<Element<Message>> {
+    fn header_start(&self) -> Vec<Element<'_, Message>> {
         match self.mode {
             Mode::Normal => vec![if self.search_active {
                 widget::text_input::search_input("", &self.search_input)
@@ -4066,7 +4065,7 @@ impl Application for App {
         }
     }
 
-    fn header_end(&self) -> Vec<Element<Message>> {
+    fn header_end(&self) -> Vec<Element<'_, Message>> {
         match self.mode {
             Mode::Normal => {
                 vec![
@@ -4084,7 +4083,7 @@ impl Application for App {
     }
 
     /// Creates a view after each update.
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
             space_s,
             space_xs,
@@ -4230,7 +4229,7 @@ impl Application for App {
         content
     }
 
-    fn view_window(&self, _id: window::Id) -> Element<Message> {
+    fn view_window(&self, _id: window::Id) -> Element<'_, Message> {
         // When closing the main window, view_window may be called after the main window is unset
         widget::horizontal_space().into()
     }
