@@ -58,6 +58,7 @@ features = ["multi-window", "tokio", "winit", "wayland"]
 [features]
 #todo : add a11y back to default
 default = [
+    "dbus-config",
     "desktop-systemd-scope",
     "flatpak",
     "logind",
@@ -69,6 +70,7 @@ default = [
     "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
+dbus-config = ["libcosmic/dbus-config"]
 desktop = ["libcosmic/desktop"]
 desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
 flatpak = ["dep:libflatpak", "xdg-portal"]
