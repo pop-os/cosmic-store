@@ -17,8 +17,8 @@ update-all = حدِّث الكل
 place-on-desktop = ضع على سطح المكتب
 place-applet = ضع البريمج
 place-applet-desc = اختر مكان إضافة البريمج قبل تحسين موضعه.
-panel = Panel
-dock = Dock
+panel = اللوحة
+dock = الإرساء
 place-and-refine = ضع وحسِّن
 
 # Codec dialog
