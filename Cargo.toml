@@ -26,8 +26,8 @@ i18n-embed = { version = "0.16", features = [
 ] }
 i18n-embed-fl = "0.10"
 rust-embed = "8"
-icu_collator = "1.5"
-icu_provider = { version = "1.5", features = ["sync"] }
+icu_collator = "2.0"
+icu_locale = "2.0"
 # appstream
 appstream = { git = "https://github.com/jackpot51/appstream.git" }
 flate2 = "1"
