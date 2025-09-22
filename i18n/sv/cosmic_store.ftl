@@ -72,3 +72,55 @@ codec-title = Installera ytterligare paket?
 codec-installed = Paketen har installerats.
 remove = Ta bort
 removing = Tar bort...
+place-applet = Placera applet
+place-applet-desc = Välj vart appleten ska läggas till innan dess position finjusteras.
+panel = Panel
+dock = Docka
+place-and-refine = Placera och finjustera
+codec-header = "{ $application }" kräver ytterligare paket som tillhandahåller "{ $description }".
+codec-footer =
+    The use of these additional packages may be restricted in some countries.
+    You must verify that one of the following is true:
+     • These restrictions do not apply in your country of legal residence
+     • You have permission to use this software (for example, a patent license)
+     • You are using this software for research purposes only
+codec-error = Det uppstod fel under paketinstallationen.
+details = Detaljer
+dismiss = Avfärda meddelande
+operations-running = { $running } operationer körs ({ $percent }%)...
+operations-running-finished = { $running } operationer körs ({ $percent }%), { $finished } klart...
+operations = Operationer
+no-operations = Inga operationer i historiken.
+pending = Väntar
+failed = Misslyckad
+complete = Färdig
+repository-add-error-title = "Misslyckades att lägga till arkiv"
+repository-remove-title = Ta bort "{ $name }" arkiv?
+repository-remove-body =
+    Att ta bort detta arkiv kommer { $dependency ->
+        [none] radera
+       *[other] ta bort "{ $dependency }" och radera
+    } följande applikationer och objekt. De kommer att behöva ominstalleras om arkivet läggs till igen.
+add = Lägg till
+adding = Lägger till...
+bug-tracker = Felrapporteringssytem
+contact = Kontakt
+donation = Donation
+faq = FAQ
+help = Hjälp
+homepage = Hemsida
+translate = Översätt
+cancelled = Avbruten
+enable-flathub-cosmic = Slå på Flathub och COSMIC Flatpak för att se tillgängliga appletter.
+manage-repositories = Hantera arkiv
+made-for-cosmic = Skapad för COSMIC
+licenses = Licenser
+proprietary = Proprietär
+recommended-flatpak-sources = Rekommenderade Flatpak-källor
+custom-flatpak-sources = Anpassade Flatpak-källor
+import-flatpakrepo = Importera .flatpakrepo fil för att lägga till en anpassad källa
+no-custom-flatpak-sources = Inga anpassade Flatpak-källor
+import = Importera
+no-flatpak = Inget flatpak-stöd
+software-repositories = Mjukvaruarkiv
+applets = Applets
