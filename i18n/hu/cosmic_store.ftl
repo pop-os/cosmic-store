@@ -7,7 +7,7 @@ close = Bezárás
 install = Telepítés
 no-installed-applications = Nincsenek telepített alkalmazások.
 no-updates = Minden telepített alkalmazás naprakész.
-no-results = Nincs találat a következőre: „{$search}”.
+no-results = Nincs találat a következőre: „{ $search }”.
 notification-in-progress = Telepítések és frissítések folyamatban.
 open = Megnyitás
 see-all = Összes mutatása
@@ -20,10 +20,9 @@ place-applet-desc = Válaszd ki, hova szeretnéd elhelyezni a kisalkalmazást, m
 panel = Panel
 dock = Dokk
 place-and-refine = Elhelyezés és pontosítás
-
 # Codec dialog
 codec-title = További csomagok telepítése?
-codec-header = „{$application}” további csomagokat igényel, amelyek biztosítják: „{$description}”.
+codec-header = „{ $application }” további csomagokat igényel, amelyek biztosítják: „{ $description }”.
 codec-footer =
     Ezeknek a kiegészítő csomagoknak a használata egyes országokban korlátozott lehet.
     Ellenőrizned kell, hogy az alábbiak közül legalább egy igaz:
@@ -32,31 +31,27 @@ codec-footer =
      • Csak kutatási célokra használod ezt a szoftvert
 codec-error = Hiba történt a csomagok telepítése közben.
 codec-installed = A csomagok telepítve lettek.
-
 # Progress footer
 details = Részletek
 dismiss = Üzenet bezárása
-operations-running = {$running} művelet fut ({$percent}%)...
-operations-running-finished = {$running} művelet fut ({$percent}%), {$finished} befejeződött...
-
+operations-running = { $running } művelet fut ({ $percent }%)...
+operations-running-finished = { $running } művelet fut ({ $percent }%), { $finished } befejeződött...
 # Repository add error dialog
 repository-add-error-title = „Nem sikerült hozzáadni a tárolót”
-
 # Repository remove dialog
-repository-remove-title = Törlöd a(z) „{$name}” tárolót?
-repository-remove-body = A tároló eltávolítása { $dependency ->
-    [none] törli
-    *[other] eltávolítja ezt: „{$dependency}”, és törli
-} a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
+repository-remove-title = Törlöd a(z) „{ $name }” tárolót?
+repository-remove-body =
+    A tároló eltávolítása { $dependency ->
+        [none] törli
+       *[other] eltávolítja ezt: „{ $dependency }”, és törli
+    } a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
 add = Hozzáadás
 adding = Hozzáadás...
 remove = Eltávolítás
 removing = Eltávolítás...
-
 # Uninstall Dialog
-uninstall-app = {$name} eltávolítása
-uninstall-app-warning = Biztosan eltávolítod a(z) {$name} alkalmazást?
-
+uninstall-app = { $name } eltávolítása
+uninstall-app-warning = Biztosan eltávolítod a(z) { $name } alkalmazást?
 # Nav Pages
 explore = Felfedezés
 create = Alkotás
@@ -72,9 +67,9 @@ installed-apps = Telepített alkalmazások
 updates = Frissítések
 
 ## Applets page
+
 enable-flathub-cosmic = Engedélyezd a Flathubot és a COSMIC Flatpakot, hogy lásd az elérhető kisalkalmazásokat.
 manage-repositories = Tárolók kezelése
-
 # Explore Pages
 editors-choice = A szerkesztő választása
 popular-apps = Népszerű alkalmazások
@@ -89,16 +84,16 @@ social-networking-apps = Közösségi hálózati alkalmazások
 games = Játékok
 music-and-video-apps = Zene- és videóalkalmazások
 apps-for-learning = Alkalmazások tanuláshoz
-
 # Details Page
-source-installed = {$source} (telepítve)
+source-installed = { $source } (telepítve)
 developer = Fejlesztő
-app-developers = {$app} Fejlesztői
+app-developers = { $app } Fejlesztői
 monthly-downloads = Flathub havi letöltések
 licenses = Licencek
 proprietary = Zárt forráskódú
 
 ## App URLs
+
 bug-tracker = Problémakövető
 contact = Kapcsolat
 donation = Adomány
@@ -109,7 +104,9 @@ translate = Fordítás
 
 # Context Pages
 
+
 ## Operations
+
 cancelled = Megszakítva
 operations = Műveletek
 no-operations = Nincsenek műveletek az előzményekben.
@@ -118,23 +115,28 @@ failed = Sikertelen
 complete = Befejezett
 
 ## Settings
+
 settings = Beállítások
 
 ## Release notes
+
 latest-version = Legújabb verzió
 no-description = Nincs leírás.
 
 ## Repositories
+
 recommended-flatpak-sources = Ajánlott Flatpak-források
 custom-flatpak-sources = Egyéni Flatpak-források
-import-flatpakrepo = .flatpakrepo fájl importálása egyéni forrás hozzáadásához
+import-flatpakrepo = { "." }flatpakrepo fájl importálása egyéni forrás hozzáadásához
 import = Importálás
 no-flatpak = Nincs Flatpak-támogatás
 software-repositories = Szoftvertárolók
 
 ### Appearance
+
 appearance = Megjelenés
 theme = Téma
 match-desktop = Rendszertéma
 dark = Sötét
 light = Világos
+no-custom-flatpak-sources = Nincsenek egyéni Flatpak-források
