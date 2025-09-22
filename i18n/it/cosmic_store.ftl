@@ -3,6 +3,7 @@ back = Indietro
 cancel = Annulla
 check-for-updates = Controlla gli aggiornamenti
 checking-for-updates = Controllo aggiornamenti...
+close = Chiudi
 install = Installa
 no-installed-applications = Nessuna applicazione installata.
 no-updates = Tutte le applicazioni installate sono aggiornate.
@@ -13,12 +14,44 @@ see-all = Vedi tutti
 uninstall = Disinstalla
 update = Aggiorna
 update-all = Aggiorna tutti
+place-on-desktop = Posiziona sul desktop
+place-applet = Posiziona applet
+place-applet-desc = Scegli dove aggiungere l'applet prima di perfezionarne la posizione.
+panel = Pannello
+dock = Dock
+place-and-refine = Posiziona e perfeziona
+
+# Codec dialog
+codec-title = Installare pacchetti aggiuntivi?
+codec-header = "{$application}" richiede pacchetti aggiuntivi che forniscono "{$description}".
+codec-footer =
+    L'uso di questi pacchetti aggiuntivi può essere soggetto a restrizioni in alcuni paesi.
+    Devi verificare che una delle seguenti condizioni sia vera:
+     • Queste restrizioni non si applicano nel tuo paese di residenza legale
+     • Hai il permesso di usare questo software (ad esempio, una licenza sui brevetti)
+     • Stai utilizzando questo software solo per scopi di ricerca
+codec-error = Si sono verificati errori durante l'installazione dei pacchetti.
+codec-installed = I pacchetti sono stati installati.
 
 # Progress footer
 details = Informazioni
 dismiss = Chiudi messaggio
 operations-running = {$running} operazioni in corso ({$percent}%)...
 operations-running-finished = {$running} operazioni in corso ({$percent}%), {$finished} completate...
+
+# Repository add error dialog
+repository-add-error-title = "Impossibile aggiungere il repository"
+
+# Repository remove dialog
+repository-remove-title = Rimuovere il repository "{$name}"?
+repository-remove-body = La rimozione di questo repository comporterà { $dependency ->
+    [none] l'eliminazione
+    *[other] la rimozione di "{$dependency}" e l'eliminazione
+} delle seguenti applicazioni e elementi. Sarà necessario reinstallarli se il repository verrà aggiunto di nuovo.
+add = Aggiungi
+adding = Aggiunta...
+remove = Rimuovi
+removing = Rimozione...
 
 # Uninstall Dialog
 uninstall-app = Disinstalla {$name}
@@ -34,8 +67,13 @@ game = Giochi
 relax = Relax
 socialize = Social
 utilities = Utilità
+applets = Applet
 installed-apps = Applicazioni installate
 updates = Aggiornamenti
+
+## Applets page
+enable-flathub-cosmic = Abilita Flathub e COSMIC Flatpak per vedere le applet disponibili.
+manage-repositories = Gestisci repository
 
 # Explore Pages
 editors-choice = Scelta dell'editore
@@ -85,6 +123,15 @@ settings = Opzioni
 ## Release notes
 latest-version = Ultima versione
 no-description = Nessuna descrizione disponibile.
+
+## Repositories
+recommended-flatpak-sources = Sorgenti Flatpak consigliate
+custom-flatpak-sources = Sorgenti Flatpak personalizzate
+import-flatpakrepo = Importa file .flatpakrepo per aggiungere una sorgente personalizzata
+no-custom-flatpak-sources = Nessuna sorgente Flatpak personalizzata
+import = Importa
+no-flatpak = Nessun supporto Flatpak
+software-repositories = Repository software
 
 ### Appearance
 appearance = Aspetto
