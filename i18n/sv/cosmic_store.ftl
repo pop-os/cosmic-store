@@ -79,11 +79,11 @@ dock = Docka
 place-and-refine = Placera och finjustera
 codec-header = "{ $application }" kräver ytterligare paket som tillhandahåller "{ $description }".
 codec-footer =
-    The use of these additional packages may be restricted in some countries.
-    You must verify that one of the following is true:
-     • These restrictions do not apply in your country of legal residence
-     • You have permission to use this software (for example, a patent license)
-     • You are using this software for research purposes only
+    Användningen av dessa tilläggspaket kan begränsas i vissa länder.
+    Du måste kontrollera att ett av följande är sant:
+     • Dessa begränsningar gäller inte i ditt hemland
+     • Du har tillstånd att använda denna programvara (till exempel en patentlicens)
+     • Du använder denna programvara endast för forskningsändamål
 codec-error = Det uppstod fel under paketinstallationen.
 details = Detaljer
 dismiss = Avfärda meddelande

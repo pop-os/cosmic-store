@@ -3,11 +3,11 @@ back = عُد
 cancel = ألغِ
 check-for-updates = التمس التحديثات
 checking-for-updates = يلتمس التحديثات...
-close = أغلق
+close = أغلِق
 install = ثبِّت
 no-installed-applications = لا توجد برامج مثبتة.
 no-updates = كل التطبيقات المثبتة غير محدّثة.
-no-results = لا توجد نتائج لـ "{ $search }".
+no-results = لا توجد نتائج لـ «{ $search }».
 notification-in-progress = التثبيتات والتحديثات قيد التقدم.
 open = افتح
 see-all = اعرض الكل
@@ -18,11 +18,11 @@ place-on-desktop = ضع على سطح المكتب
 place-applet = ضع البريمج
 place-applet-desc = اختر مكان إضافة البريمج قبل تحسين موضعه.
 panel = اللوحة
-dock = الإرساء
+dock = المرسى
 place-and-refine = ضع وحسِّن
 # Codec dialog
 codec-title = تثبيت حزم إضافية؟
-codec-header = يتطلب "{ $application }" حزمًا إضافية توفر "{ $description }".
+codec-header = يتطلب «{ $application }» حزمًا إضافية توفر «{ $description }».
 codec-footer =
     قد يكون استخدام هذه الحزم الإضافية مقيدًا في بعض البلدان.
     يجب عليك التحقق من صحة أحد الإجراءات التالية:
@@ -34,16 +34,16 @@ codec-installed = ثُبّتت الحزم.
 # Progress footer
 details = تفاصيل
 dismiss = أهمل الرسالة
-operations-running = { $running } عملية قيد التشغيل ({ $percent }%)...
-operations-running-finished = { $running } عملية قيد التشغيل ({ $percent }%)، { $finished } انتهت...
+operations-running = { $running } عملية قيد التشغيل ({ $percent }٪)...
+operations-running-finished = { $running } عملية قيد التشغيل ({ $percent }٪)، { $finished } انتهت...
 # Repository add error dialog
-repository-add-error-title = "فشل في إضافة المستودع"
+repository-add-error-title = «فشل في إضافة المستودع»
 # Repository remove dialog
-repository-remove-title = أزِل مستودع "{ $name }"؟
+repository-remove-title = أزِل مستودع «{ $name }»؟
 repository-remove-body =
     ستؤدي إزالة هذا المستودع إلى { $dependency ->
         [none] حذف
-       *[other] إزالة "{ $dependency }" وحذف
+       *[other] إزالة «{ $dependency }» وحذف
     } التطبيقات والعناصر التالية. ستحتاج إلى إعادة تثبيتها إذا أُضيفت المستودع مرة أخرى.
 add = أضِف
 adding = يُضيف...
