@@ -50,8 +50,8 @@ adding = يُضيف...
 remove = أزِل
 removing = يُزيل...
 # Uninstall Dialog
-uninstall-app = أزِل { $name }
-uninstall-app-warning = أتريد حقََا إزالة { $name }؟
+uninstall-app = ألغِ التثبيت { $name }
+uninstall-app-warning = أتريد حقََا إلغاء تثبيت { $name }؟
 # Nav Pages
 explore = استكشف
 create = أنشئ
