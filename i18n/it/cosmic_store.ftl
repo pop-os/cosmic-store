@@ -32,7 +32,7 @@ codec-footer =
 codec-error = Si sono verificati errori durante l'installazione dei pacchetti.
 codec-installed = I pacchetti sono stati installati.
 # Progress footer
-details = Informazioni
+details = Dettagli
 dismiss = Chiudi messaggio
 operations-running = { $running } operazioni in corso ({ $percent }%)...
 operations-running-finished = { $running } operazioni in corso ({ $percent }%), { $finished } completate...
