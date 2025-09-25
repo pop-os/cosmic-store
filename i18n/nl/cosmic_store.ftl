@@ -103,3 +103,4 @@ codec-installed = De pakketten zijn geïnstalleerd.
 adding = Toevoegen…
 remove = Verwijderen
 applets = Applets
+place-on-desktop = Plaats op bureaublad
