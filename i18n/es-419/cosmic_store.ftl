@@ -84,3 +84,47 @@ notification-in-progress = Instalaciones y actualizaciones en curso.
 place-on-desktop = Añadir al escritorio
 panel = Panel
 dock = Dock
+place-applet = Añadir miniaplicación
+place-applet-desc = Escoge dónde se añadirá la miniaplicación antes de ajustar su posición.
+place-and-refine = Añadir y ajustar
+codec-title = ¿Instalar paquetes adicionales?
+codec-header = "{ $application }" requiere paquetes adicionales que proporcionen "{ $description }".
+codec-footer =
+    El uso de estos paquetes adicionales puede estar restringido en algunos países..
+    Debes verificar que una de las siguientes condiciones sea verdadera:
+     • Estas restricciones no se aplican en tu país de residencia legal
+     • Tienes permiso para usar este software (por ejemplo, mediante una licencia de patente)
+     • Estás usando este software solo para propósitos de investigación
+codec-error = Hubo errores durante la instalación de paquetes.
+codec-installed = Los paquetes se han instalado.
+details = Detalles
+dismiss = Descartar mensaje
+operations-running = Operaciones de { $running } en ejecución ({ $percent } %)...
+operations-running-finished = Operaciones de { $running } en ejecución ({ $percent } %), { $finished } completada(s)...
+repository-add-error-title = "Error al añadir el repositorio"
+repository-remove-title = ¿Quitar el repositorio "{ $name }"?
+repository-remove-body =
+    Al quitar este repositorio, { $dependency ->
+        [none] se eliminarán
+       *[other] se quitará "{ $dependency }" y se eliminarán
+    } las aplicaciones y los objetos a continuación. Tendrán que instalarse nuevamente si se vuelve a añadir el repositorio.
+add = Añadir
+adding = Añadiendo...
+remove = Quitar
+removing = Quitando...
+applets = Miniaplicaciones
+enable-flathub-cosmic = Por favor habilite los repositorios Flathub y COSMIC Flatpak para ver las miniaplicaciones disponibles.
+manage-repositories = Gestionar repositorios
+cancelled = Canceladas
+operations = Operaciones
+no-operations = No hay operaciones en el historial.
+pending = Pendientes
+failed = Falladas
+complete = Completadas
+recommended-flatpak-sources = Fuentes de Flatpak recomendadas
+custom-flatpak-sources = Fuentes de Flatpak personalizadas
+import-flatpakrepo = Importar archivo .flatpakrepo para añadir una fuente personalizada
+no-custom-flatpak-sources = No hay fuentes de Flatpak personalizadas
+import = Importar
+no-flatpak = No hay compatibilidad con Flatpak
+software-repositories = Repositorios de software
