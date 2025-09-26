@@ -107,4 +107,4 @@ appearance = Vzhled
 theme = Téma
 match-desktop = Dle systému
 dark = Tmavé
-light = Světlý
+light = Světlé
