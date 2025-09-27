@@ -5,9 +5,9 @@ check-for-updates = Verificar por atualizações
 checking-for-updates = Verificando por atualizações...
 close = Fechar
 install = Instalar
-no-installed-applications = Nenhum aplicativo instalado
-no-updates = Nenhuma atualização disponível
-no-results = Nenhum resultado para "{$search}"
+no-installed-applications = Nenhum aplicativo instalado.
+no-updates = Todos os aplicativos instalados estão atualizados.
+no-results = Nenhum resultado para "{ $search }".
 notification-in-progress = Instalações e atualizações estão em andamento.
 open = Abrir
 see-all = Ver tudo
@@ -20,10 +20,9 @@ place-applet-desc = Escolha onde adicionar o miniaplicativo antes de ajustar sua
 panel = Painel
 dock = Dock
 place-and-refine = Adicionar e ajustar
-
 # Codec dialog
 codec-title = Instalar pacotes adicionais?
-codec-header = "{$application}" requer pacotes adicionais fornecendo "{$description}".
+codec-header = "{ $application }" requer pacotes adicionais fornecendo "{ $description }".
 codec-footer =
     O uso desses pacotes adicionais pode ser restrito em alguns países.
     Você deve verificar se uma das seguintes condições é verdadeira:
@@ -32,31 +31,27 @@ codec-footer =
      • Você está usando este software apenas para fins de pesquisa
 codec-error = Ocorreram erros durante a instalação do pacote.
 codec-installed = Os pacotes foram instalados com sucesso.
-
 # Progress footer
 details = Detalhes
 dismiss = Dispensar mensagem
-operations-running = {$running} operações em andamento ({$percent}%)...
-operations-running-finished = {$running} operações em andamento ({$percent}%), {$finished} finalizadas...
-
+operations-running = { $running } operações em andamento ({ $percent }%)...
+operations-running-finished = { $running } operações em andamento ({ $percent }%), { $finished } finalizadas...
 # Repository add error dialog
 repository-add-error-title = "Falha ao adicionar repositório"
-
 # Repository remove dialog
-repository-remove-title = Remover o reposiório "{$name}"?
-repository-remove-body = Remover este repositório irá { $dependency ->
-    [none] excluir
-    *[other] remover "{$dependency}" e excluir
-} os seguintes aplicativos e itens. Eles precisarão ser reinstalados se o repositório for adicionado novamente.
+repository-remove-title = Remover o repositório "{ $name }"?
+repository-remove-body =
+    Remover este repositório irá { $dependency ->
+        [none] excluir
+       *[other] remover "{ $dependency }" e excluir
+    } os seguintes aplicativos e itens. Eles precisarão ser reinstalados se o repositório for adicionado novamente.
 add = Adicionar
 adding = Adicionando...
 remove = Remover
 removing = Removendo...
-
 # Uninstall Dialog
-uninstall-app = Desinstalar {$name}
-uninstall-app-warning = Tem certeza de que deseja desinstalar {$name}?
-
+uninstall-app = Desinstalar { $name }
+uninstall-app-warning = Tem certeza de que deseja desinstalar { $name }?
 # Nav Pages
 explore = Explorar
 create = Criação
@@ -72,9 +67,9 @@ installed-apps = Instalados
 updates = Atualizações
 
 ## Applets page
+
 enable-flathub-cosmic = Por favor, habilite o Flathub e o COSMIC Flatpak para ver os miniaplicativos disponíveis.
 manage-repositories = Gerenciar repositórios
-
 # Explore Pages
 editors-choice = Escolha dos Editores
 popular-apps = Aplicativos Populares
@@ -89,16 +84,16 @@ social-networking-apps = Aplicativos de Rede e Internet
 games = Jogos
 music-and-video-apps = Aplicativos de Música e Vídeo
 apps-for-learning = Aplicativos Educacionais
-
 # Details Page
-source-installed = {$source} (instalado)
+source-installed = { $source } (instalado)
 developer = Desenvolvedor
-app-developers = Desenvolvedores de {$app}
+app-developers = Desenvolvedores de { $app }
 monthly-downloads = Downloads Mensais
 licenses = Licenças
 proprietary = Proprietário
 
 ## App URLs
+
 bug-tracker = Relatar um problema
 contact = Contato
 donation = Fazer uma doação
@@ -109,7 +104,9 @@ translate = Contribuir com tradução
 
 # Context Pages
 
+
 ## Operations
+
 cancelled = Canceladas
 operations = Operações
 no-operations = Nenhuma operação no histórico.
@@ -118,13 +115,16 @@ failed = Com falha
 complete = Concluídas
 
 ## Settings
+
 settings = Configurações
 
 ## Release notes
+
 latest-version = Última versão
 no-description = Nenhuma descrição disponível.
 
 ## Repositories
+
 recommended-flatpak-sources = Fontes Recomendadas de Flatpak
 custom-flatpak-sources = Fontes Flatpak Customizadas
 import-flatpakrepo = Importar um arquivo .flatpakrepo para adicionar uma fonte customizada
@@ -134,6 +134,7 @@ no-flatpak = Sem suporte flatpak
 software-repositories = Repositórios de Software
 
 ### Appearance
+
 appearance = Aparência
 theme = Tema
 match-desktop = Estilo do sistema
