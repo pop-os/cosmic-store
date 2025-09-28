@@ -107,10 +107,10 @@ repository-remove-body =
     Al quitar este repositorio, { $dependency ->
         [none] se eliminarán
        *[other] se quitará "{ $dependency }" y se eliminarán
-    } las aplicaciones y los objetos a continuación. Tendrán que instalarse nuevamente si se vuelve a añadir el repositorio.
+    } las aplicaciones y los elementos a continuación. Tendrán que instalarse nuevamente si se vuelve a añadir el repositorio.
 add = Añadir
 adding = Añadiendo...
-remove = Quitar
+remove = Eliminar
 removing = Quitando...
 applets = Miniaplicaciones
 enable-flathub-cosmic = Por favor habilite los repositorios Flathub y COSMIC Flatpak para ver las miniaplicaciones disponibles.
@@ -119,7 +119,7 @@ cancelled = Canceladas
 operations = Operaciones
 no-operations = No hay operaciones en el historial.
 pending = Pendientes
-failed = Falladas
+failed = Con error
 complete = Completadas
 recommended-flatpak-sources = Fuentes de Flatpak recomendadas
 custom-flatpak-sources = Fuentes de Flatpak personalizadas

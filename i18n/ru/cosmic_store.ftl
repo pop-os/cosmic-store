@@ -18,7 +18,7 @@ uninstall-app = Удалить { $name }
 uninstall-app-warning = Вы уверены, что хотите удалить { $name }?
 # Nav Pages
 explore = Обзор
-create = Творчество
+create = Создать
 work = Работа
 develop = Разработка
 learn = Обучение
@@ -112,8 +112,8 @@ codec-error = Во время установки пакетов произошл
 codec-installed = Пакеты были установлены.
 details = Сведения
 dismiss = Скрыть сообщение
-operations-running = { $running } операции в процессе ({ $percent } %)…
-operations-running-finished = { $running } операции в процессе ({ $percent } %), { $finished } завершено…
+operations-running = { $running } операции в процессе ({ $percent } %)…
+operations-running-finished = { $running } операции в процессе ({ $percent } %), { $finished } завершено…
 repository-add-error-title = «Не удалось добавить репозиторий»
 repository-remove-title = Удалить репозиторий «{ $name }»?
 repository-remove-body =
@@ -123,5 +123,5 @@ repository-remove-body =
     } следующие приложения. В случае повторного добавления этого репозитория их потребуется установить заново.
 add = Добавить
 adding = Добавление…
-remove = Удалить
+remove = Убрать
 removing = Удаление…
