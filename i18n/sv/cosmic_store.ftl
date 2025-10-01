@@ -1,4 +1,4 @@
-app-name = COSMIC Store
+app-name = COSMIC Butik
 back = Bakåt
 cancel = Avbryt
 check-for-updates = Sök efter uppdateringar
@@ -100,7 +100,7 @@ repository-remove-body =
     Att ta bort detta arkiv kommer { $dependency ->
         [none] radera
        *[other] ta bort "{ $dependency }" och radera
-    } följande applikationer och objekt. De kommer att behöva ominstalleras om arkivet läggs till igen.
+    } följande program och objekt. De kommer att behöva ominstalleras om arkivet läggs till igen.
 add = Lägg till
 adding = Lägger till...
 bug-tracker = Felrapporteringssytem

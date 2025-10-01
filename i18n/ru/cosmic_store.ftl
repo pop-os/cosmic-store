@@ -52,7 +52,7 @@ monthly-downloads = Загрузок с Flathub за месяц
 
 ## Settings
 
-settings = Настройки
+settings = Параметры
 
 ## Release notes
 
