@@ -32,8 +32,25 @@ codec-error = Při instalaci balíčku došlo k chybám.
 codec-installed = Balíčky byly nainstalovány.
 details = Detaily
 dismiss = Zavřít zprávu
-operations-running = Běží { $running } operací ({ $percent }%)...
-operations-running-finished = Běží { $running } operací ({ $percent }%), { $finished } dokončeno...
+operations-running =
+    Běží { $running } { $running ->
+        [one] operace
+        [few] operace
+        [many] operací
+       *[other] operací
+    } ({ $percent }%)...
+operations-running-finished =
+    Běží { $running } { $running ->
+        [one] operace
+        [few] operace
+        [many] operací
+       *[other] operací
+    } ({ $percent }%), { $finished } { $finished ->
+        [one] dokončena...
+        [few] dokončeny...
+        [many] dokončeno...
+       *[other] dokončeno...
+    }
 repository-add-error-title = "Nepodařilo se přidat repozitář"
 repository-remove-title = Odstranit repozitář "{ $name }"?
 repository-remove-body =
@@ -80,13 +97,13 @@ app-developers = Vývojáři aplikace { $app }
 monthly-downloads = Měsíční počet stažení z Flathubu
 licenses = Licence
 proprietary = Proprietární
-bug-tracker = Sledování chyb
+bug-tracker = Hlášení chyb
 contact = Kontakt
-donation = Příspěvek
+donation = Přispět
 faq = FAQ
-help = Pomoc
+help = Získat pomoc
 homepage = Domovská stránka
-translate = Přeložit
+translate = Pomoct s překladem
 cancelled = Zrušeno
 operations = Operace
 no-operations = Žádné operace v historii.
@@ -105,6 +122,6 @@ no-flatpak = Žádná podpora flatpak
 software-repositories = Softwarové repozitáře
 appearance = Vzhled
 theme = Téma
-match-desktop = Dle systému
+match-desktop = Podle systému
 dark = Tmavé
 light = Světlé

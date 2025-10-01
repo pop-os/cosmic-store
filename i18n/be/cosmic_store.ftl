@@ -6,24 +6,21 @@ checking-for-updates = Праверка абнаўленняў...
 install = Усталяваць
 no-installed-applications = Няма ўсталяваных праграм
 no-updates = Няма даступных абнаўленняў
-no-results = Няма вынікаў для "{$search}"
+no-results = Няма вынікаў для "{ $search }"
 notification-in-progress = Выконваюцца ўстаноўкі і абнаўленні.
 open = Адкрыць
 see-all = Гл. усе
 uninstall = Выдаліць
 update = Абнавіць
 update-all = Абнавіць ўсё
-
 # Progress footer
 details = Дэталі
 dismiss = Адхіліць паведамленне
-operations-running = {$running} аперацый запушчана ({$percent}%)...
-operations-running-finished = {$running} аперацый запушчана ({$percent}%), {$finished} скончана...
-
+operations-running = { $running } аперацый запушчана ({ $percent }%)...
+operations-running-finished = { $running } аперацый запушчана ({ $percent }%), { $finished } скончана...
 # Uninstall Dialog
-uninstall-app = Выдалісь {$name}
-uninstall-app-warning = Вы сапраўды хочаце выдаліць {$name}?
-
+uninstall-app = Выдалісь { $name }
+uninstall-app-warning = Вы сапраўды хочаце выдаліць { $name }?
 # Nav Pages
 explore = Агляд
 create = Творчасць
@@ -36,7 +33,6 @@ socialize = Сацыяльныя
 utilities = Утыліты
 installed-apps = Усталяваныя праграмы
 updates = Абнаўленні
-
 # Explore Pages
 editors-choice = Выбар рэдакцыі
 popular-apps = Папулярныя
@@ -51,16 +47,16 @@ social-networking-apps = Сацыяльныя
 games = Гульні
 music-and-video-apps = Музыка і відая
 apps-for-learning = Адукацыя
-
 # Details Page
-source-installed = {$source} (усталявана)
+source-installed = { $source } (усталявана)
 developer = Распрацоўшчык
-app-developers = Распрацоўшчыкі {$app}
+app-developers = Распрацоўшчыкі { $app }
 monthly-downloads = Штомесячныя загрузкі Flathub
 licenses = Ліцэнзіі
 proprietary = Прапрыетарная
 
 ## App URLs
+
 bug-tracker = Памылкі
 contact = Кантакт
 donation = Ахвяраваць
@@ -71,7 +67,9 @@ translate = Перакласці
 
 # Context Pages
 
+
 ## Operations
+
 cancelled = Скасавана
 operations = Аперацыі
 no-operations = Няма аперацый у гісторыі
@@ -80,15 +78,30 @@ failed = Не ўдалося
 complete = Завершана
 
 ## Settings
+
 settings = Налады
 
 ## Release notes
+
 latest-version = Апошняя версія
 no-description = Апісанне адсутнічае.
 
 ### Appearance
+
 appearance = Выгляд
 theme = Тэма
 match-desktop = Як у сістэме
 dark = Цёмная
 light = Светлая
+close = Закрыць
+place-on-desktop = Размясціць на працоўным стале
+place-applet = Размясціць аплет
+panel = Панэль
+dock = Док
+repository-remove-title = Выдаліць рэпазіторый "{ $name }"?
+add = Дадаць
+adding = Дадаецца...
+remove = Выдаліць
+removing = Выдаленне...
+applets = Аплеты
+import = Імпартаваць
