@@ -13,7 +13,7 @@ install = Installer
 no-installed-applications = Ingen installerte programmer.
 no-updates = Alle installerte program er oppdaterte.
 import = Importer
-notification-in-progress = Installering og oppdatering pågår.
+notification-in-progress = Installeringer og oppdateringer pågår.
 match-desktop = Følg skrivebordet
 open = Åpne
 see-all = Se alle
@@ -87,3 +87,24 @@ music-and-video-apps = Musikk- og Videoapper
 source-installed = { $source } (installert)
 app-developers = { $app }-utviklere
 latest-version = Siste versjon
+repository-add-error-title = «Klarte ikke å legge til App-arkiv»
+repository-remove-title = Fjerne app-arkivet «{ $name }»?
+repository-remove-body =
+    Fjerning av dette app-arkivet vil { $dependency ->
+        [none] slette
+       *[other] fjerne "{ $dependency }" og slette
+    } følgende applikasjoner and objekter. De må bli ominstallert om arkivet legges til igjen.
+enable-flathub-cosmic = Slå på Flathub og COSMIC Flatpak for å se tilgjengelige appleter.
+manage-repositories = Håndter app-arkiv
+social-networking-apps = Sosiale Nettverksapper
+apps-for-learning = Læringsapper
+monthly-downloads = Månedlige Nedlastninger på Flathub
+bug-tracker = Feilsporingssystem
+no-operations = Ingen operasjoner i historikken.
+no-description = Ingen beskrivelse tilgjengelig.
+recommended-flatpak-sources = Anbefalte Flatpak-kilder
+custom-flatpak-sources = Egendefinerte Flatpak-Kilder
+import-flatpakrepo = Importer .flatpakrepo fil for å legge til en egendefinert kilde
+no-custom-flatpak-sources = Ingen egendefinerte Flatpak-kilder
+no-flatpak = Ingen Flatpak-støtte
+software-repositories = App-Arkiv
