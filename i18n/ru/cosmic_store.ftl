@@ -7,7 +7,6 @@ install = Установить
 no-installed-applications = Нет установленных приложений.
 no-updates = Все установленные приложения обновлены.
 no-results = Нет результатов по запросу «{ $search }».
-notification-progress = Установка и обновление завершены на { $progress } %.
 open = Открыть
 see-all = См. все
 uninstall = Удалить
