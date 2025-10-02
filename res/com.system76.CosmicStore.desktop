@@ -2,6 +2,7 @@
 [Desktop Entry]
 Name=COSMIC Store
 Name[ar]=متجر COSMIC
+Name[cs]=Obchod COSMIC
 Name[pl]=Sklep COSMIC
 Name[pt_BR]=Loja de Aplicativos
 Name[hu]=COSMIC Áruház
@@ -17,6 +18,7 @@ Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
 Keywords[ar]=متجر;تطبيق;تطبيقات;برامج
+Keywords[cs]=Aplikace;Software;Obchod;Shop;Programy;
 Keywords[pl]=Aplikacje;Soft;Oprogramowanie;Sklep;
 Keywords[pt]=App;Aplicativos;Software;Programas;Loja;Store;
 Keywords[hu]=applikációk;bolt;szoftver;csomagkezelő;alkalmazások;programok;
