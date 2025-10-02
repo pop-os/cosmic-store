@@ -10,6 +10,7 @@
   <url type="bugtracker">https://github.com/pop-os/cosmic-store</url>
   <name>COSMIC Store</name>
   <name xml:lang="ar">متجر COSMIC</name>
+  <name xml:lang="cs">Obchod COSMIC</name>
   <name xml:lang="pl">Sklep COSMIC</name>
   <name xml:lang="hu">COSMIC Áruház</name>
   <name xml:lang="pt_BR">Loja de Aplicativos</name>
@@ -18,6 +19,7 @@
   <name xml:lang="es">Tienda COSMIC</name>
   <summary>Application store for the COSMIC desktop</summary>
   <summary xml:lang="ar">متجر تطبيقات لسطح مكتب COSMIC</summary>
+  <summary xml:lang="cs">Obchod s aplikacemi pro pracovní prostředí COSMIC</summary>
   <summary xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</summary>
   <summary xml:lang="hu">Alkalmazásáruház a COSMIC asztali környezethez</summary>
   <summary xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</summary>
@@ -27,6 +29,7 @@
   <description>
       <p>Application store for the COSMIC desktop</p>
       <p xml:lang="ar">متجر تطبيقات لسطح مكتب COSMIC</p>
+      <p xml:lang="cs">Obchod s aplikacemi pro pracovní prostředí COSMIC</p>
       <p xml:lang="pl">Sklep z aplikacjami pulpitu COSMIC</p>
       <p xml:lang="hu">Alkalmazásáruház a COSMIC asztali környezethez</p>
       <p xml:lang="pt_BR">Loja de aplicativos do desktop COSMIC</p>
