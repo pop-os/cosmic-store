@@ -7,6 +7,7 @@ install = インストール
 no-installed-applications = インストール済みのアプリはありません。
 no-updates = アプリはすべて最新です。
 no-results = 「{ $search }」を含む結果はありません。
+notification-progress = インストールとアップデートを実行中です...
 open = 開く
 see-all = すべて表示
 uninstall = アンインストール
@@ -15,8 +16,8 @@ update-all = すべてアップデート
 # Progress footer
 details = 詳細を見る
 dismiss = 閉じる
-operations-running = { $running }件の操作を実行です ({ $percent }%)...
-operations-running-finished = { $running }件の操作を実行中({ $percent }%)、 { $finished }件が完了しました...
+operations-running = { $running }件の操作を実行です ({ $percent }%)
+operations-running-finished = { $running }件の操作を実行中({ $percent }%)、 { $finished }件が完了しました
 # Uninstall Dialog
 uninstall-app = { $name }をアンインストール
 uninstall-app-warning = 本当に{ $name }をアンインストールしてもよろしいですか？
