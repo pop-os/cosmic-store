@@ -88,7 +88,7 @@ no-description = Апісанне адсутнічае.
 
 ### Appearance
 
-appearance = Выгляд
+appearance = Знешні выгляд
 theme = Тэма
 match-desktop = Як у сістэме
 dark = Цёмная
@@ -107,3 +107,4 @@ applets = Аплеты
 import = Імпартаваць
 software-repositories = Рэпазіторыі праграм
 codec-title = Усталяваць дадатковыя пакеты?
+manage-repositories = Кіраванне рэпазіторыямі

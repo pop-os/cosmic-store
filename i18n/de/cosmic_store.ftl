@@ -6,24 +6,20 @@ checking-for-updates = Prüfung auf Aktualisierungen...
 install = Installieren
 no-installed-applications = Keine installierte Anwendungen
 no-updates = Alle installierten Anwendungen sind auf dem neuesten Stand.
-no-results = Keine Ergebnisse für „{$search}“.
-notification-progress = Installationen und Aktualisierungen sind im Gange.
+no-results = Keine Ergebnisse für „{ $search }“.
 open = Öffnen
 see-all = Alle anzeigen
 uninstall = Deinstallieren
 update = Aktualisieren
 update-all = Alle aktualisieren
-
 # Fortschrittsfußzeile
 details = Details
 dismiss = Meldung verwerfen
-operations-running = {$running} laufende Vorgänge ({$percent} %)...
-operations-running-finished = {$running} laufende Vorgänge ({$percent} %), {$finished} abgeschlossen...
-
+operations-running = { $running } laufende Vorgänge ({ $percent } %)...
+operations-running-finished = { $running } laufende Vorgänge ({ $percent } %), { $finished } abgeschlossen...
 # Deinstallationsdialog
-uninstall-app = {$name} deinstallieren
-uninstall-app-warning = Bist du sicher, dass du {$name} deinstallieren möchtest?
-
+uninstall-app = { $name } deinstallieren
+uninstall-app-warning = Bist du sicher, dass du { $name } deinstallieren möchtest?
 # Navigationsseiten
 explore = Erkunden
 create = Kreieren
@@ -36,7 +32,6 @@ socialize = Sozialisieren
 utilities = Dienstprogramme
 installed-apps = Installierte Apps
 updates = Aktualisierungen
-
 # Seiten erkunden
 editors-choice = Editor's Choice
 popular-apps = Beliebte Apps
@@ -51,16 +46,16 @@ social-networking-apps = Apps für soziale Netzwerke
 games = Spiele
 music-and-video-apps = Musik- & Video-Apps
 apps-for-learning = Apps fürs Lernen
-
 # Detailseite
-source-installed = {$source} (installiert)
+source-installed = { $source } (installiert)
 developer = Entwickler
-app-developers = {$app} Entwickler
+app-developers = { $app } Entwickler
 monthly-downloads = Monatliche Downloads von Flathub
 licenses = Lizenzen
 proprietary = Proprietär
 
 ## App-URLs
+
 bug-tracker = Bugtracker
 contact = Kontakt
 donation = Spende
@@ -71,7 +66,9 @@ translate = Übersetzen
 
 # Kontextseiten
 
+
 ## Vorgänge
+
 cancelled = Abgebrochen
 operations = Vorgänge
 no-operations = Keine Vorgänge im Verlauf.
@@ -80,13 +77,16 @@ failed = Fehlgeschlagen
 complete = Abgeschlossen
 
 ## Einstellungen
+
 settings = Einstellungen
 
 ## Versionshinweise
+
 latest-version = Neueste Version
 no-description = Keine Beschreibung verfügbar.
 
 ### Aussehen
+
 appearance = Aussehen
 theme = Thema
 match-desktop = An Desktop anpassen
