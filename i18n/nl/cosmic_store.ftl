@@ -101,6 +101,6 @@ panel = Paneel
 dock = Dock
 codec-installed = De pakketten zijn geïnstalleerd.
 adding = Toevoegen…
-remove = Verwijderen
+remove = Verwijder
 applets = Applets
 place-on-desktop = Plaats op bureaublad

@@ -60,7 +60,7 @@ no-description = Описание отсутствует.
 
 ### Appearance
 
-appearance = Внешний вид
+appearance = Оформление
 theme = Тема
 match-desktop = Как в системе
 dark = Тёмная
