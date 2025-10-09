@@ -13,10 +13,10 @@ uninstall = アンインストール
 update = アップデート
 update-all = すべてアップデート
 # Progress footer
-details = 詳細を見る
-dismiss = 閉じる
-operations-running = { $running }件の操作を実行です ({ $percent }%)
-operations-running-finished = { $running }件の操作を実行中({ $percent }%)、 { $finished }件が完了しました
+details = 詳細
+dismiss = メッセージを閉じる
+operations-running = { $running }件の操作が実行中です ({ $percent }%)…
+operations-running-finished = { $running }件の操作を実行中（{ $percent }%）、{ $finished }件が完了しました…
 # Uninstall Dialog
 uninstall-app = { $name }をアンインストール
 uninstall-app-warning = 本当に{ $name }をアンインストールしてもよろしいですか？
@@ -69,7 +69,7 @@ translate = 翻訳
 
 ## Operations
 
-cancelled = 中止
+cancelled = キャンセルされました
 operations = 操作
 no-operations = 履歴に操作が見つかりませんでした。
 pending = 実行中
@@ -99,3 +99,35 @@ repository-remove-body =
         [none] 削除されます
        *[other] "{ $dependency }" を削除した後で、以下のアプリケーションと項目が削除されます
     }。リポジトリを再度追加した場合、これらは再インストールが必要になります。
+close = 閉じる
+notification-in-progress = インストールとアップデートが進行中です。
+place-on-desktop = デスクトップに配置
+place-applet = アプレットを配置
+place-applet-desc = アプレットの位置を調整する前に、追加する場所を選択してください。
+panel = パネル
+dock = ドック
+codec-error = パッケージのインストール中にエラーが発生しました。
+codec-installed = パッケージがインストールされました。
+add = 追加
+adding = 追加中…
+remove = 削除
+removing = 削除中…
+applets = アプレット
+enable-flathub-cosmic = 利用可能なアプレットを表示するには、FlathubとCOSMIC Flatpakを有効にしてください。
+manage-repositories = リポジトリを管理
+recommended-flatpak-sources = おすすめのFlatpakソース
+custom-flatpak-sources = カスタムFlatpakソース
+import-flatpakrepo = カスタムソースを追加するために.flatpakrepoファイルをインポート
+no-custom-flatpak-sources = カスタムFlatpakソースがありません
+import = インポート
+no-flatpak = Flatpakのサポートがありません
+software-repositories = ソフトウェアリポジトリ
+place-and-refine = 配置と調整
+codec-title = 追加のパッケージをインストールしますか？
+codec-header = 「{ $application }」には、「{ $description }」を提供する追加のパッケージが必要です。
+codec-footer =
+    これらの追加パッケージの使用は、一部の国で制限される場合があります。
+    以下のいずれかの条件を満たしていることを確認する必要があります:
+    • これらの制限がお客様の居住国で適用されないこと
+    • 本ソフトウェアを使用する許可（例：特許ライセンス）を有していること
+    • 本ソフトウェアを研究目的でのみ使用していること
