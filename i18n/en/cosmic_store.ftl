@@ -91,6 +91,7 @@ music-and-video-apps = Music & Video Apps
 apps-for-learning = Apps for Learning
 
 # Details Page
+addons = Addons
 source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers

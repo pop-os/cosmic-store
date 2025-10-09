@@ -18,7 +18,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Instant, SystemTime},
 };
 
@@ -55,6 +55,7 @@ pub struct AppstreamCache {
     pub locale: String,
     pub infos: HashMap<AppId, Arc<AppInfo>>,
     pub pkgnames: HashMap<String, HashSet<AppId>>,
+    pub addons: HashMap<AppId, Vec<AppId>>,
 }
 
 impl AppstreamCache {
@@ -193,7 +194,7 @@ impl AppstreamCache {
 
     /// Versioned filename of cache
     fn cache_filename() -> &'static str {
-        "appstream_cache-v0-1.bitcode-v0-6"
+        "appstream_cache-v1.bitcode-v0-6"
     }
 
     /// Remove all files from cache not matching filename
@@ -310,6 +311,7 @@ impl AppstreamCache {
         // Everything matches, copy infos and pkgnames
         self.infos = cache.infos;
         self.pkgnames = cache.pkgnames;
+        self.addons = cache.addons;
 
         let duration = start.elapsed();
         log::info!("loaded cache {:?} in {:?}", cache_name, duration);
@@ -353,6 +355,7 @@ impl AppstreamCache {
     pub fn load_original(&mut self) {
         self.infos.clear();
         self.pkgnames.clear();
+        self.addons.clear();
 
         let path_results: Vec<_> = self
             .path_tags
@@ -384,7 +387,7 @@ impl AppstreamCache {
                 if file_name.ends_with(".xml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
                     match self.parse_xml(path, &mut gz) {
-                        Ok(infos) => Some(infos),
+                        Ok(ok) => Some(ok),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -393,7 +396,7 @@ impl AppstreamCache {
                 } else if file_name.ends_with(".yml.gz") {
                     let mut gz = GzDecoder::new(&mut file);
                     match self.parse_yaml(path, &mut gz) {
-                        Ok(infos) => Some(infos),
+                        Ok(ok) => Some(ok),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -401,7 +404,7 @@ impl AppstreamCache {
                     }
                 } else if file_name.ends_with(".xml") {
                     match self.parse_xml(path, &mut file) {
-                        Ok(infos) => Some(infos),
+                        Ok(ok) => Some(ok),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -409,7 +412,7 @@ impl AppstreamCache {
                     }
                 } else if file_name.ends_with(".yml") {
                     match self.parse_yaml(path, &mut file) {
-                        Ok(infos) => Some(infos),
+                        Ok(ok) => Some(ok),
                         Err(err) => {
                             log::error!("failed to parse {:?}: {}", path, err);
                             None
@@ -422,7 +425,7 @@ impl AppstreamCache {
             })
             .collect();
 
-        for infos in path_results {
+        for (origin_opt, infos, addons) in path_results {
             for (id, info) in infos {
                 for pkgname in &info.pkgnames {
                     self.pkgnames
@@ -431,6 +434,31 @@ impl AppstreamCache {
                         .insert(id.clone());
                 }
                 match self.infos.insert(id.clone(), info) {
+                    Some(_old) => {
+                        //TODO: merge based on priority
+                        log::debug!("found duplicate info {:?}", id);
+                    }
+                    None => {}
+                }
+            }
+
+            for addon in addons {
+                let id = AppId::new(&addon.id.0);
+                for extend_id in addon.extends.iter() {
+                    self.addons
+                        .entry(AppId::new(&extend_id.0))
+                        .or_insert_with(|| Vec::new())
+                        .push(id.clone());
+                }
+                let addon_info = Arc::new(AppInfo::new(
+                    &self.source_id,
+                    &self.source_name,
+                    origin_opt.as_ref().map(|x| x.as_str()),
+                    addon,
+                    &self.locale,
+                    stats::monthly_downloads(&id).unwrap_or(0),
+                ));
+                match self.infos.insert(id.clone(), addon_info) {
                     Some(_old) => {
                         //TODO: merge based on priority
                         log::debug!("found duplicate info {:?}", id);
@@ -550,7 +578,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<Vec<(AppId, Arc<AppInfo>)>, Box<dyn Error>> {
+    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
@@ -561,6 +589,7 @@ impl AppstreamCache {
             .ok_or_else(|| ParseError::missing_attribute("version", "collection"))?;
         let origin_opt = e.attributes.get("origin");
         let _arch_opt = e.attributes.get("architecture");
+        let addons = Mutex::new(Vec::new());
         let infos: Vec<_> = e
             .children
             .par_iter()
@@ -569,10 +598,17 @@ impl AppstreamCache {
                     if &*e.name == "component" {
                         match Component::try_from(e) {
                             Ok(component) => {
-                                if component.kind != ComponentKind::DesktopApplication {
-                                    // Skip anything that is not a desktop application
-                                    //TODO: should we allow more components?
-                                    return None;
+                                match component.kind {
+                                    ComponentKind::DesktopApplication => {}
+                                    ComponentKind::Addon => {
+                                        addons.lock().unwrap().push(component);
+                                        return None;
+                                    }
+                                    _ => {
+                                        // Skip anything that is not a desktop application or addon
+                                        //TODO: should we allow more components?
+                                        return None;
+                                    }
                                 }
 
                                 let id = AppId::new(&component.id.0);
@@ -611,14 +647,14 @@ impl AppstreamCache {
             path,
             duration
         );
-        Ok(infos)
+        Ok((origin_opt.cloned(), infos, addons.into_inner().unwrap()))
     }
 
     fn parse_yaml<P: AsRef<Path>, R: Read>(
         &self,
         path: P,
         reader: R,
-    ) -> Result<Vec<(AppId, Arc<AppInfo>)>, Box<dyn Error>> {
+    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         let mut origin_opt = None;
@@ -1035,6 +1071,6 @@ impl AppstreamCache {
             path,
             duration
         );
-        Ok(infos)
+        Ok((origin_opt, infos, Vec::new()))
     }
 }

@@ -777,6 +777,7 @@ pub struct Selected {
     screenshot_images: HashMap<usize, widget::image::Handle>,
     screenshot_shown: usize,
     sources: Vec<SelectedSource>,
+    addons: Vec<(AppId, Arc<AppInfo>)>,
 }
 
 /// The [`App`] stores application-specific state.
@@ -1240,6 +1241,129 @@ impl App {
         )
     }
 
+    fn selected_buttons(
+        &self,
+        selected_backend_name: &'static str,
+        selected_id: &AppId,
+        selected_info: &Arc<AppInfo>,
+        addon: bool,
+    ) -> Vec<Element<'_, Message>> {
+        //TODO: more efficient checks
+        let mut waiting_refresh = false;
+        for (backend_name, source_id, package_id) in self
+            .waiting_installed
+            .iter()
+            .chain(self.waiting_updates.iter())
+        {
+            if backend_name == &selected_backend_name
+                && source_id == &selected_info.source_id
+                && package_id == selected_id
+            {
+                waiting_refresh = true;
+                break;
+            }
+        }
+        let is_installed = self.is_installed(selected_backend_name, selected_id, &selected_info);
+        let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
+        let mut update_opt = None;
+        if let Some(updates) = &self.updates {
+            for (backend_name, package) in updates {
+                if backend_name == &selected_backend_name
+                    && &package.info.source_id == &selected_info.source_id
+                    && &package.id == selected_id
+                {
+                    update_opt = Some(Message::Operation(
+                        OperationKind::Update,
+                        backend_name,
+                        package.id.clone(),
+                        package.info.clone(),
+                    ));
+                    break;
+                }
+            }
+        }
+        let mut progress_opt = None;
+        for (_id, (op, progress)) in self.pending_operations.iter() {
+            if op.backend_name == selected_backend_name
+                && op
+                    .infos
+                    .iter()
+                    .any(|info| info.source_id == selected_info.source_id)
+                && op
+                    .package_ids
+                    .iter()
+                    .any(|package_id| package_id == selected_id)
+            {
+                progress_opt = Some(*progress);
+                break;
+            }
+        }
+
+        let mut buttons = Vec::with_capacity(2);
+        if let Some(progress) = progress_opt {
+            //TODO: get height from theme?
+            buttons.push(
+                widget::progress_bar(0.0..=100.0, progress)
+                    .height(Length::Fixed(4.0))
+                    .into(),
+            )
+        } else if waiting_refresh {
+            // Do not show buttons while waiting for refresh
+        } else if is_installed {
+            //TODO: what if there are multiple desktop IDs?
+            if let Some(desktop_id) = selected_info.desktop_ids.first() {
+                if selected_info.provides.contains(&applet_provide) {
+                    buttons.push(
+                        widget::button::suggested(fl!("place-on-desktop"))
+                            .on_press(Message::DialogPage(DialogPage::Place(selected_id.clone())))
+                            .into(),
+                    );
+                } else {
+                    buttons.push(
+                        widget::button::suggested(fl!("open"))
+                            .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                            .into(),
+                    );
+                }
+            }
+            if let Some(update) = update_opt {
+                buttons.push(
+                    widget::button::standard(fl!("update"))
+                        .on_press(update)
+                        .into(),
+                );
+            }
+            if !selected_id.is_system() {
+                buttons.push(
+                    widget::button::destructive(fl!("uninstall"))
+                        .on_press(Message::DialogPage(DialogPage::Uninstall(
+                            selected_backend_name,
+                            selected_id.clone(),
+                            selected_info.clone(),
+                        )))
+                        .into(),
+                );
+            }
+        } else {
+            buttons.push(
+                if addon {
+                    widget::button::standard(fl!("install"))
+                } else {
+                    widget::button::suggested(fl!("install"))
+                }
+                .on_press(Message::Operation(
+                    OperationKind::Install,
+                    selected_backend_name,
+                    selected_id.clone(),
+                    selected_info.clone(),
+                ))
+                .into(),
+            )
+        }
+
+        buttons
+    }
+
     fn selected_sources(
         &self,
         backend_name: &'static str,
@@ -1267,6 +1391,30 @@ impl App {
         sources
     }
 
+    fn selected_addons(
+        &self,
+        backend_name: &'static str,
+        id: &AppId,
+        info: &AppInfo,
+    ) -> Vec<(AppId, Arc<AppInfo>)> {
+        let mut addons = Vec::new();
+        if let Some(backend) = self.backends.get(backend_name) {
+            for appstream_cache in backend.info_caches() {
+                if appstream_cache.source_id == info.source_id {
+                    if let Some(ids) = appstream_cache.addons.get(id) {
+                        for id in ids {
+                            if let Some(info) = appstream_cache.infos.get(id) {
+                                addons.push((id.clone(), info.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        addons.par_sort_unstable_by(|a, b| LANGUAGE_SORTER.compare(&a.1.name, &b.1.name));
+        addons
+    }
+
     fn select(
         &mut self,
         backend_name: &'static str,
@@ -1281,6 +1429,7 @@ impl App {
             info.source_id
         );
         let sources = self.selected_sources(backend_name, &id, &info);
+        let addons = self.selected_addons(backend_name, &id, &info);
         self.selected_opt = Some(Selected {
             backend_name,
             id,
@@ -1289,6 +1438,7 @@ impl App {
             screenshot_images: HashMap::new(),
             screenshot_shown: 0,
             sources,
+            addons,
         });
         self.update_scroll()
     }
@@ -2068,58 +2218,6 @@ impl App {
         let grid_width = (size.width - 2.0 * space_s as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
             Some(selected) => {
-                //TODO: more efficient checks
-                let mut waiting_refresh = false;
-                for (backend_name, source_id, package_id) in self
-                    .waiting_installed
-                    .iter()
-                    .chain(self.waiting_updates.iter())
-                {
-                    if backend_name == &selected.backend_name
-                        && source_id == &selected.info.source_id
-                        && package_id == &selected.id
-                    {
-                        waiting_refresh = true;
-                        break;
-                    }
-                }
-                let is_installed =
-                    self.is_installed(selected.backend_name, &selected.id, &selected.info);
-                let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
-                let mut update_opt = None;
-                if let Some(updates) = &self.updates {
-                    for (backend_name, package) in updates {
-                        if backend_name == &selected.backend_name
-                            && &package.info.source_id == &selected.info.source_id
-                            && &package.id == &selected.id
-                        {
-                            update_opt = Some(Message::Operation(
-                                OperationKind::Update,
-                                backend_name,
-                                package.id.clone(),
-                                package.info.clone(),
-                            ));
-                            break;
-                        }
-                    }
-                }
-                let mut progress_opt = None;
-                for (_id, (op, progress)) in self.pending_operations.iter() {
-                    if op.backend_name == selected.backend_name
-                        && op
-                            .infos
-                            .iter()
-                            .any(|info| info.source_id == selected.info.source_id)
-                        && op
-                            .package_ids
-                            .iter()
-                            .any(|package_id| package_id == &selected.id)
-                    {
-                        progress_opt = Some(*progress);
-                        break;
-                    }
-                }
-
                 let mut selected_source = None;
                 for (i, source) in selected.sources.iter().enumerate() {
                     if source.backend_name == selected.backend_name
@@ -2140,65 +2238,13 @@ impl App {
                         .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
                         .on_press(Message::SelectNone),
                 );
-                let mut buttons = Vec::with_capacity(2);
-                if let Some(progress) = progress_opt {
-                    //TODO: get height from theme?
-                    buttons.push(
-                        widget::progress_bar(0.0..=100.0, progress)
-                            .height(Length::Fixed(4.0))
-                            .into(),
-                    )
-                } else if waiting_refresh {
-                    // Do not show buttons while waiting for refresh
-                } else if is_installed {
-                    //TODO: what if there are multiple desktop IDs?
-                    if let Some(desktop_id) = selected.info.desktop_ids.first() {
-                        if selected.info.provides.contains(&applet_provide) {
-                            buttons.push(
-                                widget::button::suggested(fl!("place-on-desktop"))
-                                    .on_press(Message::DialogPage(DialogPage::Place(
-                                        selected.id.clone(),
-                                    )))
-                                    .into(),
-                            );
-                        } else {
-                            buttons.push(
-                                widget::button::suggested(fl!("open"))
-                                    .on_press(Message::OpenDesktopId(desktop_id.clone()))
-                                    .into(),
-                            );
-                        }
-                    }
-                    if let Some(update) = update_opt {
-                        buttons.push(
-                            widget::button::standard(fl!("update"))
-                                .on_press(update)
-                                .into(),
-                        );
-                    }
-                    if !selected.id.is_system() {
-                        buttons.push(
-                            widget::button::destructive(fl!("uninstall"))
-                                .on_press(Message::DialogPage(DialogPage::Uninstall(
-                                    selected.backend_name,
-                                    selected.id.clone(),
-                                    selected.info.clone(),
-                                )))
-                                .into(),
-                        );
-                    }
-                } else {
-                    buttons.push(
-                        widget::button::suggested(fl!("install"))
-                            .on_press(Message::Operation(
-                                OperationKind::Install,
-                                selected.backend_name,
-                                selected.id.clone(),
-                                selected.info.clone(),
-                            ))
-                            .into(),
-                    )
-                }
+
+                let buttons = self.selected_buttons(
+                    selected.backend_name,
+                    &selected.id,
+                    &selected.info,
+                    false,
+                );
                 column = column.push(
                     widget::row::with_children(vec![
                         match &selected.icon_opt {
@@ -2351,6 +2397,28 @@ impl App {
                     column = column.push(row);
                 }
                 column = column.push(widget::text::body(&selected.info.description));
+
+                if !selected.addons.is_empty() {
+                    let mut addon_col = widget::column::with_capacity(2).spacing(space_xxxs);
+                    addon_col = addon_col.push(widget::text::title4(fl!("addons")));
+                    let mut list = widget::list_column();
+                    for (addon_id, addon_info) in selected.addons.iter() {
+                        let buttons = self.selected_buttons(
+                            selected.backend_name,
+                            &addon_id,
+                            &addon_info,
+                            true,
+                        );
+                        list = list.add(
+                            widget::settings::item::builder(&addon_info.name)
+                                .description(&addon_info.summary)
+                                .control(widget::row::with_children(buttons).spacing(space_xs)),
+                        );
+                    }
+                    addon_col = addon_col
+                        .push(widget::container(widget::scrollable(list)).max_height(240.0));
+                    column = column.push(addon_col);
+                }
 
                 for release in selected.info.releases.iter() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
