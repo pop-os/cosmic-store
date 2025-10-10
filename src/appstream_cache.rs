@@ -194,7 +194,7 @@ impl AppstreamCache {
 
     /// Versioned filename of cache
     fn cache_filename() -> &'static str {
-        "appstream_cache-v1.bitcode-v0-6"
+        "appstream_cache-v2.bitcode-v0-6"
     }
 
     /// Remove all files from cache not matching filename

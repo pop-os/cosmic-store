@@ -1,6 +1,6 @@
 use appstream::{
     Component,
-    enums::{Bundle, Icon, ImageKind, Launchable, ProjectUrl, Provide},
+    enums::{Bundle, ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, Provide},
     xmltree,
 };
 use std::{error::Error, fmt::Write};
@@ -104,6 +104,13 @@ pub enum AppIcon {
     Local(String, Option<u32>, Option<u32>, Option<u32>),
 }
 
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum AppKind {
+    #[default]
+    DesktopApplication,
+    Addon,
+}
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum AppProvide {
     Id(String),
@@ -144,6 +151,7 @@ pub struct AppInfo {
     pub origin_opt: Option<String>,
     pub name: String,
     pub summary: String,
+    pub kind: AppKind,
     pub developer_name: String,
     pub description: String,
     pub license_opt: Option<String>,
@@ -174,6 +182,14 @@ impl AppInfo {
             .summary
             .as_ref()
             .map_or("", |x| get_translatable(x, locale));
+        let kind = match component.kind {
+            ComponentKind::DesktopApplication => AppKind::DesktopApplication,
+            ComponentKind::Addon => AppKind::Addon,
+            _ => {
+                log::warn!("unknown component kind {:?}", component.kind);
+                AppKind::default()
+            }
+        };
         let developer_name = component
             .developer_name
             .as_ref()
@@ -329,6 +345,7 @@ impl AppInfo {
             origin_opt: origin_opt.map(|x| x.to_string()),
             name: name.to_string(),
             summary: summary.to_string(),
+            kind,
             developer_name: developer_name.to_string(),
             description,
             license_opt: component.project_license.map(|x| x.to_string()),

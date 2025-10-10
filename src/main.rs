@@ -39,7 +39,7 @@ use std::{
 use app_id::AppId;
 mod app_id;
 
-use app_info::{AppIcon, AppInfo, AppProvide, AppUrl};
+use app_info::{AppIcon, AppInfo, AppKind, AppProvide, AppUrl};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -309,6 +309,7 @@ pub enum Message {
     SelectCategoryResult(usize),
     SelectExploreResult(ExplorePage, usize),
     SelectSearchResult(usize),
+    SelectedAddonsViewMore(bool),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
     SelectedSource(usize),
@@ -778,6 +779,7 @@ pub struct Selected {
     screenshot_shown: usize,
     sources: Vec<SelectedSource>,
     addons: Vec<(AppId, Arc<AppInfo>)>,
+    addons_view_more: bool,
 }
 
 /// The [`App`] stores application-specific state.
@@ -975,6 +977,9 @@ impl App {
                     let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
                     let results =
                         Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            if !matches!(info.kind, AppKind::DesktopApplication) {
+                                return None;
+                            }
                             for category in categories {
                                 //TODO: this hack makes it easier to add applets to the nav bar
                                 if matches!(category, Category::CosmicApplet) {
@@ -1023,11 +1028,17 @@ impl App {
                             .map(|x| x as i64)
                         }),
                         ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            if !matches!(info.kind, AppKind::DesktopApplication) {
+                                return None;
+                            }
                             Some(-(info.monthly_downloads as i64))
                         }),
                         ExplorePage::MadeForCosmic => {
                             let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                                if !matches!(info.kind, AppKind::DesktopApplication) {
+                                    return None;
+                                }
                                 if info.provides.contains(&provide) {
                                     Some(-(info.monthly_downloads as i64))
                                 } else {
@@ -1040,6 +1051,9 @@ impl App {
                             None
                         }),
                         ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
+                            if !matches!(info.kind, AppKind::DesktopApplication) {
+                                return None;
+                            }
                             // Finds the newest release and sorts from newest to oldest
                             //TODO: appstream release info is often incomplete
                             let mut min_weight = 0;
@@ -1060,6 +1074,9 @@ impl App {
                         _ => {
                             let categories = explore_page.categories();
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                                if !matches!(info.kind, AppKind::DesktopApplication) {
+                                    return None;
+                                }
                                 for category in categories {
                                     //TODO: contains doesn't work due to type mismatch
                                     if info.categories.iter().any(|x| x == category.id()) {
@@ -1169,6 +1186,9 @@ impl App {
                     let start = Instant::now();
                     let results =
                         Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            if !matches!(info.kind, AppKind::DesktopApplication) {
+                                return None;
+                            }
                             //TODO: improve performance
                             let stats_weight = |weight: i64| {
                                 //TODO: make sure no overflows
@@ -1411,7 +1431,12 @@ impl App {
                 }
             }
         }
-        addons.par_sort_unstable_by(|a, b| LANGUAGE_SORTER.compare(&a.1.name, &b.1.name));
+        addons.par_sort_unstable_by(|a, b| {
+            match b.1.monthly_downloads.cmp(&a.1.monthly_downloads) {
+                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.1.name, &b.1.name),
+                ordering => ordering,
+            }
+        });
         addons
     }
 
@@ -1439,6 +1464,7 @@ impl App {
             screenshot_shown: 0,
             sources,
             addons,
+            addons_view_more: false,
         });
         self.update_scroll()
     }
@@ -2401,8 +2427,16 @@ impl App {
                 if !selected.addons.is_empty() {
                     let mut addon_col = widget::column::with_capacity(2).spacing(space_xxxs);
                     addon_col = addon_col.push(widget::text::title4(fl!("addons")));
-                    let mut list = widget::list_column();
-                    for (addon_id, addon_info) in selected.addons.iter() {
+                    let mut list = widget::list_column()
+                        .divider_padding(0)
+                        .list_item_padding([space_xxs, 0])
+                        .style(theme::Container::Transparent);
+                    let take = if selected.addons_view_more {
+                        selected.addons.len()
+                    } else {
+                        4
+                    };
+                    for (addon_id, addon_info) in selected.addons.iter().take(take) {
                         let buttons = self.selected_buttons(
                             selected.backend_name,
                             &addon_id,
@@ -2415,8 +2449,13 @@ impl App {
                                 .control(widget::row::with_children(buttons).spacing(space_xs)),
                         );
                     }
-                    addon_col = addon_col
-                        .push(widget::container(widget::scrollable(list)).max_height(240.0));
+                    if !selected.addons_view_more {
+                        list = list.add(
+                            widget::button::text(fl!("view-more"))
+                                .on_press(Message::SelectedAddonsViewMore(true)),
+                        );
+                    }
+                    addon_col = addon_col.push(list);
                     column = column.push(addon_col);
                 }
 
@@ -3679,6 +3718,11 @@ impl Application for App {
                             log::error!("failed to find search result with index {}", result_i);
                         }
                     }
+                }
+            }
+            Message::SelectedAddonsViewMore(addons_view_more) => {
+                if let Some(selected) = &mut self.selected_opt {
+                    selected.addons_view_more = addons_view_more;
                 }
             }
             Message::SelectedScreenshot(i, url, data) => {

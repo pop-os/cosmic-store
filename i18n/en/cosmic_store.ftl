@@ -98,6 +98,7 @@ app-developers = {$app} Developers
 monthly-downloads = Flathub Monthly Downloads
 licenses = Licenses
 proprietary = Proprietary
+view-more = View more
 
 ## App URLs
 bug-tracker = Bug tracker
