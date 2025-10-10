@@ -1335,7 +1335,7 @@ impl App {
             }
             if !selected_id.is_system() {
                 buttons.push(
-                    widget::button::destructive(fl!("uninstall"))
+                    widget::button::standard(fl!("uninstall"))
                         .on_press(Message::DialogPage(DialogPage::Uninstall(
                             selected_backend_name,
                             selected_id.clone(),
