@@ -24,7 +24,7 @@ fn leap_year(year: u16) -> bool {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let year = 2025;
-    let month = 7;
+    let month = 9;
     let days = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -41,8 +41,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut ref_downloads = HashMap::<AppId, u64>::new();
     for day in 1..=days {
         let stats = stats(year, month, day).await?;
-        for (id, archs) in stats.refs {
+        for (r, archs) in stats.refs {
             for (_arch, (downloads, _updates)) in archs {
+                let id = r.split('/').next().unwrap();
                 *ref_downloads.entry(AppId::new(&id)).or_insert(0) += downloads;
             }
         }
