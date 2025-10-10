@@ -1,9 +1,9 @@
 app-name = متجر COSMIC
-back = عُد
-cancel = ألغِ
+back = رجوع
+cancel = إلغاء
 check-for-updates = التمس التحديثات
 checking-for-updates = يلتمس التحديثات...
-close = أغلِق
+close = أغلق
 install = ثبِّت
 no-installed-applications = لا توجد برامج مثبتة.
 no-updates = كل التطبيقات المثبتة غير محدّثة.
@@ -45,9 +45,9 @@ repository-remove-body =
         [none] حذف
        *[other] إزالة «{ $dependency }» وحذف
     } التطبيقات والعناصر التالية. ستحتاج إلى إعادة تثبيتها إذا أُضيفت المستودع مرة أخرى.
-add = أضِف
+add = إضافة
 adding = يُضيف...
-remove = أزِل
+remove = إزالة
 removing = يُزيل...
 # Uninstall Dialog
 uninstall-app = ألغِ التثبيت { $name }
@@ -62,13 +62,13 @@ game = العب
 relax = استرخِ
 socialize = اجتمِع
 utilities = الأدوات المساعدة
-applets = بريمجات
+applets = البرامج المصغرة
 installed-apps = التطبيقات المثبتة
 updates = تحديثات
 
 ## Applets page
 
-enable-flathub-cosmic = يُرجى تفعيل Flathub و COSMIC Flatpak لرؤية بريمجات المتاحة.
+enable-flathub-cosmic = يرجى تمكين Flathub و COSMIC Flatpak لرؤية البرامج المصغرة المتاحة.
 manage-repositories = أدر المستودعات
 # Explore Pages
 editors-choice = خيارات المحرِّر
@@ -129,14 +129,14 @@ recommended-flatpak-sources = مصادر فلاتباك الموصى بها
 custom-flatpak-sources = مصادر فلاتباك مخصّصة
 import-flatpakrepo = استورد ملف .flatpakrepo لإضافة مصدر مخصّص
 no-custom-flatpak-sources = لا مصادر فلاتباك مخصّصة
-import = استورد
+import = استيراد
 no-flatpak = لا دعم لِفلاتباك
 software-repositories = مستودعات البرامج
 
 ### Appearance
 
 appearance = المظهر
-theme = السمة
-match-desktop = طابق سطح المكتب
-dark = داكنة
-light = فاتحة
+theme = الثيم
+match-desktop = مطابقة مع سطح المكتب
+dark = داكن
+light = فاتح
