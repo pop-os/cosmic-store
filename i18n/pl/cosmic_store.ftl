@@ -140,3 +140,4 @@ theme = Motyw
 match-desktop = Dopasuj do Pulpitu
 dark = Ciemny
 light = Jasny
+addons = Rozszerzenia

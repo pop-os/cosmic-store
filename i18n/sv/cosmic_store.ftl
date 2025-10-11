@@ -124,3 +124,4 @@ import = Importera
 no-flatpak = Inget flatpak-stöd
 software-repositories = Mjukvaruarkiv
 applets = Applets
+addons = Tillägg

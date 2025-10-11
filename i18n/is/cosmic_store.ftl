@@ -17,3 +17,6 @@ cancelled = Hætt við
 failed = Mistókst
 complete = Lokið
 close = Loka
+pending = Í bið
+add = Bæta við
+applets = Smáforrit

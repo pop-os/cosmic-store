@@ -1,4 +1,4 @@
-app-name = COSMICアップストア
+app-name = COSMICストア
 back = 戻る
 cancel = キャンセル
 check-for-updates = アップデートの確認
@@ -23,13 +23,13 @@ uninstall-app-warning = 本当に{ $name }をアンインストールしても�
 # Nav Pages
 explore = 探す
 create = クリエイティブ
-work = ワーク
+work = ビジネス
 develop = ソフトウェア開発
 learn = ラーニング
 game = ゲーム
-relax = エンタメ
+relax = エンターテイメント
 socialize = ソーシャル
-utilities = ツール
+utilities = ユーティリティ
 installed-apps = インストール済みアプリ
 updates = アップデート情報
 # Explore Pages
@@ -117,7 +117,7 @@ enable-flathub-cosmic = 利用可能なアプレットを表示するには、Fl
 manage-repositories = リポジトリを管理
 recommended-flatpak-sources = おすすめのFlatpakソース
 custom-flatpak-sources = カスタムFlatpakソース
-import-flatpakrepo = カスタムソースを追加するために.flatpakrepoファイルをインポート
+import-flatpakrepo = カスタムFlatpakソース追加のために.flatpakrepoをインポート
 no-custom-flatpak-sources = カスタムFlatpakソースがありません
 import = インポート
 no-flatpak = Flatpakのサポートがありません
@@ -131,3 +131,5 @@ codec-footer =
     • これらの制限がお客様の居住国で適用されないこと
     • 本ソフトウェアを使用する許可（例：特許ライセンス）を有していること
     • 本ソフトウェアを研究目的でのみ使用していること
+addons = アドオン
+view-more = さらに表示

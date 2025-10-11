@@ -131,3 +131,4 @@ no-custom-flatpak-sources = Gan aon fhoinsí saincheaptha Flatpak
 import = Iompórtáil
 no-flatpak = Gan tacaíocht flatpak
 software-repositories = Stórtha Bogearraí
+addons = Breiseáin
