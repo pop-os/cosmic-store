@@ -17,3 +17,96 @@ cancelled = Hætt við
 failed = Mistókst
 complete = Lokið
 close = Loka
+pending = Í bið
+add = Bæta við
+applets = Smáforrit
+check-for-updates = Athuga uppfærslur
+checking-for-updates = Athuga uppfærslur...
+install = Setja upp
+no-installed-applications = Engin uppsett forrit.
+no-updates = Öll uppsett forrit eru uppfærð í nýjustu útgáfu.
+no-results = Engar niðurstöður fyrir „{ $search }“.
+notification-in-progress = Uppsetningar og uppfærslur eru í gangi.
+see-all = Sjá allt
+uninstall = Fjarlægja
+update = Uppfæra
+update-all = Uppfæra allt
+place-on-desktop = Setja á skjáborðið
+panel = Skjáborðsstika
+dock = Dokka
+place-and-refine = Velja stað og stilla af
+place-applet = Velja stað fyrir smáforrit
+place-applet-desc = Veldu hvar á að setja smáforritið áður en þú stillir það af.
+codec-title = Setja upp viðbótarpakka?
+codec-error = Villur komu upp við uppsetningu pakka.
+codec-installed = Pakkarnir hafa verið settir upp.
+repository-add-error-title = „Mistókst að bæta við hugbúnaðarsafni“
+repository-remove-title = Fjarlægja hugbúnaðarsafnið „{ $name }“?
+adding = Bæti við...
+removing = Fjarlægi...
+uninstall-app = Fjarlægja { $name }
+uninstall-app-warning = Viltu örugglega fjarlægja { $name }?
+work = Vinna
+develop = Forrita
+learn = Læra
+game = Leikur
+relax = Afslöppun
+socialize = Félagslíf
+utilities = Nytjaforrit
+installed-apps = Uppsett forrit
+updates = Uppfærslur
+enable-flathub-cosmic = Gerðu Flathub og COSMIC Flatpak virk til að sjá smáforrit í boði.
+manage-repositories = Umsjón með hugbúnaðarsöfnum
+popular-apps = Vinsæl forrit
+made-for-cosmic = Gert fyrir COSMIC
+new-apps = Ný forrit
+recently-updated = Nýlega uppfærð
+development-tools = Forritunarverkfæri
+scientific-tools = Vísindaforrit
+graphics-and-photography-tools = Myndvinnsluforrit
+social-networking-apps = Samfélagsmiðlaforrit
+games = Leikir
+music-and-video-apps = Tónlistar- og vídeóforrit
+addons = Viðbætur
+source-installed = { $source } (uppsett)
+developer = Forritari
+app-developers = { $app } Forritarar
+monthly-downloads = Mánaðarlegt niðurhal á Flathub
+licenses = Notandaleyfi
+proprietary = Einkaleyfisháð
+view-more = Skoða meira
+contact = Hafa samband
+help = Hjálp
+homepage = Heimasíða
+translate = Þýða
+operations = Aðgerðir
+no-operations = Engar aðgerðir í ferilskrá.
+latest-version = Nýjasta útgáfa
+no-description = Engin lýsing tiltæk.
+no-flatpak = Enginn flatpak-stuðningur
+software-repositories = Hugbúnaðarsöfn
+codec-header = „{ $application }“ krefst annars pakka sem felur í sér „{ $description }“.
+codec-footer =
+    Takmarkanir kunna að vera á notkun á þessum viðbótarpökkum í sumum löndum.
+    Þú verður að staðfesta að eitt af eftirfarandi sé rétt:
+     • Þessar takmarkanir eiga ekki við í landinu þar sem þú átt lögheimili
+     • Þú hefur leyfi til að nota þennan hugbúnað (til dæmis einkaleyfi)
+     • Þú notar hugbúnaðinn einungis í rannsóknarskyni
+operations-running = { $running } aðgerðir í keyrslu ({ $percent }%)...
+operations-running-finished = { $running } aðgerðir í keyrslu ({ $percent }%), { $finished } lokið...
+repository-remove-body =
+    Ef þetta hugbúnaðarsafn er fjarlægt mun það { $dependency ->
+        [none] eyða
+       *[other] fjarlægja „{ $dependency }“ og eyða
+    } eftirfarandi forritum og hlutum. Það þarf að setja þau aftur upp ef hugbúnaðarsafninu verður bætt við aftur.
+explore = Kanna
+editors-choice = Við mælum með
+productivity-apps = Vinnu- og skipulagsforrit
+apps-for-learning = Lærdómsforrit
+bug-tracker = Villuleit
+donation = Fjárframlag
+faq = Spurt og svarað
+recommended-flatpak-sources = Flatpak-upprunastaðir sem mælt er með
+custom-flatpak-sources = Sérsniðnir Flatpak-upprunastaðir
+import-flatpakrepo = Flytja inn .flatpakrepo-skrá til að bæta við sérsniðnum upprunastað
+no-custom-flatpak-sources = Enginn sérsniðinnn Flatpak-upprunastaður

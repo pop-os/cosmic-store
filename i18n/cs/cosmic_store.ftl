@@ -125,3 +125,5 @@ theme = Téma
 match-desktop = Podle systému
 dark = Tmavé
 light = Světlé
+addons = Doplňky
+view-more = Zobrazit více

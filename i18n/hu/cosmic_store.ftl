@@ -140,3 +140,5 @@ match-desktop = Rendszertéma
 dark = Sötét
 light = Világos
 no-custom-flatpak-sources = Nincsenek egyéni Flatpak-források
+addons = Kiegészítők
+view-more = Több megjelenítése

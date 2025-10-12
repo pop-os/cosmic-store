@@ -140,3 +140,5 @@ theme = Стил
 match-desktop = Системен
 dark = Тъмен
 light = Светъл
+addons = Добавки
+view-more = Вижте още
