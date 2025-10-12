@@ -108,3 +108,4 @@ import = Імпартаваць
 software-repositories = Рэпазіторыі праграм
 codec-title = Усталяваць дадатковыя пакеты?
 manage-repositories = Кіраванне рэпазіторыямі
+addons = Дадатковыя кампаненты

@@ -1,6 +1,6 @@
 app-name = COSMIC Winkel
 back = Terug
-cancel = Annuleren
+cancel = Annuleer
 install = Installeren
 check-for-updates = Naar updates zoeken
 checking-for-updates = Zoekt naar updates…
