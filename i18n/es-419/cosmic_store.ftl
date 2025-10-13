@@ -127,3 +127,5 @@ no-custom-flatpak-sources = No hay fuentes de Flatpak personalizadas
 import = Importar
 no-flatpak = No hay compatibilidad con Flatpak
 software-repositories = Repositorios de software
+addons = Complementos
+view-more = Ver más

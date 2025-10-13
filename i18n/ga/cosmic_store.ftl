@@ -132,3 +132,4 @@ import = Iompórtáil
 no-flatpak = Gan tacaíocht flatpak
 software-repositories = Stórtha Bogearraí
 addons = Breiseáin
+view-more = Féach níos mó

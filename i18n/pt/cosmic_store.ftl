@@ -124,3 +124,4 @@ no-custom-flatpak-sources = Nenhuma fonte personalizada de Flatpak
 import = Importar
 no-flatpak = Sem suporte flatpak
 software-repositories = Repositórios de Software
+view-more = Ver mais

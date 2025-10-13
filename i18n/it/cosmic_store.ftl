@@ -116,7 +116,7 @@ complete = Completate
 
 ## Settings
 
-settings = Opzioni
+settings = Impostazioni
 
 ## Release notes
 
@@ -140,3 +140,5 @@ theme = Tema
 match-desktop = Sistema
 dark = Scuro
 light = Chiaro
+addons = Estensioni
+view-more = Mostra altro
