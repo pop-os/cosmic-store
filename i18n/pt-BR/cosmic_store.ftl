@@ -140,3 +140,5 @@ theme = Tema
 match-desktop = Estilo do sistema
 dark = Estilo escuro
 light = Estilo claro
+addons = Complementos
+view-more = Ver mais

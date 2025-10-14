@@ -140,3 +140,5 @@ theme = 主题
 match-desktop = 匹配桌面
 dark = 暗色模式
 light = 亮色模式
+addons = 插件
+view-more = 查看更多
