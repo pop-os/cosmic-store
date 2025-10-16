@@ -2,10 +2,10 @@ app-name = Sklep COSMIC
 back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź aktualizacje
-checking-for-updates = Sprawdzam aktualizacje...
+checking-for-updates = Sprawdzam aktualizacje…
 close = Zamknij
 install = Zainstaluj
-no-installed-applications = Brak zainstalowanycha aplikacji.
+no-installed-applications = Brak zainstalowanych aplikacji.
 no-updates = Wszystkie zainstalowane aplikacje są aktualne.
 no-results = Brak wyników dla „{ $search }”.
 notification-in-progress = Instalacje i aktualizacje w toku.
@@ -16,18 +16,18 @@ update = Zaktualizuj
 update-all = Zaktualizuj wszystkie
 place-on-desktop = Umieść na pulpicie
 place-applet = Umieść aplet
-place-applet-desc = Wybierz gdzie umieścić aplet przed doprecyzowaniem jego pozycji.
+place-applet-desc = Wybierz gdzie umieścić aplet przed ostatecznym umiejscowieniem.
 panel = Panel
 dock = Dok
-place-and-refine = Umieść i doprecyzuj
+place-and-refine = Umieść i uwydatnij
 # Codec dialog
-codec-title = Zainstalować dodatkowe pakiety?Install additional packages?
+codec-title = Zainstalować dodatkowe pakiety?
 codec-header = „{ $application }” wymaga dodatkowych pakietów zapewniających „{ $description }”.
 codec-footer =
     Użycie tych pakietów może być obłożone obostrzeniami w niektórych państwach.
     Musisz stwierdzić, że jedno z poniższych jest prawdziwe:
      • Te obostrzenia nie obowiązują w twoim kraju zamieszkania
-     • Masz pozwolenie na użycie tego oprogaramowania (na przykład licencję patentową)
+     • Masz pozwolenie na użycie tego oprogramowania (na przykład licencję patentową)
      • Używasz tego oprogramowania tylko do celów badawczych
 codec-error = Wystąpiły błędy podczas instalacji pakietów.
 codec-installed = Pakiety zostały zainstalowane.
@@ -35,7 +35,7 @@ codec-installed = Pakiety zostały zainstalowane.
 details = Detale
 dismiss = Odrzuć wiadomość
 operations-running = { $running } bieżące działania ({ $percent }%)...
-operations-running-finished = { $running } bieżące działania ({ $percent }%), { $finished } ukończone...
+operations-running-finished = { $running } bieżące działania ({ $percent }%), { $finished } ukończone…
 # Repository add error dialog
 repository-add-error-title = „Nieudane dodanie repozytorium”
 # Repository remove dialog
@@ -44,17 +44,17 @@ repository-remove-body =
     Usuwając to repozytorium { $dependency ->
         [none] usuniesz
        *[other] usuniesz „{ $dependency }” i usuniesz
-    } następujące aplikacje i elementy. Będą one musiały być zainstalowane ponownie jeśli to repozytorum zostanie ponownie dodane.
+    } następujące aplikacje i elementy. Będą one musiały być zainstalowane ponownie jeśli to repozytorium zostanie ponownie dodane.
 add = Dodaj
-adding = Dodawanie...
+adding = Dodawanie…
 remove = Usuń
-removing = Usuwanie...
+removing = Usuwanie…
 # Uninstall Dialog
 uninstall-app = Odinstaluj { $name }
 uninstall-app-warning = Czy na pewno chcesz odinstalować { $name }?
 # Nav Pages
 explore = Odkrywaj
-create = Twórcze
+create = Utwórz
 work = Praca
 develop = Programistyczne
 learn = Nauka
@@ -68,7 +68,7 @@ updates = Aktualizacje
 
 ## Applets page
 
-enable-flathub-cosmic = Musisz włączyć Flathub i COSMIC Flatpak by widzieć dostępne aplety.
+enable-flathub-cosmic = Musisz włączyć Flathub oraz COSMIC Flatpak by widzieć dostępne aplety.
 manage-repositories = Zarządzanie repozytoriami
 # Explore Pages
 editors-choice = Wybór Redakcji
@@ -107,7 +107,7 @@ translate = Tłumaczenie
 
 ## Operations
 
-cancelled = Anulowane
+cancelled = Anulowano
 operations = Działania
 no-operations = Brak działań w historii.
 pending = Oczekujące
