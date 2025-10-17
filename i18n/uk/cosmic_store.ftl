@@ -1,8 +1,8 @@
 app-name = Крамниця застосунків COSMIC
 back = Назад
 cancel = Скасувати
-check-for-updates = Перевірити оновлення
-checking-for-updates = Перевірка оновлень...
+check-for-updates = Перевірити наявність оновлень
+checking-for-updates = Перевірка наявності оновлень...
 install = Встановити
 no-installed-applications = Немає встановлених застосунків.
 no-updates = Усі встановлені застосунки оновлені.
