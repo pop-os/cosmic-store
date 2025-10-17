@@ -26,7 +26,7 @@ pub struct RepositoryAdd {
 }
 
 impl RepositoryAdd {
-    fn ids(adds: &Vec<Self>) -> Vec<String> {
+    fn ids(adds: &[Self]) -> Vec<String> {
         adds.iter().map(|x| x.id.clone()).collect()
     }
 }
@@ -38,7 +38,7 @@ pub struct RepositoryRemove {
 }
 
 impl RepositoryRemove {
-    fn ids(rms: &Vec<Self>) -> Vec<String> {
+    fn ids(rms: &[Self]) -> Vec<String> {
         rms.iter().map(|x| x.id.clone()).collect()
     }
 }
@@ -122,7 +122,7 @@ impl Operation {
             OperationKind::Update => "update",
             OperationKind::RepositoryAdd(adds) => {
                 return (
-                    format!("Failed to add repositories"),
+                    "Failed to add repositories".to_string(),
                     format!(
                         "Failed to add repositories {:?}:\n{err}",
                         RepositoryAdd::ids(adds)
@@ -131,7 +131,7 @@ impl Operation {
             }
             OperationKind::RepositoryRemove(rms, _force) => {
                 return (
-                    format!("Failed to remove repositories"),
+                    "Failed to remove repositories".to_string(),
                     format!(
                         "Failed to remove repositories {:?}:\n{err}",
                         RepositoryRemove::ids(rms)

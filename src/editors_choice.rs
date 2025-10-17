@@ -1,4 +1,4 @@
-pub const EDITORS_CHOICE: &'static [&'static str] = &[
+pub const EDITORS_CHOICE: &[&str] = &[
     "com.slack.Slack",
     "org.telegram",
     "org.gnome.meld",

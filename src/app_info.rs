@@ -35,7 +35,7 @@ fn write_node(
     recursion: usize,
 ) -> Result<(), Box<dyn Error>> {
     if recursion >= 4 {
-        return Err(format!("maximum recursion level reached").into());
+        return Err("maximum recursion level reached".to_string().into());
     }
     match node {
         xmltree::XMLNode::Element(element) => match element.name.as_str() {
@@ -280,7 +280,7 @@ impl AppInfo {
         let releases = component
             .releases
             .into_iter()
-            .filter_map(|release| {
+            .map(|release| {
                 let description = release.description.as_ref().and_then(|x| {
                     match convert_markup(get_markup_translatable(x, locale)) {
                         Ok(ok) => Some(ok),
@@ -297,12 +297,12 @@ impl AppInfo {
                         }
                     }
                 });
-                Some(AppRelease {
+                AppRelease {
                     timestamp: release.date.map(|date| date.timestamp()),
                     version: release.version,
                     description,
                     url: release.url.map(|url| url.into()),
-                })
+                }
             })
             .collect();
         let mut screenshots = Vec::new();

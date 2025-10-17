@@ -1,12 +1,13 @@
 use cosmic::widget;
 use libflatpak::{Installation, Ref, Remote, Transaction, gio::Cancellable, glib, prelude::*};
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     error::Error,
     fmt::Write,
     fs,
-    sync::{Arc, Mutex},
+    rc::Rc,
+    sync::Arc,
 };
 
 use super::{Backend, Package};
@@ -250,10 +251,11 @@ impl Backend for Flatpak {
 
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
         if !self.user {
-            return Err(format!(
+            return Err(
                 "flatpak backend only supports installing files with user installation"
-            )
-            .into());
+                    .to_string()
+                    .into(),
+            );
         }
 
         if !path.ends_with(".flatpakref") {
@@ -336,9 +338,9 @@ impl Backend for Flatpak {
         op: &Operation,
         callback: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
-        let callback = Arc::new(Mutex::new(callback));
+        let callback = Rc::new(RefCell::new(callback));
         let inst = self.installation()?;
-        let total_ops = Arc::new(Cell::new(0));
+        let total_ops = Rc::new(Cell::new(0));
         let tx = Transaction::for_installation(&inst, Cancellable::NONE)?;
         {
             let total_ops = total_ops.clone();
@@ -347,7 +349,7 @@ impl Backend for Flatpak {
                 true
             });
         }
-        let started_ops = Arc::new(Cell::new(0));
+        let started_ops = Rc::new(Cell::new(0));
         tx.connect_new_operation(move |_, op, progress| {
             let current_op = started_ops.get();
             started_ops.set(current_op + 1);
@@ -367,7 +369,7 @@ impl Backend for Flatpak {
                 );
                 let op_progress = (progress.progress() as f32) / 100.0;
                 let total_progress = ((current_op as f32) + op_progress) * progress_per_op;
-                let mut callback = callback.lock().unwrap();
+                let mut callback = callback.borrow_mut();
                 callback(total_progress)
             });
         });
@@ -378,7 +380,7 @@ impl Backend for Flatpak {
                         for package_path in info.package_paths.iter() {
                             log::info!("installing flatpak ref {:?}", package_path);
                             //TODO: keep package data in memory?
-                            let data = fs::read(&package_path)?;
+                            let data = fs::read(package_path)?;
                             let bytes = glib::Bytes::from_owned(data);
                             tx.add_install_flatpakref(&bytes)?;
                         }
@@ -423,7 +425,7 @@ impl Backend for Flatpak {
                                     r_str,
                                     remote_name
                                 );
-                                tx.add_install(&remote_name, &r_str, &[])?;
+                                tx.add_install(&remote_name, r_str, &[])?;
                                 //TODO: install all refs?
                                 break;
                             }
@@ -457,7 +459,7 @@ impl Backend for Flatpak {
                         };
 
                         log::info!("uninstalling flatpak {}", r_str);
-                        tx.add_uninstall(&r_str)?;
+                        tx.add_uninstall(r_str)?;
                     }
                 }
             }
@@ -487,7 +489,7 @@ impl Backend for Flatpak {
                         };
 
                         log::info!("updating flatpak {}", r_str);
-                        tx.add_update(&r_str, &[], None)?;
+                        tx.add_update(r_str, &[], None)?;
                     }
                 }
             }
@@ -508,7 +510,7 @@ impl Backend for Flatpak {
                     let Some(origin) = r.origin() else {
                         continue;
                     };
-                    if !rms.iter().any(|rm| &rm.id == &origin) {
+                    if !rms.iter().any(|rm| rm.id == origin) {
                         continue;
                     }
                     if *force {
