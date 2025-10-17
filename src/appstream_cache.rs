@@ -24,8 +24,8 @@ use std::{
 
 use crate::{AppIcon, AppId, AppInfo, stats};
 
-const PREFIXES: &'static [&'static str] = &["/usr/share", "/var/lib", "/var/cache"];
-const CATALOGS: &'static [&'static str] = &["swcatalog", "app-info"];
+const PREFIXES: &[&str] = &["/usr/share", "/var/lib", "/var/cache"];
+const CATALOGS: &[&str] = &["swcatalog", "app-info"];
 
 #[derive(
     Clone,
@@ -67,11 +67,13 @@ impl AppstreamCache {
         icons_paths: Vec<String>,
         locale: &str,
     ) -> Self {
-        let mut cache = Self::default();
-        cache.source_id = source_id;
-        cache.source_name = source_name;
-        cache.icons_paths = icons_paths;
-        cache.locale = locale.to_string();
+        let mut cache = Self {
+            source_id,
+            source_name,
+            icons_paths,
+            locale: locale.to_string(),
+            ..Self::default()
+        };
 
         for path in paths.iter() {
             let canonical = match fs::canonicalize(path) {
@@ -376,7 +378,7 @@ impl AppstreamCache {
                 };
 
                 //TODO: memory map?
-                let mut file = match fs::File::open(&path) {
+                let mut file = match fs::File::open(path) {
                     Ok(ok) => ok,
                     Err(err) => {
                         log::error!("failed to open {:?}: {}", path, err);
@@ -430,15 +432,12 @@ impl AppstreamCache {
                 for pkgname in &info.pkgnames {
                     self.pkgnames
                         .entry(pkgname.clone())
-                        .or_insert_with(|| HashSet::new())
+                        .or_default()
                         .insert(id.clone());
                 }
-                match self.infos.insert(id.clone(), info) {
-                    Some(_old) => {
-                        //TODO: merge based on priority
-                        log::debug!("found duplicate info {:?}", id);
-                    }
-                    None => {}
+                if let Some(_old) = self.infos.insert(id.clone(), info) {
+                    //TODO: merge based on priority
+                    log::debug!("found duplicate info {:?}", id);
                 }
             }
 
@@ -447,23 +446,20 @@ impl AppstreamCache {
                 for extend_id in addon.extends.iter() {
                     self.addons
                         .entry(AppId::new(&extend_id.0))
-                        .or_insert_with(|| Vec::new())
+                        .or_default()
                         .push(id.clone());
                 }
                 let addon_info = Arc::new(AppInfo::new(
                     &self.source_id,
                     &self.source_name,
-                    origin_opt.as_ref().map(|x| x.as_str()),
+                    origin_opt.as_deref(),
                     addon,
                     &self.locale,
                     stats::monthly_downloads(&id).unwrap_or(0),
                 ));
-                match self.infos.insert(id.clone(), addon_info) {
-                    Some(_old) => {
-                        //TODO: merge based on priority
-                        log::debug!("found duplicate info {:?}", id);
-                    }
-                    None => {}
+                if let Some(_old) = self.infos.insert(id.clone(), addon_info) {
+                    //TODO: merge based on priority
+                    log::debug!("found duplicate info {:?}", id);
                 }
             }
         }

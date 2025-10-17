@@ -139,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(codec) = flags
         .subcommand_opt
         .as_ref()
-        .and_then(|x| GStreamerCodec::parse(&x))
+        .and_then(|x| GStreamerCodec::parse(x))
     {
         // GStreamer installer dialog
         settings = settings.no_main_window(true);
@@ -543,12 +543,11 @@ pub struct GridMetrics {
 
 impl GridMetrics {
     pub fn new(width: usize, min_width: usize, column_spacing: u16) -> Self {
-        let width_m1 = width.checked_sub(min_width).unwrap_or(0);
+        let width_m1 = width.saturating_sub(min_width);
         let cols_m1 = width_m1 / (min_width + column_spacing as usize);
         let cols = cols_m1 + 1;
         let item_width = width
-            .checked_sub(cols_m1 * column_spacing as usize)
-            .unwrap_or(0)
+            .saturating_sub(cols_m1 * column_spacing as usize)
             .checked_div(cols)
             .unwrap_or(0);
         Self {
@@ -944,7 +943,7 @@ impl App {
             .collect();
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.backend_name, &b.backend_name),
+                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
                 ordering => ordering,
             },
             ordering => ordering,
@@ -1136,8 +1135,8 @@ impl App {
         let input = self.search_input.clone();
 
         // Handle supported URI schemes before trying plain text search
-        match reqwest::Url::parse(&input) {
-            Ok(url) => match url.scheme() {
+        if let Ok(url) = reqwest::Url::parse(&input) {
+            match url.scheme() {
                 "appstream" => {
                     return self.handle_appstream_url(input, url.path());
                 }
@@ -1151,15 +1150,12 @@ impl App {
                 scheme => {
                     log::warn!("unsupported URL scheme {scheme} in {url}");
                 }
-            },
-            Err(_) => {}
+            }
         }
 
         // Also handle standard file paths
-        if input.starts_with("/") {
-            if Path::new(&input).is_file() {
-                return self.handle_file_url(input.clone(), &input);
-            }
+        if input.starts_with("/") && Path::new(&input).is_file() {
+            return self.handle_file_url(input.clone(), &input);
         }
 
         // Also handle gstreamer codec strings
@@ -1283,13 +1279,13 @@ impl App {
                 break;
             }
         }
-        let is_installed = self.is_installed(selected_backend_name, selected_id, &selected_info);
+        let is_installed = self.is_installed(selected_backend_name, selected_id, selected_info);
         let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
         let mut update_opt = None;
         if let Some(updates) = &self.updates {
             for (backend_name, package) in updates {
                 if backend_name == &selected_backend_name
-                    && &package.info.source_id == &selected_info.source_id
+                    && package.info.source_id == selected_info.source_id
                     && &package.id == selected_id
                 {
                     update_opt = Some(Message::Operation(
@@ -1391,7 +1387,7 @@ impl App {
         info: &AppInfo,
     ) -> Vec<SelectedSource> {
         let mut sources = Vec::new();
-        match self.apps.get(&id) {
+        match self.apps.get(id) {
             Some(infos) => {
                 for AppEntry {
                     backend_name,
@@ -1399,13 +1395,13 @@ impl App {
                     installed,
                 } in infos.iter()
                 {
-                    sources.push(SelectedSource::new(backend_name, &info, *installed));
+                    sources.push(SelectedSource::new(backend_name, info, *installed));
                 }
             }
             None => {
                 //TODO: warning?
-                let installed = self.is_installed(backend_name, &id, &info);
-                sources.push(SelectedSource::new(backend_name, &info, installed));
+                let installed = self.is_installed(backend_name, id, info);
+                sources.push(SelectedSource::new(backend_name, info, installed));
             }
         }
         sources
@@ -1547,7 +1543,7 @@ impl App {
                     if package.id.is_system() && !info.pkgnames.is_empty() {
                         let mut found = true;
                         for pkgname in info.pkgnames.iter() {
-                            if !package.info.pkgnames.contains(&pkgname) {
+                            if !package.info.pkgnames.contains(pkgname) {
                                 found = false;
                                 break;
                             }
@@ -1582,7 +1578,7 @@ impl App {
                         cmp::Ordering::Equal => {
                             match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
                                 cmp::Ordering::Equal => {
-                                    LANGUAGE_SORTER.compare(&a.backend_name, &b.backend_name)
+                                    LANGUAGE_SORTER.compare(a.backend_name, b.backend_name)
                                 }
                                 ordering => ordering,
                             }
@@ -1598,11 +1594,11 @@ impl App {
         for (backend_name, backend) in self.backends.iter() {
             for appstream_cache in backend.info_caches() {
                 for (id, info) in appstream_cache.infos.iter() {
-                    let entry = apps.entry(id.clone()).or_insert_with(|| Vec::new());
+                    let entry = apps.entry(id.clone()).or_default();
                     entry.push(AppEntry {
                         backend_name,
                         info: info.clone(),
-                        installed: self.is_installed(backend_name, id, &info),
+                        installed: self.is_installed(backend_name, id, info),
                     });
                     entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
                 }
@@ -1613,7 +1609,7 @@ impl App {
         if let Some(installed) = &self.installed {
             for (backend_name, package) in installed {
                 if package.id.is_system() {
-                    let entry = apps.entry(package.id.clone()).or_insert_with(|| Vec::new());
+                    let entry = apps.entry(package.id.clone()).or_default();
                     entry.push(AppEntry {
                         backend_name,
                         info: package.info.clone(),
@@ -1628,11 +1624,9 @@ impl App {
 
         // Update selected sources
         {
-            let sources_opt = if let Some(selected) = &self.selected_opt {
-                Some(self.selected_sources(selected.backend_name, &selected.id, &selected.info))
-            } else {
-                None
-            };
+            let sources_opt = self.selected_opt.as_ref().map(|selected| {
+                self.selected_sources(selected.backend_name, &selected.id, &selected.info)
+            });
             if let Some(sources) = sources_opt {
                 if let Some(selected) = &mut self.selected_opt {
                     selected.sources = sources;
@@ -1931,7 +1925,7 @@ impl App {
 
     fn update_title(&mut self) -> Task<Message> {
         if let Some(window_id) = &self.core.main_window_id() {
-            self.set_window_title(fl!("app-name"), window_id.clone())
+            self.set_window_title(fl!("app-name"), *window_id)
         } else {
             Task::none()
         }
@@ -2106,7 +2100,7 @@ impl App {
                 //TODO: allow other backends to show sources?
                 if !found_source && *backend_name == "flatpak-user" {
                     sources.push(Source {
-                        backend_name: *backend_name,
+                        backend_name,
                         id: cache.source_id.clone(),
                         name: cache.source_name.clone(),
                         kind: SourceKind::Custom,
@@ -2247,7 +2241,7 @@ impl App {
                 let mut selected_source = None;
                 for (i, source) in selected.sources.iter().enumerate() {
                     if source.backend_name == selected.backend_name
-                        && &source.source_id == &selected.info.source_id
+                        && source.source_id == selected.info.source_id
                     {
                         selected_source = Some(i);
                         break;
@@ -2431,16 +2425,17 @@ impl App {
                         .divider_padding(0)
                         .list_item_padding([space_xxs, 0])
                         .style(theme::Container::Transparent);
+                    let addon_cnt = selected.addons.len();
                     let take = if selected.addons_view_more {
-                        selected.addons.len()
+                        addon_cnt
                     } else {
                         4
                     };
                     for (addon_id, addon_info) in selected.addons.iter().take(take) {
                         let buttons = self.selected_buttons(
                             selected.backend_name,
-                            &addon_id,
-                            &addon_info,
+                            addon_id,
+                            addon_info,
                             true,
                         );
                         list = list.add(
@@ -2449,7 +2444,7 @@ impl App {
                                 .control(widget::row::with_children(buttons).spacing(space_xs)),
                         );
                     }
-                    if !selected.addons_view_more {
+                    if addon_cnt > 4 && !selected.addons_view_more {
                         list = list.add(
                             widget::button::text(fl!("view-more"))
                                 .on_press(Message::SelectedAddonsViewMore(true)),
@@ -2461,9 +2456,10 @@ impl App {
 
                 for release in selected.info.releases.iter() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
-                    //TODO: translate
-                    release_col = release_col
-                        .push(widget::text::title4(format!("Version {}", release.version)));
+                    release_col = release_col.push(widget::text::title4(fl!(
+                        "version",
+                        version = release.version.as_str()
+                    )));
                     if let Some(timestamp) = release.timestamp {
                         if let Some(utc) =
                             chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
@@ -2571,7 +2567,7 @@ impl App {
                         &results[..results_len],
                         spacing,
                         grid_width,
-                        |result_i| Message::SelectSearchResult(result_i),
+                        Message::SelectSearchResult,
                     ));
                     column.into()
                 }
@@ -2626,7 +2622,7 @@ impl App {
                                         .width(Length::Fill);
                                 for explore_page in explore_pages.iter() {
                                     //TODO: ensure explore_page matches
-                                    match self.explore_results.get(&explore_page) {
+                                    match self.explore_results.get(explore_page) {
                                         Some(results) if !results.is_empty() => {
                                             let GridMetrics { cols, .. } =
                                                 SearchResult::grid_metrics(&spacing, grid_width);
@@ -2939,7 +2935,7 @@ impl App {
                                     &results[..results_len],
                                     spacing,
                                     grid_width,
-                                    |result_i| Message::SelectCategoryResult(result_i),
+                                    Message::SelectCategoryResult,
                                 ));
                             }
                             None => {
@@ -3129,12 +3125,9 @@ impl Application for App {
         {
             commands.push(self.categories(categories));
         }
-        match self.nav_model.active_data::<NavPage>() {
-            Some(NavPage::Updates) => {
-                // Refresh when going to updates page
-                commands.push(self.update(Message::CheckUpdates));
-            }
-            _ => {}
+        if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
+            // Refresh when going to updates page
+            commands.push(self.update(Message::CheckUpdates));
         }
         Task::batch(commands)
     }
@@ -3256,8 +3249,8 @@ impl Application for App {
                         selected,
                         installing,
                         ..
-                    } => match &self.search_results {
-                        Some((_input, results)) => {
+                    } => {
+                        if let Some((_input, results)) = &self.search_results {
                             for (i, result) in results.iter().enumerate() {
                                 let installed = Self::is_installed_inner(
                                     &self.installed,
@@ -3285,8 +3278,7 @@ impl Application for App {
                             }
                             *installing = true;
                         }
-                        None => {}
-                    },
+                    }
                 }
                 for op in ops {
                     self.operation(op);
@@ -3307,7 +3299,7 @@ impl Application for App {
                 self.update_apps();
                 let mut commands = Vec::new();
                 //TODO: search not done if item is selected because that would clear selection
-                if self.search_active && !self.selected_opt.is_some() {
+                if self.search_active && self.selected_opt.is_none() {
                     // Update search if active
                     commands.push(self.search());
                 }
@@ -3775,8 +3767,8 @@ impl Application for App {
                     if let Some(installed) = &self.installed {
                         for (installed_backend_name, package) in installed {
                             if installed_backend_name == &backend_name
-                                && &package.info.source_id == &source_id
-                                && &package.id == &id
+                                && package.info.source_id == source_id
+                                && package.id == id
                             {
                                 return self.select(
                                     backend_name,
@@ -3928,7 +3920,7 @@ impl Application for App {
                                 cosmic::desktop::spawn_desktop_exec(
                                     &exec,
                                     Vec::<(&str, &str)>::new(),
-                                    Some(&settings_desktop_id),
+                                    Some(settings_desktop_id),
                                     false,
                                 )
                                 .await;
@@ -3973,17 +3965,14 @@ impl Application for App {
     }
 
     fn dialog(&self) -> Option<Element<'_, Message>> {
-        let dialog_page = match self.dialog_pages.front() {
-            Some(some) => some,
-            None => return None,
-        };
+        let dialog_page = self.dialog_pages.front()?;
 
         let dialog = match dialog_page {
             DialogPage::FailedOperation(id) => {
                 //TODO: try next dialog page (making sure index is used by Dialog messages)?
                 let (operation, _, err) = self.failed_operations.get(id)?;
 
-                let (title, body) = operation.failed_dialog(&err);
+                let (title, body) = operation.failed_dialog(err);
                 widget::dialog()
                     .title(title)
                     .body(body)
@@ -4103,7 +4092,7 @@ impl Application for App {
         let running = count;
         // Adjust the progress bar so it does not jump around when operations finish
         for id in self.progress_operations.iter() {
-            if self.complete_operations.contains_key(&id) {
+            if self.complete_operations.contains_key(id) {
                 total_progress += 100.0;
                 count += 1;
             }
@@ -4440,7 +4429,7 @@ impl Application for App {
         for (id, (op, _)) in self.pending_operations.iter() {
             //TODO: use recipe?
             let id = *id;
-            let backend_opt = self.backends.get(op.backend_name).map(|x| x.clone());
+            let backend_opt = self.backends.get(op.backend_name).cloned();
             let op = op.clone();
             subscriptions.push(Subscription::run_with_id(
                 id,
@@ -4450,7 +4439,7 @@ impl Application for App {
                         Some(backend) => {
                             let on_progress = {
                                 let msg_tx = msg_tx.clone();
-                                Box::new(move |progress| -> () {
+                                Box::new(move |progress| {
                                     let _ = futures::executor::block_on(async {
                                         msg_tx
                                             .lock()

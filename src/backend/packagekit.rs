@@ -39,8 +39,8 @@ fn transaction_handle(
     let mut details = Vec::new();
     let mut packages = Vec::new();
     for signal in tx.receive_all_signals()? {
-        match signal.member() {
-            Some(member) => match member.as_str() {
+        if let Some(member) = signal.member() {
+            match member.as_str() {
                 "Details" => {
                     let map = signal.body::<HashMap<String, zvariant::Value>>()?;
 
@@ -106,8 +106,7 @@ fn transaction_handle(
                 _ => {
                     log::warn!("unknown signal {}", member);
                 }
-            },
-            None => {}
+            }
         }
     }
     Ok((details, packages))
@@ -234,7 +233,7 @@ impl Packagekit {
             match appstream_cache.pkgnames.get(package_name) {
                 Some(ids) => {
                     for id in ids.iter() {
-                        match appstream_cache.infos.get(&id) {
+                        match appstream_cache.infos.get(id) {
                             Some(info) => {
                                 packages.push(Package {
                                     id: id.clone(),

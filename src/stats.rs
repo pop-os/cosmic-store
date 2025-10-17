@@ -21,5 +21,5 @@ pub fn monthly_downloads(id: &AppId) -> Option<u64> {
             }
         }
     });
-    stats.get(&id).copied()
+    stats.get(id).copied()
 }
