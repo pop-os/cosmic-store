@@ -2431,8 +2431,9 @@ impl App {
                         .divider_padding(0)
                         .list_item_padding([space_xxs, 0])
                         .style(theme::Container::Transparent);
+                    let addon_cnt = selected.addons.len();
                     let take = if selected.addons_view_more {
-                        selected.addons.len()
+                        addon_cnt
                     } else {
                         4
                     };
@@ -2449,7 +2450,7 @@ impl App {
                                 .control(widget::row::with_children(buttons).spacing(space_xs)),
                         );
                     }
-                    if !selected.addons_view_more {
+                    if addon_cnt > 4 && !selected.addons_view_more {
                         list = list.add(
                             widget::button::text(fl!("view-more"))
                                 .on_press(Message::SelectedAddonsViewMore(true)),
