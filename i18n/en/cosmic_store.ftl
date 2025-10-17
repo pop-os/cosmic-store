@@ -96,6 +96,7 @@ source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers
 monthly-downloads = Flathub Monthly Downloads
+version = Version {$version}
 licenses = Licenses
 proprietary = Proprietary
 view-more = View more

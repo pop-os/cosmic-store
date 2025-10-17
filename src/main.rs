@@ -2456,9 +2456,10 @@ impl App {
 
                 for release in selected.info.releases.iter() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
-                    //TODO: translate
-                    release_col = release_col
-                        .push(widget::text::title4(format!("Version {}", release.version)));
+                    release_col = release_col.push(widget::text::title4(fl!(
+                        "version",
+                        version = release.version.as_str()
+                    )));
                     if let Some(timestamp) = release.timestamp {
                         if let Some(utc) =
                             chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
