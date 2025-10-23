@@ -61,7 +61,7 @@ no-description = Немає опису.
 
 appearance = Зовнішній вигляд
 theme = Тема
-match-desktop = Системна
+match-desktop = Відповідно системі
 dark = Темна
 light = Світла
 notification-in-progress = Встановлення нових та оновлення вже встановлених застосунків.
@@ -74,7 +74,7 @@ place-and-refine = Розмістити та редагувати
 codec-title = Встановити додаткові пакети?
 close = Закрити
 details = Деталі
-dismiss = Сховати повідомлення
+dismiss = Закрити повідомлення
 repository-add-error-title = "Не вдалося додати репозиторій"
 repository-remove-title = Видалити репозиторій "{ $name }"?
 repository-remove-body =

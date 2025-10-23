@@ -127,3 +127,4 @@ dark = Tmavé
 light = Světlé
 addons = Doplňky
 view-more = Zobrazit více
+version = Verze { $version }
