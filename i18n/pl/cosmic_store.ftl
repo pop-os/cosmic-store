@@ -142,3 +142,4 @@ dark = Ciemny
 light = Jasny
 addons = Rozszerzenia
 view-more = Zobacz więcej
+version = Wersja { $version }
