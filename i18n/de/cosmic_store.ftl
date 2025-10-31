@@ -92,3 +92,4 @@ theme = Thema
 match-desktop = An Desktop anpassen
 dark = Dunkel
 light = Hell
+close = Schließen
