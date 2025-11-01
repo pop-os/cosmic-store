@@ -53,7 +53,7 @@ cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
-features = ["multi-window", "tokio", "winit", "wayland"]
+features = ["multi-window", "tokio", "winit"]
 
 [features]
 #todo : add a11y back to default

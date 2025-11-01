@@ -3838,6 +3838,11 @@ impl Application for App {
             Message::SelectPlacement(selection) => {
                 self.applet_placement_buttons.activate(selection);
             }
+            #[cfg(not(feature = "wayland"))]
+            Message::PlaceApplet(id) => {
+                log::error!("cannot place applet {:?}, not compiled with wayland feature", id);
+            },
+            #[cfg(feature = "wayland")]
             Message::PlaceApplet(id) => {
                 self.dialog_pages.pop_front();
 
