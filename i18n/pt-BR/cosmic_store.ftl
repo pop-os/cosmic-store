@@ -54,7 +54,7 @@ uninstall-app = Desinstalar { $name }
 uninstall-app-warning = Tem certeza de que deseja desinstalar { $name }?
 # Nav Pages
 explore = Explorar
-create = Criação
+create = Criar
 work = Trabalho
 develop = Desenvolvimento
 learn = Educação
