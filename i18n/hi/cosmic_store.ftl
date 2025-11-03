@@ -65,7 +65,7 @@ translate = अनुवाद
 
 ## Settings
 
-settings = सेटिंग्स
+settings = सेटिंग
 
 ## Release notes
 
