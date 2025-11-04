@@ -136,7 +136,7 @@ software-repositories = Софтуерни хранилища
 ### Appearance
 
 appearance = Външен вид
-theme = Стил
+theme = Тема
 match-desktop = Системен
 dark = Тъмен
 light = Светъл
