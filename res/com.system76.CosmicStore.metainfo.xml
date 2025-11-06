@@ -18,6 +18,7 @@
   <name xml:lang="sk">Obchod COSMIC</name>
   <name xml:lang="es">Tienda COSMIC</name>
   <name xml:lang="es">COSMIC App Store</name>
+  <name xml:lang="sv">COSMIC Butik</name>
   <summary>Application store for the COSMIC desktop</summary>
   <summary xml:lang="ar">متجر تطبيقات لسطح مكتب COSMIC</summary>
   <summary xml:lang="cs">Obchod s aplikacemi pro pracovní prostředí COSMIC</summary>
@@ -28,6 +29,7 @@
   <summary xml:lang="sk">Obchod s aplikáciami pre pracovné prostredie COSMIC</summary>
   <summary xml:lang="es">Tienda de aplicaciones para el escritorio COSMIC</summary>
   <summary xml:lang="ut">App Store di COSMIC</summary>
+  <summary xml:lang="sv">Programbutik för skrivbordsmiljön COSMIC</summary>
   <description>
       <p>Application store for the COSMIC desktop</p>
       <p xml:lang="ar">متجر تطبيقات لسطح مكتب COSMIC</p>
@@ -39,6 +41,7 @@
       <p xml:lang="sk">Obchod s aplikáciami pre pracovné prostredie COSMIC</p>
       <p xml:lang="pt">Tienda de aplicaciones para el escritorio COSMIC</p>
       <p xml:lang="it">App Store di COSMIC</p>
+      <p xml:lang="sv">Programbutik för skrivbordsmiljön COSMIC</p>
   </description>
   <launchable type="desktop-id">com.system76.CosmicStore.desktop</launchable>
   <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/pop-os/cosmic-store/master/res/icons/hicolor/256x256/apps/com.system76.CosmicStore.svg</icon>
