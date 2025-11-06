@@ -54,8 +54,8 @@ remove = Remove
 removing = Removing...
 
 # Uninstall Dialog
-uninstall-app = Uninstall {$name}
-uninstall-app-warning = Are you sure you want to uninstall {$name}?
+uninstall-app = Uninstall {$name}?
+uninstall-app-warning = Uninstalling {$name} will delete its data.
 
 # Nav Pages
 explore = Explore
@@ -76,26 +76,26 @@ enable-flathub-cosmic = Please enable Flathub and COSMIC Flatpak to see availabl
 manage-repositories = Manage repositories
 
 # Explore Pages
-editors-choice = Editor's Choice
-popular-apps = Popular Apps
+editors-choice = Editor's choice
+popular-apps = Popular apps
 made-for-cosmic = Made for COSMIC
-new-apps = New Apps
-recently-updated = Recently Updated
-development-tools = Development Tools
-scientific-tools = Scientific Tools
-productivity-apps = Productivity Apps
-graphics-and-photography-tools = Graphics & Photography Tools
-social-networking-apps = Social Networking Apps
+new-apps = New apps
+recently-updated = Recently updated
+development-tools = Development tools
+scientific-tools = Scientific tools
+productivity-apps = Productivity apps
+graphics-and-photography-tools = Graphics & photography tools
+social-networking-apps = Social networking apps
 games = Games
-music-and-video-apps = Music & Video Apps
-apps-for-learning = Apps for Learning
+music-and-video-apps = Music & video apps
+apps-for-learning = Apps for learning
 
 # Details Page
 addons = Addons
 source-installed = {$source} (installed)
 developer = Developer
 app-developers = {$app} Developers
-monthly-downloads = Flathub Monthly Downloads
+monthly-downloads = Flathub monthly downloads
 version = Version {$version}
 licenses = Licenses
 proprietary = Proprietary
@@ -128,13 +128,13 @@ latest-version = Latest version
 no-description = No description available.
 
 ## Repositories
-recommended-flatpak-sources = Recommended Flatpak Sources
-custom-flatpak-sources = Custom Flatpak Sources
+recommended-flatpak-sources = Recommended Flatpak sources
+custom-flatpak-sources = Custom Flatpak sources
 import-flatpakrepo = Import .flatpakrepo file to add a custom source
 no-custom-flatpak-sources = No custom Flatpak sources
 import = Import
 no-flatpak = No flatpak support
-software-repositories = Software Repositories
+software-repositories = Software repositories
 
 ### Appearance
 appearance = Appearance
