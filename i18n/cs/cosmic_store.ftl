@@ -36,19 +36,16 @@ operations-running =
     Běží { $running } { $running ->
         [one] operace
         [few] operace
-        [many] operací
        *[other] operací
     } ({ $percent }%)...
 operations-running-finished =
     Běží { $running } { $running ->
         [one] operace
         [few] operace
-        [many] operací
        *[other] operací
     } ({ $percent }%), { $finished } { $finished ->
         [one] dokončena...
         [few] dokončeny...
-        [many] dokončeno...
        *[other] dokončeno...
     }
 repository-add-error-title = "Nepodařilo se přidat repozitář"

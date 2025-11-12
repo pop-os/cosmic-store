@@ -1,4 +1,4 @@
-app-name = Програми на COSMIC
+app-name = Магазин за програми на COSMIC
 back = Назад
 cancel = Отказване
 check-for-updates = Проверка за обновления
@@ -54,13 +54,13 @@ uninstall-app = Деинсталиране на { $name }
 uninstall-app-warning = Сигурни ли сте, че искате да деинсталирате { $name }?
 # Nav Pages
 explore = Разглеждане
-create = Творчески
+create = Създаване
 work = Работа
 develop = Разработка
 learn = Обучение
-game = Игра
-relax = Отпускане
-socialize = Общуване
+game = Играй
+relax = Отпусни се
+socialize = Общувай
 utilities = Инструменти
 applets = Графични обекти
 installed-apps = Инсталирани програми
@@ -68,7 +68,7 @@ updates = Обновления
 
 ## Applets page
 
-enable-flathub-cosmic = Включете Flathub и COSMIC Flatpak, за да видите наличните графични обекти.
+enable-flathub-cosmic = Моля включете Flathub и COSMIC Flatpak, за да видите наличните графични обекти.
 manage-repositories = Управление на хранилищата
 # Explore Pages
 editors-choice = Избрани от дистрибуцията
@@ -107,12 +107,12 @@ translate = Превод
 
 ## Operations
 
-cancelled = Отказано
+cancelled = Отменена
 operations = Операции
 no-operations = Няма операции в историята.
 pending = Чакащи
-failed = Неуспешни
-complete = Завършени
+failed = Неуспешна
+complete = Завършена
 
 ## Settings
 
@@ -137,8 +137,9 @@ software-repositories = Софтуерни хранилища
 
 appearance = Външен вид
 theme = Тема
-match-desktop = Системен
-dark = Тъмен
-light = Светъл
+match-desktop = Системна тема
+dark = Тъмна тема
+light = Светла тема
 addons = Добавки
 view-more = Вижте още
+version = Версия { $version }
