@@ -47,7 +47,7 @@ repository-remove-body =
     } a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
 add = Hozzáadás
 adding = Hozzáadás...
-remove = Eltávolítás
+remove = Törlés
 removing = Eltávolítás...
 # Uninstall Dialog
 uninstall-app = { $name } eltávolítása
@@ -142,3 +142,4 @@ light = Világos
 no-custom-flatpak-sources = Nincsenek egyéni Flatpak-források
 addons = Kiegészítők
 view-more = Több megjelenítése
+version = Verzió { $version }
