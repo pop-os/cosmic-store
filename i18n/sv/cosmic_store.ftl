@@ -14,8 +14,8 @@ uninstall = Avinstallera
 update = Uppdatera
 update-all = Uppdatera alla
 # Uninstall Dialog
-uninstall-app = Avinstallera { $name }
-uninstall-app-warning = Är du säker på att du vill avinstallera { $name }?
+uninstall-app = Avinstallera { $name }?
+uninstall-app-warning = Att avinstallera { $name } kommer att ta bort dess data.
 # Nav Pages
 explore = Utforska
 create = Skapa
@@ -37,7 +37,7 @@ development-tools = Utvecklingsverktyg
 scientific-tools = Vetenskapliga verktyg
 productivity-apps = Produktivitetsprogram
 graphics-and-photography-tools = Grafik & fotoverktyg
-social-networking-apps = Program för Sociala nätverk
+social-networking-apps = Program för sociala nätverk
 games = Spel
 music-and-video-apps = Musik och videoprogram
 apps-for-learning = Program för lärande
