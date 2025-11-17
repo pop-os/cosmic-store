@@ -62,7 +62,7 @@ game = لعبة
 relax = استرخ
 socialize = التواصل الاجتماعي
 utilities = الأدوات المساعدة
-applets = البرامج المصغرة
+applets = بريمجات
 installed-apps = التطبيقات المثبتة
 updates = التحديثات
 
@@ -75,7 +75,7 @@ editors-choice = اختيار المحرِر
 popular-apps = التطبيقات الشائعة
 made-for-cosmic = صنع من أجل COSMIC
 new-apps = التطبيقات الجديدة
-recently-updated = المحدثة مؤخراً
+recently-updated = المحدثة حديثًا
 development-tools = أدوات التطوير
 scientific-tools = أدوات علمية
 productivity-apps = تطبيقات إنتاجية

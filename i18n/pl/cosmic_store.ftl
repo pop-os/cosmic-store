@@ -50,8 +50,8 @@ adding = Dodawanie…
 remove = Usuń
 removing = Usuwanie…
 # Uninstall Dialog
-uninstall-app = Odinstaluj { $name }
-uninstall-app-warning = Czy na pewno chcesz odinstalować { $name }?
+uninstall-app = Odinstalować { $name }?
+uninstall-app-warning = Odinstalowanie { $name } usunie dane programu.
 # Nav Pages
 explore = Odkrywaj
 create = Utwórz
@@ -71,24 +71,24 @@ updates = Aktualizacje
 enable-flathub-cosmic = Musisz włączyć Flathub oraz COSMIC Flatpak by widzieć dostępne aplety.
 manage-repositories = Zarządzanie repozytoriami
 # Explore Pages
-editors-choice = Wybór Redakcji
+editors-choice = Wybór redakcji
 popular-apps = Popularne aplikacje
 made-for-cosmic = Stworzone dla COSMIC
-new-apps = Nowe Aplikacje
-recently-updated = Ostatnio Zaktualizowane
-development-tools = Narzędzia Programistyczne
-scientific-tools = Narzędzia Naukowe
-productivity-apps = Aplikacje Zwiększające Produktywność
-graphics-and-photography-tools = Narzędzia Graficzne i Fotograficzne
-social-networking-apps = Aplikacje Mediów Społecznościowych
+new-apps = Nowe aplikacje
+recently-updated = Ostatnio zaktualizowane
+development-tools = Narzędzia programistyczne
+scientific-tools = Narzędzia naukowe
+productivity-apps = Aplikacje zwiększające produktywność
+graphics-and-photography-tools = Narzędzia graficzne i fotograficzne
+social-networking-apps = Aplikacje mediów społecznościowych
 games = Gry
-music-and-video-apps = Aplikacje Muzyczne i Wideo
-apps-for-learning = Aplikacje do Nauki
+music-and-video-apps = Aplikacje muzyczne i wideo
+apps-for-learning = Aplikacje do nauki
 # Details Page
 source-installed = { $source } (zainstalowane)
 developer = Wydawca
 app-developers = Wydawca { $app }
-monthly-downloads = Miesięczne Pobrania na Flathub
+monthly-downloads = Miesięczne pobrania z Flathub
 licenses = Licencje
 proprietary = Własnościowa
 
@@ -125,13 +125,13 @@ no-description = Brak opisu.
 
 ## Repositories
 
-recommended-flatpak-sources = Polecane Źródła Flatpak
-custom-flatpak-sources = Własne Źródła Flatpak
+recommended-flatpak-sources = Polecane źródła Flatpak
+custom-flatpak-sources = Własne źródła Flatpak
 import-flatpakrepo = Importuj plik .flatpakrepo by dodać własne źródła
 no-custom-flatpak-sources = Brak własnych źródeł Flatpak
 import = Importuj
 no-flatpak = Flatpak nie jest wspierany
-software-repositories = Repozytoria Oprogramowania
+software-repositories = Repozytoria oprogramowania
 
 ### Appearance
 
