@@ -47,11 +47,11 @@ repository-remove-body =
     } a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
 add = Hozzáadás
 adding = Hozzáadás...
-remove = Törlés
+remove = Eltávolítás
 removing = Eltávolítás...
 # Uninstall Dialog
-uninstall-app = { $name } eltávolítása
-uninstall-app-warning = Biztosan eltávolítod a(z) { $name } alkalmazást?
+uninstall-app = Eltávolítod ezt: { $name }?
+uninstall-app-warning = A(z) { $name } eltávolítása törölni fogja annak adatait.
 # Nav Pages
 explore = Felfedezés
 create = Alkotás
