@@ -56,6 +56,12 @@ removing = Removing...
 # Uninstall Dialog
 uninstall-app = Uninstall {$name}?
 uninstall-app-warning = Uninstalling {$name} will delete its data.
+uninstall-app-flatpak-warning = This will remove the app from your system.
+app-settings-data = App settings & data
+keep-app-data = Keep
+keep-app-data-description = App data and settings will remain on your system.
+delete-app-data = Delete
+delete-app-data-description = All app data, settings, and cache will be permanently removed.
 
 # Nav Pages
 explore = Explore
