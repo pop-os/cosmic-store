@@ -17,7 +17,7 @@ update-all = تحديث الكل
 place-on-desktop = ضع على سطح المكتب
 place-applet = ضع البرنامج المصغر
 place-applet-desc = اختر مكان إضافة التطبيق المصغر قبل تحديد موقعه بدقة.
-panel = شريط المهام
+panel = اللوحة
 dock = حامل التطبيقات
 place-and-refine = ضع وحسن
 # Codec dialog
@@ -47,8 +47,8 @@ repository-remove-body =
     } التطبيقات والعناصر التالية. ستحتاج إلى إعادة تثبيتها إذا تمت إضافة المستودع مرة أخرى.
 add = إضافة
 adding = جاري إضافة...
-remove = إزالة
-removing = جاري إزالة...
+remove = أزِل
+removing = يُزيل...
 # Uninstall Dialog
 uninstall-app = إلغاء تثبيت { $name }
 uninstall-app-warning = هل انت متأكد انك تريد إلغاء تثبيت { $name }؟

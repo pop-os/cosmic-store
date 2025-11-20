@@ -30,22 +30,22 @@ game = Jeux
 relax = Détente
 socialize = Socialisation
 utilities = Utilitaires
-installed-apps = Applications installées
+installed-apps = Applis installées
 updates = Mises à jour
 # Explore Pages
 editors-choice = Choix de l'éditeur
 popular-apps = Applis populaires
-made-for-cosmic = Fait pour COSMIC
+made-for-cosmic = Applis faites pour COSMIC
 new-apps = Nouvelles applis
 recently-updated = Récemment mis à jour
 development-tools = Outils de développement
 scientific-tools = Outils scientifiques
 productivity-apps = Applis de productivité
 graphics-and-photography-tools = Outils pour le graphisme et la photographie
-social-networking-apps = Applis de réseaux sociaux
+social-networking-apps = Réseaux sociaux
 games = Jeux
 music-and-video-apps = Applis de musique et vidéo
-apps-for-learning = Applications pour apprendre
+apps-for-learning = Applis pour apprendre
 # Details Page
 source-installed = { $source } (installé)
 developer = Développeur

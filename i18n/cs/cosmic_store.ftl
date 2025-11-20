@@ -7,7 +7,7 @@ close = Zavřít
 install = Instalovat
 no-installed-applications = Žádné nainstalované aplikace.
 no-updates = Všechny nainstalované aplikace jsou aktuální.
-no-results = Žádné výsledky pro "{ $search }".
+no-results = Žádné výsledky pro „{ $search }“.
 notification-in-progress = Probíhají instalace a aktualizace.
 open = Otevřít
 see-all = Zobrazit vše
@@ -21,7 +21,7 @@ panel = Panel
 dock = Dok
 place-and-refine = Umístit a upravit
 codec-title = Instalovat dodatečné balíčky?
-codec-header = "{ $application }" vyžaduje dodatečné balíčky poskytující "{ $description }".
+codec-header = „{ $application }“ vyžaduje dodatečné balíčky poskytující „{ $description }“.
 codec-footer =
     Používání těchto dodatečných balíčků může být v některých zemích omezeno.
     Musíte ověřit, že platí alespoň jedna z následujících podmínek:
@@ -48,12 +48,12 @@ operations-running-finished =
         [few] dokončeny...
        *[other] dokončeno...
     }
-repository-add-error-title = "Nepodařilo se přidat repozitář"
-repository-remove-title = Odstranit repozitář "{ $name }"?
+repository-add-error-title = „Nepodařilo se přidat repozitář“
+repository-remove-title = Odstranit repozitář „{ $name }“?
 repository-remove-body =
     Odstraněním tohoto repozitáře se { $dependency ->
         [none] smažou
-       *[other] odstraní "{ $dependency }" a smažou
+       *[other] odstraní „{ $dependency }“ a smažou
     } následující aplikace a položky. Bude třeba je znovu nainstalovat, pokud repozitář opět přidáte.
 add = Přidat
 adding = Přidávání...
