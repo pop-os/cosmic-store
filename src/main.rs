@@ -4063,54 +4063,20 @@ impl Application for App {
                 let mut dialog = widget::dialog()
                     .title(fl!("uninstall-app", name = info.name.as_str()))
                     .body(if is_flatpak {
-                        fl!("uninstall-app-flatpak-warning")
+                        fl!("uninstall-app-flatpak-warning", name = info.name.as_str())
                     } else {
                         fl!("uninstall-app-warning", name = info.name.as_str())
                     })
                     .icon(widget::icon::from_name(Self::APP_ID).size(64));
 
-                // Only show data options for Flatpak apps
+                // Only show data deletion option for Flatpak apps
                 if is_flatpak {
                     dialog = dialog.control(
-                        widget::column::with_capacity(4)
-                            .spacing(12)
-                            .push(widget::text::heading(fl!("app-settings-data")))
-                            .push(
-                                widget::column::with_capacity(2)
-                                    .spacing(4)
-                                    .push(
-                                        widget::radio(
-                                            widget::text::body(fl!("keep-app-data")),
-                                            false,
-                                            Some(self.uninstall_purge_data),
-                                            Message::ToggleUninstallPurgeData,
-                                        )
-                                    )
-                                    .push(
-                                        widget::container(
-                                            widget::text::caption(fl!("keep-app-data-description"))
-                                        )
-                                        .padding([0, 0, 0, 24])
-                                    )
-                            )
-                            .push(
-                                widget::column::with_capacity(2)
-                                    .spacing(4)
-                                    .push(
-                                        widget::radio(
-                                            widget::text::body(fl!("delete-app-data")),
-                                            true,
-                                            Some(self.uninstall_purge_data),
-                                            Message::ToggleUninstallPurgeData,
-                                        )
-                                    )
-                                    .push(
-                                        widget::container(
-                                            widget::text::caption(fl!("delete-app-data-description"))
-                                        )
-                                        .padding([0, 0, 0, 24])
-                                    )
-                            )
+                        widget::checkbox(
+                            fl!("delete-app-data"),
+                            self.uninstall_purge_data,
+                        )
+                        .on_toggle(Message::ToggleUninstallPurgeData)
                     );
                 }
 
