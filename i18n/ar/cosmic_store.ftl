@@ -4,14 +4,14 @@ cancel = إلغاء
 check-for-updates = التحقق من وجود تحديثات
 checking-for-updates = جاري التحقق من وجود تحديثات...
 close = أغلق
-install = تثبيت
-no-installed-applications = لا توجد تطبيقات مثبتة.
-no-updates = جميع التطبيقات المثبتة محدثة.
+install = نصِّب
+no-installed-applications = لا توجد تطبيقات منصبة.
+no-updates = جميع التطبيقات المنصبة محدثة.
 no-results = لا توجد نتائج لـ ”{ $search }“.
-notification-in-progress = عمليات التثبيت والتحديث جارية.
+notification-in-progress = عمليات التنصيب والتحديث جارية.
 open = فتح
 see-all = عرض الكل
-uninstall = إلغاء التثبيت
+uninstall = ألغِ التنصيب
 update = تحديث
 update-all = تحديث الكل
 place-on-desktop = ضع على سطح المكتب
@@ -21,7 +21,7 @@ panel = اللوحة
 dock = حامل التطبيقات
 place-and-refine = ضع وحسن
 # Codec dialog
-codec-title = تثبيت الحزم الإضافية؟
+codec-title = نصِّب الحزم الإضافية؟
 codec-header = ”{ $application }“ يتطلب حزمًا إضافية توفر ”{ $description }“.
 codec-footer =
     قد يكون استخدام هذه الحزم الإضافية مقيدًا في بعض البلدان.
@@ -29,8 +29,8 @@ codec-footer =
      • لا تنطبق هذه القيود في بلد إقامتك القانونية
      • لديك إذن باستخدام هذا البرنامج (على سبيل المثال، ترخيص براءة اختراع)
      • أنت تستخدم هذا البرنامج لأغراض البحث فقط
-codec-error = حدثت أخطاء أثناء تثبيت الحزمة.
-codec-installed = تم تثبيت الحزم.
+codec-error = حدثت أخطاء أثناء تنصيب الحزمة.
+codec-installed = نُصِّبت الحزم.
 # Progress footer
 details = التفاصيل
 dismiss = أهمل الرسالة
@@ -41,17 +41,17 @@ repository-add-error-title = ”فشل في إضافة المستودع“
 # Repository remove dialog
 repository-remove-title = إزالة المستودع ”{ $name }“؟
 repository-remove-body =
-    سيؤدي إزالة هذا المستودع إلى { $dependency ->
+    ستؤدي إزالة هذا المستودع إلى { $dependency ->
         [none] حذف
-       *[other] إزالة ”{ $dependency }“ وحذف
-    } التطبيقات والعناصر التالية. ستحتاج إلى إعادة تثبيتها إذا تمت إضافة المستودع مرة أخرى.
-add = إضافة
-adding = جاري إضافة...
+       *[other] إزالة «{ $dependency }» وحذف
+    } التطبيقات والعناصر التالية. ستحتاج إلى إعادة تنصيبها إذا أُضيف المستودع مرة أخرى.
+add = أضف
+adding = يُضيف...
 remove = أزِل
 removing = يُزيل...
 # Uninstall Dialog
-uninstall-app = إلغاء تثبيت { $name }
-uninstall-app-warning = هل انت متأكد انك تريد إلغاء تثبيت { $name }؟
+uninstall-app = ألغِ تنصيب { $name }؟
+uninstall-app-warning = سيؤدي إلغاء تنصيب { $name } إلى حذف بياناته.
 # Nav Pages
 explore = استكشف
 create = إنشاء
@@ -63,7 +63,7 @@ relax = استرخ
 socialize = التواصل الاجتماعي
 utilities = الأدوات المساعدة
 applets = بريمجات
-installed-apps = التطبيقات المثبتة
+installed-apps = التطبيقات المنصبة
 updates = التحديثات
 
 ## Applets page
@@ -85,7 +85,7 @@ games = ألعاب
 music-and-video-apps = تطبيقات الموسيقى والفيديو
 apps-for-learning = برامج للتعلم
 # Details Page
-source-installed = { $source } (مثبت)
+source-installed = { $source } (نُصِّب)
 developer = المطور
 app-developers = مطوري { $app }
 monthly-downloads = تنزيلات Flathub الشهرية
