@@ -11,7 +11,6 @@ Name[pt]=Loja de Aplicativos
 Name[sk]=Obchod COSMIC
 Name[sv]=COSMIC Butik
 Name[es]=Tienda COSMIC
-Name[es]=COSMIC App Store
 Exec=cosmic-store %u
 Terminal=false
 Type=Application
