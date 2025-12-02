@@ -850,12 +850,12 @@ impl App {
                         }
                     };
                     //TODO: handle Terminal=true
-                    let exec = match entry.section("Desktop Entry").attr("Exec") {
-                        Some(some) => some,
-                        None => {
-                            log::warn!("no exec section in {:?}", path);
-                            return None;
-                        }
+                    let Some(exec) = entry
+                        .get("Desktop Entry", "Exec")
+                        .and_then(|attr| attr.first())
+                    else {
+                        log::warn!("no exec section in {:?}", path);
+                        return None;
                     };
                     //TODO: use libcosmic for loading desktop data
                     Some((exec.to_string(), desktop_id))
@@ -3840,8 +3840,11 @@ impl Application for App {
             }
             #[cfg(not(feature = "wayland"))]
             Message::PlaceApplet(id) => {
-                log::error!("cannot place applet {:?}, not compiled with wayland feature", id);
-            },
+                log::error!(
+                    "cannot place applet {:?}, not compiled with wayland feature",
+                    id
+                );
+            }
             #[cfg(feature = "wayland")]
             Message::PlaceApplet(id) => {
                 self.dialog_pages.pop_front();

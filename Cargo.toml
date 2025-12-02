@@ -8,7 +8,7 @@ rust-version = "1.85"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
-freedesktop_entry_parser = "1"
+freedesktop_entry_parser = "2"
 log = "0.4"
 open = "5"
 paste = "1"
@@ -26,8 +26,8 @@ i18n-embed = { version = "0.16", features = [
 ] }
 i18n-embed-fl = "0.10"
 rust-embed = "8"
-icu_collator = "2.0"
-icu_locale = "2.0"
+icu_collator = "2.1"
+icu_locale = "2.1"
 # appstream
 appstream = { git = "https://github.com/jackpot51/appstream.git" }
 flate2 = "1"
@@ -39,7 +39,7 @@ atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "6"
 # flatpak feature
-libflatpak = { version = "0.6", optional = true }
+libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
 logind-zbus = { version = "5", optional = true }
 nix = { version = "0.30", features = ["user"], optional = true }

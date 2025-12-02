@@ -267,44 +267,39 @@ impl Backend for Flatpak {
             return Err(format!("flatpak ref {path:?} missing Flatpak Ref section").into());
         }
 
-        let section = entry.section("Flatpak Ref");
-        let Some(id) = section.attr("Name") else {
-            return Err(format!("flatpak ref {path:?} missing Name attribute").into());
-        };
-        let Some(url) = section.attr("Url") else {
-            return Err(format!("flatpak ref {path:?} missing Url attribute").into());
-        };
+        let get_attr = |key| entry.get("Flatpak Ref", key).and_then(|attr| attr.first());
+
+        let id = get_attr("Name")
+            .ok_or_else(|| format!("flatpak ref {path:?} missing Name attribute"))?;
+        let url =
+            get_attr("Url").ok_or_else(|| format!("flatpak ref {path:?} missing Url attribute"))?;
 
         let mut source_id = url.to_string();
         let mut source_name = url.to_string();
         let inst = self.installation()?;
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            let Some(remote_url) = remote.url() else {
-                continue;
-            };
-            if url == remote_url {
+            if remote.url().is_some_and(|u| u == *url) {
                 // Check if already installed
                 if let Ok(r) = inst.current_installed_app(id, Cancellable::NONE) {
                     return Ok(self.refs_to_packages(vec![r]));
                 }
+                let Some(name) = remote.name() else {
+                    log::warn!("remote {:?} missing name", remote);
+                    continue;
+                };
 
-                source_id = match remote.name() {
-                    Some(name) => self.source_id(&name),
-                    None => {
-                        log::warn!("remote {:?} missing name", remote);
-                        continue;
-                    }
-                };
-                source_name = match remote.title() {
-                    Some(title) => self.source_id(&title),
-                    None => source_id.clone(),
-                };
+                source_id = self.source_id(&name);
+                source_name = remote
+                    .title()
+                    .map(|t| self.source_id(&t))
+                    .unwrap_or(source_id.clone());
+
                 break;
             }
         }
 
         let mut extra = HashMap::new();
-        if let Some(branch) = section.attr("Branch") {
+        if let Some(branch) = get_attr("Branch") {
             extra.insert("branch".to_string(), branch.to_string());
         }
 
@@ -317,14 +312,12 @@ impl Backend for Flatpak {
             info: Arc::new(AppInfo {
                 source_id,
                 source_name,
-                name: section.attr("Title").unwrap_or(id).to_string(),
-                summary: section.attr("Comment").unwrap_or_default().to_string(),
-                description: section.attr("Description").unwrap_or_default().to_string(),
-                urls: if let Some(homepage) = section.attr("Homepage") {
-                    vec![AppUrl::Homepage(homepage.to_string())]
-                } else {
-                    Vec::new()
-                },
+                name: get_attr("Title").unwrap_or(id).to_string(),
+                summary: get_attr("Comment").cloned().unwrap_or_default(),
+                description: get_attr("Description").cloned().unwrap_or_default(),
+                urls: get_attr("Homepage")
+                    .map(|h| vec![AppUrl::Homepage(h.to_string())])
+                    .unwrap_or_default(),
                 package_paths: vec![path.to_string()],
                 ..Default::default()
             }),
