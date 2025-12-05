@@ -920,9 +920,9 @@ impl App {
                 } in infos.iter()
                 {
                     if let Some(weight) = filter_map(id, info, *installed) {
-                        // Skip if best result has lower weight
+                        // Skip if best result has equal or lower weight
                         if let Some(prev_result) = &best_result {
-                            if prev_result.weight < weight {
+                            if prev_result.weight <= weight {
                                 continue;
                             }
                         }
