@@ -1180,67 +1180,43 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            //TODO: improve performance
-                            let stats_weight = |weight: i64| {
-                                //TODO: make sure no overflows
-                                (weight << 56) - (info.monthly_downloads as i64)
-                            };
-                            //TODO: fuzzy match (nucleus-matcher?)
-                            match regex.find(&info.name) {
-                                Some(mat) => {
-                                    if mat.range().start == 0 {
-                                        if mat.range().end == info.name.len() {
-                                            // Name equals search phrase
-                                            Some(stats_weight(0))
-                                        } else {
-                                            // Name starts with search phrase
-                                            Some(stats_weight(1))
-                                        }
-                                    } else {
-                                        // Name contains search phrase
-                                        Some(stats_weight(2))
-                                    }
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        if !matches!(info.kind, AppKind::DesktopApplication) {
+                            return None;
+                        }
+                        //TODO: improve performance
+                        let stats_weight = |weight: i64| -> i64 {
+                            //TODO: make sure no overflows
+                            (weight << 56) - (info.monthly_downloads as i64)
+                        };
+
+                        //TODO: fuzzy match (nucleus-matcher?)
+                        let regex_weight = |string: &str, weight: i64| -> Option<i64> {
+                            let mat = regex.find(string)?;
+                            if mat.range().start == 0 {
+                                if mat.range().end == string.len() {
+                                    // String equals search phrase
+                                    Some(stats_weight(weight + 0))
+                                } else {
+                                    // String starts with search phrase
+                                    Some(stats_weight(weight + 1))
                                 }
-                                None => match regex.find(&info.summary) {
-                                    Some(mat) => {
-                                        if mat.range().start == 0 {
-                                            if mat.range().end == info.summary.len() {
-                                                // Summary equals search phrase
-                                                Some(stats_weight(3))
-                                            } else {
-                                                // Summary starts with search phrase
-                                                Some(stats_weight(4))
-                                            }
-                                        } else {
-                                            // Summary contains search phrase
-                                            Some(stats_weight(5))
-                                        }
-                                    }
-                                    None => match regex.find(&info.description) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == info.summary.len() {
-                                                    // Description equals search phrase
-                                                    Some(stats_weight(6))
-                                                } else {
-                                                    // Description starts with search phrase
-                                                    Some(stats_weight(7))
-                                                }
-                                            } else {
-                                                // Description contains search phrase
-                                                Some(stats_weight(8))
-                                            }
-                                        }
-                                        None => None,
-                                    },
-                                },
+                            } else {
+                                // String contains search phrase
+                                Some(stats_weight(weight + 2))
                             }
-                        });
+                        };
+                        if let Some(weight) = regex_weight(&info.name, 0) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.summary, 3) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.description, 6) {
+                            return Some(weight);
+                        }
+                        None
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
