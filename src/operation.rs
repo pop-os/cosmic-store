@@ -5,7 +5,7 @@ use crate::{AppId, AppInfo};
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum OperationKind {
     Install,
-    Uninstall,
+    Uninstall { purge_data: bool },
     Update,
     RepositoryAdd(Vec<RepositoryAdd>),
     RepositoryRemove(Vec<RepositoryRemove>, bool),
@@ -72,7 +72,7 @@ impl Operation {
         //TODO: translate
         let verb = match &self.kind {
             OperationKind::Install => "Installing",
-            OperationKind::Uninstall => "Uninstalling",
+            OperationKind::Uninstall { .. } => "Uninstalling",
             OperationKind::Update => "Updating",
             OperationKind::RepositoryAdd(adds) => {
                 return format!(
@@ -99,7 +99,7 @@ impl Operation {
         //TODO: translate
         let verb = match &self.kind {
             OperationKind::Install => "Installed",
-            OperationKind::Uninstall => "Uninstalled",
+            OperationKind::Uninstall { .. } => "Uninstalled",
             OperationKind::Update => "Updated",
             OperationKind::RepositoryAdd(adds) => {
                 return format!("Added repositories {:?}", RepositoryAdd::ids(adds));
@@ -118,7 +118,7 @@ impl Operation {
         //TODO: translate
         let verb = match &self.kind {
             OperationKind::Install => "install",
-            OperationKind::Uninstall => "uninstall",
+            OperationKind::Uninstall { .. } => "uninstall",
             OperationKind::Update => "update",
             OperationKind::RepositoryAdd(adds) => {
                 return (
