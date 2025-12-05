@@ -912,7 +912,7 @@ impl App {
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
-                let mut best_result: Option<SearchResult> = None;
+                let mut best_weight: Option<i64> = None;
                 for AppEntry {
                     backend_name,
                     info,
@@ -920,25 +920,31 @@ impl App {
                 } in infos.iter()
                 {
                     if let Some(weight) = filter_map(id, info, *installed) {
-                        // Skip if best result has equal or lower weight
-                        if let Some(prev_result) = &best_result {
-                            if prev_result.weight <= weight {
+                        // Skip if best weight has equal or lower weight
+                        if let Some(prev_weight) = best_weight {
+                            if prev_weight <= weight {
                                 continue;
                             }
                         }
 
-                        //TODO: put all infos into search result?
-                        // Replace best result
-                        best_result = Some(SearchResult {
-                            backend_name,
-                            id: id.clone(),
-                            icon_opt: None,
-                            info: info.clone(),
-                            weight,
-                        });
+                        // Replace best weight
+                        best_weight = Some(weight);
                     }
                 }
-                best_result
+                let weight = best_weight?;
+                // Use first info as it is preferred, even if other ones had a higher weight
+                let AppEntry {
+                    backend_name,
+                    info,
+                    installed,
+                } = infos.first()?;
+                Some(SearchResult {
+                    backend_name,
+                    id: id.clone(),
+                    icon_opt: None,
+                    info: info.clone(),
+                    weight,
+                })
             })
             .collect();
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
