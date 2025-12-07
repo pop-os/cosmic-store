@@ -426,8 +426,9 @@ impl Backend for Flatpak {
                     }
                 }
             }
-            OperationKind::Uninstall => {
+            OperationKind::Uninstall { purge_data } => {
                 //TODO: deduplicate code
+                let mut app_ids_to_purge = Vec::new();
                 for info in op.infos.iter() {
                     for r_str in info.flatpak_refs.iter() {
                         let r = match Ref::parse(r_str) {
@@ -451,10 +452,45 @@ impl Backend for Flatpak {
                             }
                         };
 
-                        log::info!("uninstalling flatpak {}", r_str);
+                        log::info!("uninstalling flatpak {} (purge_data: {})", r_str, purge_data);
                         tx.add_uninstall(r_str)?;
+
+                        // If purge_data is requested, collect app IDs for later deletion
+                        if *purge_data {
+                            if let Some(app_id) = r.name() {
+                                app_ids_to_purge.push(app_id.to_string());
+                            }
+                        }
                     }
                 }
+
+                tx.run(Cancellable::NONE)?;
+
+                // After successful uninstall, delete user data if requested
+                if *purge_data {
+                    for app_id in app_ids_to_purge {
+                        // User data is always stored in ~/.var/app/<app-id> regardless of installation type
+                        if let Ok(home) = std::env::var("HOME") {
+                            let data_path = std::path::PathBuf::from(home)
+                                .join(".var")
+                                .join("app")
+                                .join(&app_id);
+
+                            if data_path.exists() {
+                                log::info!("Purging user data for {}: {:?}", app_id, data_path);
+                                if let Err(err) = std::fs::remove_dir_all(&data_path) {
+                                    log::warn!("Failed to remove user data for {}: {}", app_id, err);
+                                } else {
+                                    log::info!("Successfully removed user data for {}", app_id);
+                                }
+                            } else {
+                                log::info!("No user data found for {} at {:?}", app_id, data_path);
+                            }
+                        }
+                    }
+                }
+
+                return Ok(());
             }
             OperationKind::Update => {
                 //TODO: deduplicate code

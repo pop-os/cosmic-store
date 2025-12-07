@@ -12,7 +12,7 @@ use cosmic::{
         core::SmolStr,
         event::{self, Event},
         futures::{self, SinkExt},
-        keyboard::{Event as KeyEvent, Key, Modifiers},
+        keyboard::{Event as KeyEvent, Key, Modifiers, key},
         stream,
         widget::scrollable,
         window::{self, Event as WindowEvent},
@@ -312,6 +312,7 @@ pub enum Message {
     SelectedAddonsViewMore(bool),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
+    ToggleUninstallPurgeData(bool),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
@@ -824,6 +825,7 @@ pub struct App {
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
+    uninstall_purge_data: bool,
 }
 
 impl App {
@@ -3041,6 +3043,7 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
+            uninstall_purge_data: false,
         };
 
         if let Some(subcommand) = flags.subcommand_opt {
@@ -3205,6 +3208,7 @@ impl Application for App {
             }
             Message::DialogCancel => {
                 self.dialog_pages.pop_front();
+                self.uninstall_purge_data = false;
             }
             Message::DialogConfirm => match self.dialog_pages.pop_front() {
                 Some(DialogPage::RepositoryRemove(backend_name, repo_rm)) => {
@@ -3216,8 +3220,10 @@ impl Application for App {
                     });
                 }
                 Some(DialogPage::Uninstall(backend_name, id, info)) => {
+                    let purge_data = self.uninstall_purge_data;
+                    self.uninstall_purge_data = false;
                     return self.update(Message::Operation(
-                        OperationKind::Uninstall,
+                        OperationKind::Uninstall { purge_data },
                         backend_name,
                         id,
                         info,
@@ -3260,7 +3266,7 @@ impl Application for App {
                                 );
                                 if installed != selected.contains(&i) {
                                     let kind = if installed {
-                                        OperationKind::Uninstall
+                                        OperationKind::Uninstall { purge_data: false }
                                     } else {
                                         OperationKind::Install
                                     };
@@ -3325,6 +3331,17 @@ impl Application for App {
                 self.installed_results = Some(installed_results);
             }
             Message::Key(modifiers, key, text) => {
+                // Handle ESC key to close dialogs
+                if !self.dialog_pages.is_empty()
+                    && matches!(key, Key::Named(key::Named::Escape))
+                    && !modifiers.logo()
+                    && !modifiers.control()
+                    && !modifiers.alt()
+                    && !modifiers.shift()
+                {
+                    return self.update(Message::DialogCancel);
+                }
+
                 for (key_bind, action) in self.key_binds.iter() {
                     if key_bind.matches(modifiers, &key) {
                         return self.update(action.message());
@@ -3733,6 +3750,9 @@ impl Application for App {
                     selected.screenshot_shown = i;
                 }
             }
+            Message::ToggleUninstallPurgeData(value) => {
+                self.uninstall_purge_data = value;
+            }
             Message::SelectedSource(i) => {
                 //TODO: show warnings if anything is not found?
                 let mut next_ids = None;
@@ -4041,16 +4061,36 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
-            DialogPage::Uninstall(_backend_name, _id, info) => widget::dialog()
-                .title(fl!("uninstall-app", name = info.name.as_str()))
-                .body(fl!("uninstall-app-warning", name = info.name.as_str()))
-                .icon(widget::icon::from_name(Self::APP_ID).size(64))
-                .primary_action(
-                    widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
-                )
-                .secondary_action(
-                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                ),
+            DialogPage::Uninstall(backend_name, _id, info) => {
+                let is_flatpak = backend_name.starts_with("flatpak");
+                let mut dialog = widget::dialog()
+                    .title(fl!("uninstall-app", name = info.name.as_str()))
+                    .body(if is_flatpak {
+                        fl!("uninstall-app-flatpak-warning", name = info.name.as_str())
+                    } else {
+                        fl!("uninstall-app-warning", name = info.name.as_str())
+                    })
+                    .icon(widget::icon::from_name(Self::APP_ID).size(64));
+
+                // Only show data deletion option for Flatpak apps
+                if is_flatpak {
+                    dialog = dialog.control(
+                        widget::checkbox(
+                            fl!("delete-app-data"),
+                            self.uninstall_purge_data,
+                        )
+                        .on_toggle(Message::ToggleUninstallPurgeData)
+                    );
+                }
+
+                dialog
+                    .primary_action(
+                        widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
+                    )
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
             DialogPage::Place(id) => widget::dialog()
                 .title(fl!("place-applet"))
                 .body(fl!("place-applet-desc"))
