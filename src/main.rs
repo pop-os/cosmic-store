@@ -914,7 +914,7 @@ impl App {
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
-                let mut best_result: Option<SearchResult> = None;
+                let mut best_weight: Option<i64> = None;
                 for AppEntry {
                     backend_name,
                     info,
@@ -922,25 +922,31 @@ impl App {
                 } in infos.iter()
                 {
                     if let Some(weight) = filter_map(id, info, *installed) {
-                        // Skip if best result has lower weight
-                        if let Some(prev_result) = &best_result {
-                            if prev_result.weight < weight {
+                        // Skip if best weight has equal or lower weight
+                        if let Some(prev_weight) = best_weight {
+                            if prev_weight <= weight {
                                 continue;
                             }
                         }
 
-                        //TODO: put all infos into search result?
-                        // Replace best result
-                        best_result = Some(SearchResult {
-                            backend_name,
-                            id: id.clone(),
-                            icon_opt: None,
-                            info: info.clone(),
-                            weight,
-                        });
+                        // Replace best weight
+                        best_weight = Some(weight);
                     }
                 }
-                best_result
+                let weight = best_weight?;
+                // Use first info as it is preferred, even if other ones had a higher weight
+                let AppEntry {
+                    backend_name,
+                    info,
+                    installed,
+                } = infos.first()?;
+                Some(SearchResult {
+                    backend_name,
+                    id: id.clone(),
+                    icon_opt: None,
+                    info: info.clone(),
+                    weight,
+                })
             })
             .collect();
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
@@ -1182,67 +1188,43 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            //TODO: improve performance
-                            let stats_weight = |weight: i64| {
-                                //TODO: make sure no overflows
-                                (weight << 56) - (info.monthly_downloads as i64)
-                            };
-                            //TODO: fuzzy match (nucleus-matcher?)
-                            match regex.find(&info.name) {
-                                Some(mat) => {
-                                    if mat.range().start == 0 {
-                                        if mat.range().end == info.name.len() {
-                                            // Name equals search phrase
-                                            Some(stats_weight(0))
-                                        } else {
-                                            // Name starts with search phrase
-                                            Some(stats_weight(1))
-                                        }
-                                    } else {
-                                        // Name contains search phrase
-                                        Some(stats_weight(2))
-                                    }
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        if !matches!(info.kind, AppKind::DesktopApplication) {
+                            return None;
+                        }
+                        //TODO: improve performance
+                        let stats_weight = |weight: i64| -> i64 {
+                            //TODO: make sure no overflows
+                            (weight << 56) - (info.monthly_downloads as i64)
+                        };
+
+                        //TODO: fuzzy match (nucleus-matcher?)
+                        let regex_weight = |string: &str, weight: i64| -> Option<i64> {
+                            let mat = regex.find(string)?;
+                            if mat.range().start == 0 {
+                                if mat.range().end == string.len() {
+                                    // String equals search phrase
+                                    Some(stats_weight(weight + 0))
+                                } else {
+                                    // String starts with search phrase
+                                    Some(stats_weight(weight + 1))
                                 }
-                                None => match regex.find(&info.summary) {
-                                    Some(mat) => {
-                                        if mat.range().start == 0 {
-                                            if mat.range().end == info.summary.len() {
-                                                // Summary equals search phrase
-                                                Some(stats_weight(3))
-                                            } else {
-                                                // Summary starts with search phrase
-                                                Some(stats_weight(4))
-                                            }
-                                        } else {
-                                            // Summary contains search phrase
-                                            Some(stats_weight(5))
-                                        }
-                                    }
-                                    None => match regex.find(&info.description) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == info.summary.len() {
-                                                    // Description equals search phrase
-                                                    Some(stats_weight(6))
-                                                } else {
-                                                    // Description starts with search phrase
-                                                    Some(stats_weight(7))
-                                                }
-                                            } else {
-                                                // Description contains search phrase
-                                                Some(stats_weight(8))
-                                            }
-                                        }
-                                        None => None,
-                                    },
-                                },
+                            } else {
+                                // String contains search phrase
+                                Some(stats_weight(weight + 2))
                             }
-                        });
+                        };
+                        if let Some(weight) = regex_weight(&info.name, 0) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.summary, 3) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.description, 6) {
+                            return Some(weight);
+                        }
+                        None
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1571,12 +1553,12 @@ impl App {
 
         let entry_sort = |a: &AppEntry, b: &AppEntry, id: &AppId| {
             // Sort with installed first
-            match a.installed.cmp(&b.installed) {
+            match b.installed.cmp(&a.installed) {
                 cmp::Ordering::Equal => {
                     // Sort by highest priority first to lowest priority
                     let a_priority = priority(a.backend_name, &a.info.source_id, id);
                     let b_priority = priority(b.backend_name, &b.info.source_id, id);
-                    match a_priority.cmp(&b_priority) {
+                    match b_priority.cmp(&a_priority) {
                         cmp::Ordering::Equal => {
                             match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
                                 cmp::Ordering::Equal => {
