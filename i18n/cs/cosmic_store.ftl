@@ -125,3 +125,5 @@ light = Světlé
 addons = Doplňky
 view-more = Zobrazit více
 version = Verze { $version }
+delete-app-data = Trvale smazat data aplikace
+uninstall-app-flatpak-warning = Odinstalace { $name } zachová její dokumenty a data.
