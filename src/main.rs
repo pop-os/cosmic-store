@@ -4057,17 +4057,15 @@ impl Application for App {
                 // Only show data deletion option for Flatpak apps
                 if is_flatpak {
                     dialog = dialog.control(
-                        widget::checkbox(
-                            fl!("delete-app-data"),
-                            self.uninstall_purge_data,
-                        )
-                        .on_toggle(Message::ToggleUninstallPurgeData)
+                        widget::checkbox(fl!("delete-app-data"), self.uninstall_purge_data)
+                            .on_toggle(Message::ToggleUninstallPurgeData),
                     );
                 }
 
                 dialog
                     .primary_action(
-                        widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
+                        widget::button::destructive(fl!("uninstall"))
+                            .on_press(Message::DialogConfirm),
                     )
                     .secondary_action(
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),

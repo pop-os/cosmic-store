@@ -417,7 +417,11 @@ impl Backend for Packagekit {
                 }
             }
             OperationKind::Uninstall { purge_data } => {
-                log::info!("uninstalling packages {:?} (purge_data: {})", package_ids, purge_data);
+                log::info!(
+                    "uninstalling packages {:?} (purge_data: {})",
+                    package_ids,
+                    purge_data
+                );
                 if *purge_data {
                     log::warn!(
                         "PackageKit backend does not fully support purging configuration files. \

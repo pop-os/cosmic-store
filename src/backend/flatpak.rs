@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::Write,
-    fs,
+    fs, ptr,
     rc::Rc,
     sync::Arc,
 };
@@ -452,7 +452,11 @@ impl Backend for Flatpak {
                             }
                         };
 
-                        log::info!("uninstalling flatpak {} (purge_data: {})", r_str, purge_data);
+                        log::info!(
+                            "uninstalling flatpak {} (purge_data: {})",
+                            r_str,
+                            purge_data
+                        );
                         tx.add_uninstall(r_str)?;
 
                         // If purge_data is requested, collect app IDs for later deletion
@@ -479,7 +483,11 @@ impl Backend for Flatpak {
                             if data_path.exists() {
                                 log::info!("Purging user data for {}: {:?}", app_id, data_path);
                                 if let Err(err) = std::fs::remove_dir_all(&data_path) {
-                                    log::warn!("Failed to remove user data for {}: {}", app_id, err);
+                                    log::warn!(
+                                        "Failed to remove user data for {}: {}",
+                                        app_id,
+                                        err
+                                    );
                                 } else {
                                     log::info!("Successfully removed user data for {}", app_id);
                                 }
@@ -503,22 +511,63 @@ impl Backend for Flatpak {
                                 continue;
                             }
                         };
+                        let id = r.name().unwrap_or_default();
                         match inst.installed_ref(
                             r.kind(),
-                            &r.name().unwrap_or_default(),
+                            &id,
                             r.arch().as_deref(),
                             r.branch().as_deref(),
                             Cancellable::NONE,
                         ) {
-                            Ok(_) => {}
+                            Ok(inst_r) => {
+                                if let Some(eol_rebase) = inst_r.eol_rebase() {
+                                    log::info!("eol rebase: {} -> {}", r_str, eol_rebase);
+                                    let origin = inst_r.origin().unwrap_or_default();
+                                    unsafe {
+                                        // Subpaths is NULL for installing complete ref
+                                        let subpaths = ptr::null_mut();
+                                        let mut previous_ids = vec![id.as_ptr()];
+                                        let mut error: *mut libflatpak::glib::ffi::GError =
+                                            ptr::null_mut();
+                                        //TODO: wrap in libflatpak crate
+                                        if libflatpak::ffi::flatpak_transaction_add_rebase(
+                                            tx.as_ptr(),
+                                            origin.as_ptr(),
+                                            eol_rebase.as_ptr(),
+                                            subpaths,
+                                            previous_ids.as_mut_ptr(),
+                                            &mut error,
+                                        ) == 0
+                                        {
+                                            let error_message = if error.is_null() {
+                                                format!("unspecified error")
+                                            } else {
+                                                libflatpak::glib::Error::from_glib_ptr_borrow(
+                                                    &error,
+                                                )
+                                                .message()
+                                                .to_string()
+                                            };
+                                            //TODO: get message from error
+                                            return Err(format!(
+                                                "failed to rebase {} to {}: {}",
+                                                r_str, eol_rebase, error_message
+                                            )
+                                            .into());
+                                        }
+                                    }
+
+                                    log::info!("uninstalling {} after rebase", r_str);
+                                    tx.add_uninstall(r_str)?;
+                                } else {
+                                    log::info!("updating flatpak {}", r_str);
+                                    tx.add_update(r_str, &[], None)?;
+                                }
+                            }
                             Err(err) => {
                                 log::info!("failed to find {} installed locally: {}", r_str, err);
-                                continue;
                             }
-                        };
-
-                        log::info!("updating flatpak {}", r_str);
-                        tx.add_update(r_str, &[], None)?;
+                        }
                     }
                 }
             }
