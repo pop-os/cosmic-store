@@ -15,8 +15,8 @@ uninstall = ألغِ التنصيب
 update = حدِّث
 update-all = حدِّث الكل
 place-on-desktop = ضع على سطح المكتب
-place-applet = ضع البرنامج المصغر
-place-applet-desc = اختر مكان إضافة التطبيق المصغر قبل تحديد موقعه بدقة.
+place-applet = ضع بريمج
+place-applet-desc = اختر مكان إضافة البريمج قبل تحديد موقعه بدقة.
 panel = اللوحة
 dock = المرسى
 place-and-refine = ضع وحسِّن
@@ -33,13 +33,13 @@ codec-error = حدثت أخطاء أثناء تنصيب الحزمة.
 codec-installed = نُصِّبت الحزم.
 # Progress footer
 details = التفاصيل
-dismiss = أهمل الرسالة
+dismiss = أهمِل الرسالة
 operations-running = { $running } عملية قيد التشغيل ({ $percent }٪)...
 operations-running-finished = { $running } عملية قيد التشغيل ({ $percent }٪)، { $finished } انتهت...
 # Repository add error dialog
 repository-add-error-title = ”فشل في إضافة المستودع“
 # Repository remove dialog
-repository-remove-title = إزالة المستودع ”{ $name }“؟
+repository-remove-title = إزالة مستودع «{ $name }»؟
 repository-remove-body =
     ستؤدي إزالة هذا المستودع إلى { $dependency ->
         [none] حذف
@@ -54,13 +54,13 @@ uninstall-app = ألغِ تنصيب { $name }؟
 uninstall-app-warning = سيؤدي إلغاء تنصيب { $name } إلى حذف بياناته.
 # Nav Pages
 explore = استكشف
-create = إنشاء
+create = أنشئ
 work = اعمل
 develop = تطوير
 learn = تعلم
 game = لعبة
-relax = استرخ
-socialize = التواصل الاجتماعي
+relax = استرخِ
+socialize = اجتمِع
 utilities = الأدوات المساعدة
 applets = بريمجات
 installed-apps = التطبيقات المنصبة
@@ -68,8 +68,8 @@ updates = التحديثات
 
 ## Applets page
 
-enable-flathub-cosmic = يرجى تمكين Flathub و COSMIC Flatpak لرؤية البرامج المصغرة المتاحة.
-manage-repositories = إدارة المستودعات
+enable-flathub-cosmic = يرجى تفعيل Flathub و COSMIC Flatpak لرؤية البريمجات المتاحة.
+manage-repositories = أدر المستودعات
 # Explore Pages
 editors-choice = اختيار المحرِر
 popular-apps = التطبيقات الشائعة
@@ -77,7 +77,7 @@ made-for-cosmic = صنع من أجل COSMIC
 new-apps = التطبيقات الجديدة
 recently-updated = المحدثة حديثًا
 development-tools = أدوات التطوير
-scientific-tools = أدوات علمية
+scientific-tools = أدوات عِلمية
 productivity-apps = تطبيقات إنتاجية
 graphics-and-photography-tools = أدوات رسوميات وتصوير رقمي
 social-networking-apps = تطبيقات التواصل الاجتماعي
@@ -86,7 +86,7 @@ music-and-video-apps = تطبيقات الموسيقى والفيديو
 apps-for-learning = برامج للتعلم
 # Details Page
 source-installed = { $source } (نُصِّب)
-developer = المطور
+developer = المطوِّر
 app-developers = مطوري { $app }
 monthly-downloads = تنزيلات Flathub الشهرية
 licenses = التراخيص
@@ -94,7 +94,7 @@ proprietary = محتكرة
 
 ## App URLs
 
-bug-tracker = متتبع الأخطاء
+bug-tracker = متتبع العلل
 contact = تواصل
 donation = تبرع
 faq = الأسئلة الشائعة
@@ -107,12 +107,12 @@ translate = ترجم
 
 ## Operations
 
-cancelled = ملغى
+cancelled = أُلغِيَ
 operations = العمليات
-no-operations = لا توجد عمليات في السجل.
+no-operations = لا توجد عمليات في التأريخ.
 pending = قيد الانتظار
 failed = فشل
-complete = انتهى بنجاح
+complete = اكتمل
 
 ## Settings
 
@@ -125,21 +125,23 @@ no-description = لا يوجد وصف متاح.
 
 ## Repositories
 
-recommended-flatpak-sources = مصادر Flatpak الموصى بها
-custom-flatpak-sources = مصادر Flatpak مخصصة
-import-flatpakrepo = استيراد ملف .flatpakrepo لإضافة مصدر مخصص
-no-custom-flatpak-sources = لا توجد مصادر Flatpak مخصصة
-import = استيراد
+recommended-flatpak-sources = مصادر فلاتباك الموصى بها
+custom-flatpak-sources = مصادر فلاتباك مخصّصة
+import-flatpakrepo = استورد ملف .flatpakrepo لإضافة مصدر مخصّص
+no-custom-flatpak-sources = لا توجد مصادر فلاتباك مخصّصة
+import = استورد
 no-flatpak = لا يوجد دعم لـ flatpak
 software-repositories = مستودعات البرامج
 
 ### Appearance
 
 appearance = المظهر
-theme = الثيم
-match-desktop = مطابقة مع سطح المكتب
+theme = النسق
+match-desktop = طابق سطح المكتب
 dark = داكن
 light = فاتح
 addons = الإضافات
-view-more = عرض المزيد
+view-more = اعرض المزيد
 delete-app-data = احذف بيانات التطبيق نهائيًا
+uninstall-app-flatpak-warning = إلغاء تنصيب { $name } سيحتفظ بمستنداته وبياناته.
+version = الإصدار { $version }

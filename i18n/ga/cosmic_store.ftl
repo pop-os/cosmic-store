@@ -2,17 +2,17 @@ app-name = Stóras COSMIC
 back = Ar ais
 cancel = Cealaigh
 check-for-updates = Seiceáil do nuashonruithe
-checking-for-updates = Nuashonruithe á seiceáil...
+checking-for-updates = Ag seiceáil le haghaidh nuashonruithe...
 install = Suiteáil
-no-installed-applications = Gan aon fheidhmchláir suiteáilte.
+no-installed-applications = Gan aon aipeanna suiteáilte.
 no-updates = Tá na haipeanna uile suiteáilte cothrom le dáta.
 no-results = Gan torthaí le haghaidh "{ $search }".
 notification-in-progress = Tá suiteálacha agus nuashonruithe ar siúl.
 open = Oscail
-see-all = Féach ar fad
+see-all = Féach ar gach rud
 uninstall = Díshuiteáil
 update = Nuashonraigh
-update-all = Nuashonraigh go léir
+update-all = Nuashonraigh gach rud
 # Progress footer
 details = Sonraí
 dismiss = Diúltaigh an teachtaireacht
@@ -20,47 +20,47 @@ operations-running = { $running } oibríochtaí ag rith ({ $percent }%)...
 operations-running-finished = { $running } oibríocht ar siúl ({ $percent }%), { $finished } críochnaithe...
 # Uninstall Dialog
 uninstall-app = Díshuiteáil { $name }
-uninstall-app-warning = An bhfuil tú cinnte gur mhaith leat a dhíshuiteáil { $name }?
+uninstall-app-warning = Scriosfar a chuid sonraí má dhíshuiteálann tú { $name }.
 # Nav Pages
 explore = Fiosraigh
 create = Cruthaigh
 work = Oibrigh
 develop = Forbair
 learn = Foghlaim
-game = Imir
-relax = Lig do scíth
+game = Cluiche
+relax = Scíth a ligean
 socialize = Sóisialú
 utilities = Fóntais
 installed-apps = Aipeanna suiteáilte
 updates = Nuashonruithe
 # Explore Pages
-editors-choice = Rogha an Eagarthóra
-popular-apps = Aipeanna Coitianta
-made-for-cosmic = Déanta le haghaidh COSMIC
-new-apps = Aipeanna Nua
-recently-updated = Nuashonraithe Le Déanaí
-development-tools = Uirlisí Forbartha
-scientific-tools = Uirlisí Eolaíochta
-productivity-apps = Aipeanna Táirgiúlachta
-graphics-and-photography-tools = Uirlisí Grafaice & Grianghrafadóireachta
-social-networking-apps = Aipeanna Líonrú Sóisialta
+editors-choice = Rogha an eagarthóra
+popular-apps = Aipeanna coitianta
+made-for-cosmic = Déanta do COSMIC
+new-apps = Aipeanna nua
+recently-updated = Nuashonraithe le déanaí
+development-tools = Uirlisí forbartha
+scientific-tools = Uirlisí eolaíochta
+productivity-apps = Aipeanna táirgiúlachta
+graphics-and-photography-tools = Uirlisí grafaice & grianghrafadóireachta
+social-networking-apps = Aipeanna líonrú sóisialta
 games = Cluichí
-music-and-video-apps = Aipeanna Ceoil & Físeáin
-apps-for-learning = Aipeanna le haghaidh Foghlama
+music-and-video-apps = Aipeanna ceoil & físeáin
+apps-for-learning = Aipeanna Foghlama
 # Details Page
 source-installed = { $source } (suiteáilte)
 developer = Forbróir
 app-developers = { $app } Forbróirí
-monthly-downloads = Íoslódálacha Míosúla Flathub
+monthly-downloads = Íoslódálacha míosúla Flathub
 licenses = Ceadúnais
 proprietary = Dílseánaigh
 
 ## App URLs
 
-bug-tracker = Lorgaire fabhtanna
+bug-tracker = Lorgaire fabht
 contact = Teagmháil
 donation = Síntiús
-faq = CCanna
+faq = Ceisteanna Coitianta
 help = Cabhair
 homepage = Leathanach baile
 translate = Aistrigh
@@ -117,19 +117,22 @@ repository-remove-body =
         [none] scrios
        *[other] bainfear "{ $dependency }" agus scriosfar
     } na feidhmchláir agus na míreanna seo a leanas. Beidh gá iad a athshuiteáil má chuirtear an stór leis arís.
-add = Cuir
+add = Cuir leis
 adding = Ag cur leis...
 remove = Bain
 removing = Ag baint...
 applets = Feidhmchláiríní
 enable-flathub-cosmic = Cumasaigh Flathub agus COSMIC Flatpak le go bhfeicfidh tú na feidhmchláiríní atá ar fáil.
 manage-repositories = Bainistigh stórtha
-recommended-flatpak-sources = Foinsí Molta Flatpak
-custom-flatpak-sources = Foinsí Flatpak Saincheaptha
+recommended-flatpak-sources = Foinsí Flatpak molta
+custom-flatpak-sources = Foinsí Flatpak saincheaptha
 import-flatpakrepo = Iompórtáil comhad .flatpakrepo chun foinse saincheaptha a chur leis
 no-custom-flatpak-sources = Gan aon fhoinsí saincheaptha Flatpak
 import = Iompórtáil
 no-flatpak = Gan tacaíocht flatpak
-software-repositories = Stórtha Bogearraí
+software-repositories = Stórtha bogearraí
 addons = Breiseáin
 view-more = Féach níos mó
+uninstall-app-flatpak-warning = Coinneofar a chuid cáipéisí agus sonraí má dhíshuiteálann tú { $name }.
+delete-app-data = Scrios sonraí aip go buan
+version = Leagan { $version }
