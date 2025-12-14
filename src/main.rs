@@ -183,6 +183,7 @@ pub type Apps = HashMap<AppId, Vec<AppEntry>>;
 
 enum SourceKind {
     Recommended { data: &'static [u8], enabled: bool },
+    NotRecommended { data: &'static [u8], enabled: bool },
     Custom,
 }
 
@@ -204,13 +205,20 @@ impl Source {
                 id: self.id.clone(),
                 data: data.to_vec(),
             }),
+            SourceKind::NotRecommended {
+                data,
+                enabled: false,
+            } => Some(RepositoryAdd {
+                id: self.id.clone(),
+                data: data.to_vec(),
+            }),
             _ => None,
         }
     }
 
     fn remove(&self) -> Option<RepositoryRemove> {
         match self.kind {
-            SourceKind::Recommended { enabled: true, .. } | SourceKind::Custom => {
+            SourceKind::Recommended { enabled: true, .. } | SourceKind::NotRecommended { enabled: true, .. } | SourceKind::Custom => {
                 Some(RepositoryRemove {
                     id: self.id.clone(),
                     name: self.name.clone(),
@@ -2055,6 +2063,16 @@ impl App {
             });
             sources.push(Source {
                 backend_name: "flatpak-user",
+                id: "flathub-beta".to_string(),
+                name: "Flathub Beta".to_string(),
+                kind: SourceKind::NotRecommended {
+                    data: include_bytes!("../res/flathub-beta.flatpakrepo"),
+                    enabled: false,
+                },
+                requires: Vec::new(),
+            });
+            sources.push(Source {
+                backend_name: "flatpak-user",
                 id: "cosmic".to_string(),
                 name: "COSMIC Flatpak".to_string(),
                 kind: SourceKind::Recommended {
@@ -2074,6 +2092,9 @@ impl App {
                     if *backend_name == source.backend_name && cache.source_id == source.id {
                         match &mut source.kind {
                             SourceKind::Recommended { enabled, .. } => {
+                                *enabled = true;
+                            }
+                            SourceKind::NotRecommended { enabled, .. } => {
                                 *enabled = true;
                             }
                             SourceKind::Custom => {}
@@ -2104,6 +2125,7 @@ impl App {
 
         let sources = self.sources();
         let mut recommended = widget::settings::section().title(fl!("recommended-flatpak-sources"));
+        let mut not_recommended = widget::settings::section().title(fl!("not-recommended-flatpak-sources"));
         let mut custom = widget::settings::section().header(widget::column::with_children(vec![
             widget::text::heading(fl!("custom-flatpak-sources")).into(),
             widget::text::body(fl!("import-flatpakrepo")).into(),
@@ -2178,6 +2200,9 @@ impl App {
                 SourceKind::Recommended { .. } => {
                     recommended = recommended.add(element);
                 }
+                SourceKind::NotRecommended { .. } => {
+                    not_recommended = not_recommended.add(element);
+                }
                 SourceKind::Custom => {
                     has_custom_sources = true;
                     custom = custom.add(element);
@@ -2204,7 +2229,7 @@ impl App {
         ])
         .spacing(theme::spacing().space_xxs);
 
-        widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
+        widget::settings::view_column(vec![recommended.into(), not_recommended.into(), custom.into()]).into()
     }
 
     fn view_responsive(&self, size: Size) -> Element<'_, Message> {

@@ -131,6 +131,7 @@ no-description = No description available.
 
 ## Repositories
 recommended-flatpak-sources = Recommended Flatpak sources
+not-recommended-flatpak-sources = Not recommended Flatpak sources
 custom-flatpak-sources = Custom Flatpak sources
 import-flatpakrepo = Import .flatpakrepo file to add a custom source
 no-custom-flatpak-sources = No custom Flatpak sources
