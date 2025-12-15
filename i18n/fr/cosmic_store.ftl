@@ -134,3 +134,5 @@ addons = Plugins
 recommended-flatpak-sources = Sources Flatpak recommandées
 custom-flatpak-sources = Sources Flatpak personnalisées
 software-repositories = Dépôts logiciels
+delete-app-data = Supprimer définitivement les données de l'appli
+uninstall-app-flatpak-warning = Désinstaller { $name } conservera ses documents et ses données.
