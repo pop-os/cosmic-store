@@ -54,7 +54,7 @@ uninstall-app = Desinstalar { $name }?
 uninstall-app-warning = A desinstalação de { $name } apagará todos os dados do aplicativo.
 # Nav Pages
 explore = Explorar
-create = Criar
+create = Criação
 work = Trabalho
 develop = Desenvolvimento
 learn = Educação
