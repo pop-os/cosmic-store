@@ -127,7 +127,7 @@ no-description = Nincs leírás.
 
 recommended-flatpak-sources = Ajánlott Flatpak-források
 custom-flatpak-sources = Egyéni Flatpak-források
-import-flatpakrepo = { "." }flatpakrepo fájl importálása egyéni forrás hozzáadásához
+import-flatpakrepo = Egyéni forrás hozzáadásához importálj egy .flatpakrepo fájlt
 import = Importálás
 no-flatpak = Nincs Flatpak-támogatás
 software-repositories = Szoftvertárolók
