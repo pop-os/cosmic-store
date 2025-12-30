@@ -62,8 +62,24 @@ impl Flatpak {
                 }
             };
 
-            //TODO: also update if out of date?
-            if !appstream_dir.is_dir() {
+            // Update appstream if not found
+            let mut update_appstream = !appstream_dir.is_dir();
+            if !update_appstream {
+                if let Some(age) = remote
+                    .appstream_timestamp(None)
+                    .and_then(|x| x.path())
+                    .and_then(|x| fs::metadata(x).ok())
+                    .and_then(|x| x.modified().ok())
+                    .and_then(|x| x.elapsed().ok())
+                {
+                    if age.as_secs() > 3600 {
+                        // Update appstream if more than one hour old
+                        update_appstream = true;
+                    }
+                }
+            }
+
+            if update_appstream {
                 log::info!("updating appstream data for remote {:?}", remote);
                 match inst.update_appstream_sync(&source_id, None, Cancellable::NONE) {
                     Ok(()) => {}
