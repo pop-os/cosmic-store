@@ -207,6 +207,7 @@ pub struct AppInfo {
     pub screenshots: Vec<AppScreenshot>,
     pub urls: Vec<AppUrl>,
     pub monthly_downloads: u64,
+    pub verified: bool,
 }
 
 impl AppInfo {
@@ -217,6 +218,7 @@ impl AppInfo {
         component: Component,
         locale: &str,
         monthly_downloads: u64,
+        verified: bool,
     ) -> Self {
         let name = get_translatable(&component.name, locale);
         let summary = component
@@ -391,6 +393,7 @@ impl AppInfo {
             description,
             license_opt: component.project_license.map(|x| x.to_string()),
             pkgnames: component.pkgname.map_or(Vec::new(), |x| vec![x]),
+            package_paths: Vec::new(),
             categories,
             desktop_ids,
             flatpak_refs,
@@ -400,7 +403,7 @@ impl AppInfo {
             screenshots,
             urls,
             monthly_downloads,
-            ..Default::default()
+            verified,
         }
     }
 
