@@ -456,6 +456,7 @@ impl AppstreamCache {
                     addon,
                     &self.locale,
                     stats::monthly_downloads(&id).unwrap_or(0),
+                    false,
                 ));
                 if let Some(_old) = self.infos.insert(id.clone(), addon_info) {
                     //TODO: merge based on priority
@@ -618,6 +619,7 @@ impl AppstreamCache {
                                         component,
                                         &self.locale,
                                         monthly_downloads,
+                                        false,
                                     )),
                                 ));
                             }
@@ -1051,6 +1053,7 @@ impl AppstreamCache {
                                 component,
                                 &self.locale,
                                 monthly_downloads,
+                                false,
                             )),
                         ));
                     }

@@ -1,6 +1,9 @@
 app-name = COSMIC Store
 back = Back
 cancel = Cancel
+sort-relevance = Relevance
+sort-popular = Most Popular
+sort-recent = Recently Updated
 check-for-updates = Check for updates
 checking-for-updates = Checking for updates...
 close = Close
@@ -76,9 +79,11 @@ updates = Updates
 ## Applets page
 enable-flathub-cosmic = Please enable Flathub and COSMIC Flatpak to see available applets.
 manage-repositories = Manage repositories
+editors-choice = Editor's Choice
 
 # Explore Pages
 editors-choice = Editor's choice
+verified = Verified
 popular-apps = Popular apps
 made-for-cosmic = Made for COSMIC
 new-apps = New apps

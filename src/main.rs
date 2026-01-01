@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use clap::Parser;
+
+/// Format download count for display
+fn format_download_count(count: u64) -> String {
+    if count >= 1_000_000 {
+        format!("{:.1}M", count as f64 / 1_000_000.0)
+    } else if count >= 1_000 {
+        format!("{:.1}K", count as f64 / 1_000.0)
+    } else {
+        count.to_string()
+    }
+}
 use cosmic::{
     Application, ApplicationExt, Element, action,
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
@@ -165,6 +176,13 @@ pub enum Action {
     SearchActivate,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SearchSortMode {
+    Relevance,
+    MostDownloads,
+    RecentlyUpdated,
+}
+
 impl Action {
     pub fn message(&self) -> Message {
         match self {
@@ -296,6 +314,7 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>, bool),
+    SearchSortMode(SearchSortMode),
     SearchSubmit(String),
     Select(
         &'static str,
@@ -689,6 +708,11 @@ impl SearchResult {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
+        let is_editors_choice = EDITORS_CHOICE
+            .iter()
+            .any(|choice_id| choice_id == &self.id.normalized());
+        let is_verified = self.info.verified;
+        
         widget::container(
             widget::row::with_children(vec![
                 match &self.icon_opt {
@@ -700,12 +724,41 @@ impl SearchResult {
                     }
                 },
                 widget::column::with_children(vec![
-                    widget::text::body(&self.info.name)
-                        .height(Length::Fixed(20.0))
+                    widget::row::with_children(vec![
+                        widget::column::with_children(vec![
+                            widget::text::body(&self.info.name)
+                                .height(Length::Fixed(20.0))
+                                .into(),
+                            widget::text::caption(&self.info.summary)
+                                .height(Length::Fixed(28.0))
+                                .into(),
+                        ])
                         .into(),
-                    widget::text::caption(&self.info.summary)
-                        .height(Length::Fixed(28.0))
+                        widget::column::with_children(vec![
+                            if self.info.monthly_downloads > 0 {
+                                widget::text::caption(fl!(
+                                    "monthly-downloads",
+                                    count = format_download_count(self.info.monthly_downloads)
+                                ))
+                                .height(Length::Fixed(16.0))
+                                .into()
+                            } else {
+                                widget::Space::with_height(Length::Fixed(16.0)).into()
+                            },
+                            if is_editors_choice {
+                                widget::icon::icon(icon_cache_handle("starred-symbolic", 16))
+                                    .size(16)
+                                    .into()
+                            } else if is_verified {
+                                widget::icon::icon(icon_cache_handle("checkmark-symbolic", 16))
+                                    .size(16)
+                                    .into()
+                            } else {
+                                widget::Space::with_width(Length::Fixed(16.0)).into()
+                            },
+                        ])
                         .into(),
+                    ])
                 ])
                 .into(),
             ])
@@ -714,7 +767,7 @@ impl SearchResult {
         )
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .height(Length::Fixed(64.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .class(theme::Container::Card)
         .into()
@@ -810,6 +863,7 @@ pub struct App {
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
+    search_sort_mode: SearchSortMode,
     size: Cell<Option<Size>>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
@@ -3014,6 +3068,7 @@ impl Application for App {
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
+            search_sort_mode: SearchSortMode::Relevance,
             size: Cell::new(None),
             installed: None,
             updates: None,
@@ -3612,6 +3667,12 @@ impl Application for App {
                     return self.search();
                 }
             }
+            Message::SearchSortMode(sort_mode) => {
+                self.search_sort_mode = sort_mode;
+                if !self.search_input.is_empty() {
+                    return self.search();
+                }
+            }
             Message::Select(backend_name, id, icon, info) => {
                 return self.select(backend_name, id, icon, info);
             }
@@ -4177,13 +4238,31 @@ impl Application for App {
     fn header_start(&self) -> Vec<Element<'_, Message>> {
         match self.mode {
             Mode::Normal => vec![if self.search_active {
-                widget::text_input::search_input("", &self.search_input)
-                    .width(Length::Fixed(240.0))
-                    .id(self.search_id.clone())
-                    .on_clear(Message::SearchClear)
-                    .on_input(Message::SearchInput)
-                    .on_submit(Message::SearchSubmit)
-                    .into()
+                widget::row::with_children(vec![
+                    widget::text_input::search_input("", &self.search_input)
+                        .width(Length::Fixed(240.0))
+                        .id(self.search_id.clone())
+                        .on_clear(Message::SearchClear)
+                        .on_input(Message::SearchInput)
+                        .on_submit(Message::SearchSubmit)
+                        .into(),
+                    widget::dropdown(
+                        &[fl!("sort-relevance"), fl!("sort-popular"), fl!("sort-recent")],
+                        Some(match self.search_sort_mode {
+                            SearchSortMode::Relevance => 0,
+                            SearchSortMode::MostDownloads => 1,
+                            SearchSortMode::RecentlyUpdated => 2,
+                        }),
+                        |index| match index {
+                            0 => Message::SearchSortMode(SearchSortMode::Relevance),
+                            1 => Message::SearchSortMode(SearchSortMode::MostDownloads),
+                            _ => Message::SearchSortMode(SearchSortMode::RecentlyUpdated),
+                        },
+                    )
+                    .into(),
+                ])
+                .spacing(8)
+                .into()
             } else {
                 widget::button::icon(widget::icon::from_name("system-search-symbolic"))
                     .on_press(Message::SearchActivate)
