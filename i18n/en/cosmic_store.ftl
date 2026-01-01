@@ -144,3 +144,14 @@ theme = Theme
 match-desktop = Match desktop
 dark = Dark
 light = Light
+
+# Wayland compatibility
+compatibility-warning = Compatibility Warning
+x11-only-tooltip = X11 Only - May not work on Wayland
+x11-only-description = This application only supports X11 and may not work properly on COSMIC desktop (Wayland). You may experience issues with window management, file pickers, or the app may not start at all.
+wayland-issues-warning = Potential Wayland Issues
+wayland-issues-description = This application uses {$framework} which may have compatibility issues on Wayland.
+framework-qtwebengine = Qt WebEngine
+framework-electron = Electron
+wayland-native = Wayland Native
+wayland-native-tooltip = This app has native Wayland support and will work perfectly on Wayland sessions

@@ -13,6 +13,9 @@ use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 #[cfg(feature = "flatpak")]
 mod flatpak;
 
+#[cfg(feature = "flatpak")]
+pub use flatpak::parse_flatpak_metadata;
+
 #[cfg(feature = "packagekit")]
 mod packagekit;
 

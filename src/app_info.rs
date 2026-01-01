@@ -144,6 +144,47 @@ pub enum AppUrl {
     Translate(String),
 }
 
+/// Wayland socket support level based on Flatpak metadata
+#[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum WaylandSupport {
+    Native,
+    #[default]
+    Fallback,
+    X11Only,
+    Unknown,
+}
+
+/// Application framework detection
+#[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum AppFramework {
+    #[default]
+    Native,
+    GTK3,
+    Qt5,
+    Qt6,
+    QtWebEngine,
+    Electron,
+    Unknown,
+}
+
+/// Risk level for Wayland compatibility
+#[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub enum RiskLevel {
+    #[default]
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Wayland compatibility information
+#[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub struct WaylandCompatibility {
+    pub support: WaylandSupport,
+    pub framework: AppFramework,
+    pub risk_level: RiskLevel,
+}
+
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub source_id: String,
@@ -361,5 +402,37 @@ impl AppInfo {
             monthly_downloads,
             ..Default::default()
         }
+    }
+
+    /// Get Wayland compatibility information by parsing Flatpak metadata on-demand.
+    ///
+    /// This method computes compatibility data when called, without caching.
+    /// File I/O is fast enough (~1-2ms per app) that caching adds unnecessary complexity.
+    ///
+    /// Returns:
+    /// - `Some(WaylandCompatibility)` if this is a Flatpak app with parseable metadata
+    /// - `None` if not a Flatpak app or metadata cannot be parsed
+    pub fn wayland_compat_lazy(&self) -> Option<WaylandCompatibility> {
+        // Only parse for Flatpak apps
+        if self.flatpak_refs.is_empty() {
+            return None;
+        }
+
+        // Parse metadata from disk
+        #[cfg(feature = "flatpak")]
+        {
+            use crate::backend::parse_flatpak_metadata;
+
+            // Try to get app ID from desktop_ids or flatpak_refs
+            let app_id = self.desktop_ids.first()
+                .or_else(|| self.flatpak_refs.first())?;
+
+            // Try user installation first, then system
+            parse_flatpak_metadata(app_id, true)
+                .or_else(|| parse_flatpak_metadata(app_id, false))
+        }
+
+        #[cfg(not(feature = "flatpak"))]
+        None
     }
 }

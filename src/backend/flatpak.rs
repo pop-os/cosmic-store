@@ -624,3 +624,149 @@ impl Backend for Flatpak {
         Ok(())
     }
 }
+
+/// Parse Flatpak metadata to determine Wayland compatibility.
+///
+/// This function reads the Flatpak metadata file for an installed application
+/// and determines its Wayland compatibility based on socket permissions and
+/// framework detection.
+///
+/// # Arguments
+/// * `app_id` - The Flatpak app ID (e.g., "org.gnome.Nautilus")
+/// * `user_installation` - Whether to check user or system installation
+///
+/// # Returns
+/// * `Some(WaylandCompatibility)` if metadata can be parsed
+/// * `None` if metadata file is not found or cannot be read
+pub fn parse_flatpak_metadata(
+    app_id: &str,
+    user_installation: bool,
+) -> Option<crate::app_info::WaylandCompatibility> {
+    use crate::app_info::{AppFramework, RiskLevel, WaylandCompatibility, WaylandSupport};
+    use std::fs;
+    use std::path::Path;
+
+    // Determine metadata path based on installation type
+    let base_path = if user_installation {
+        // User installation: ~/.local/share/flatpak/app/{APP_ID}/current/active/metadata
+        dirs::home_dir()?
+            .join(".local/share/flatpak/app")
+            .join(app_id)
+            .join("current/active/metadata")
+    } else {
+        // System installation: /var/lib/flatpak/app/{APP_ID}/current/active/metadata
+        Path::new("/var/lib/flatpak/app")
+            .join(app_id)
+            .join("current/active/metadata")
+    };
+
+    // Read metadata file
+    let content = fs::read_to_string(&base_path).ok()?;
+
+    // Parse socket support
+    let mut wayland = false;
+    let mut x11 = false;
+    let mut fallback_x11 = false;
+
+    // Detect framework
+    let mut has_qtwebengine = false;
+    let mut has_electron = false;
+    let mut runtime = String::new();
+    let mut base_app = String::new();
+
+    for line in content.lines() {
+        let line_trimmed = line.trim();
+
+        // Parse socket permissions
+        if line_trimmed.starts_with("sockets=") {
+            let sockets = line_trimmed.strip_prefix("sockets=").unwrap();
+            wayland = sockets.contains("wayland");
+            x11 = sockets.contains("x11") && !sockets.contains("fallback-x11");
+            fallback_x11 = sockets.contains("fallback-x11");
+        }
+
+        // Detect Qt WebEngine
+        if line_trimmed.contains("QTWEBENGINEPROCESS_PATH") {
+            has_qtwebengine = true;
+        }
+
+        // Detect Electron (via environment variables or base app)
+        if line_trimmed.starts_with("ELECTRON_")
+            || line_trimmed.contains("Chromium.BaseApp")
+            || base_app.contains("Chromium.BaseApp")
+        {
+            has_electron = true;
+        }
+
+        // Get runtime info
+        if line_trimmed.starts_with("runtime=") {
+            runtime = line_trimmed.strip_prefix("runtime=").unwrap().to_string();
+        }
+
+        if line_trimmed.starts_with("base=") {
+            base_app = line_trimmed.strip_prefix("base=").unwrap().to_string();
+        }
+    }
+
+    // Determine socket support level
+    let support = match (wayland, x11, fallback_x11) {
+        (true, _, _) => WaylandSupport::Native,
+        (false, _, true) => WaylandSupport::Fallback,
+        (false, true, false) => WaylandSupport::X11Only,
+        _ => WaylandSupport::Unknown,
+    };
+
+    // Determine framework
+    let framework = if has_qtwebengine {
+        AppFramework::QtWebEngine
+    } else if has_electron {
+        AppFramework::Electron
+    } else if runtime.contains("org.kde.Platform") {
+        if runtime.contains("/6.") {
+            AppFramework::Qt6
+        } else if runtime.contains("/5.") {
+            AppFramework::Qt5
+        } else {
+            AppFramework::Unknown
+        }
+    } else if runtime.contains("org.gnome.Platform") {
+        // Could be GTK3 or GTK4 - assume GTK3 for conservative detection
+        AppFramework::GTK3
+    } else {
+        AppFramework::Unknown
+    };
+
+    // Calculate risk level based on support and framework
+    let risk_level = match (&support, &framework) {
+        // X11-only = critical (won't work on pure Wayland)
+        (WaylandSupport::X11Only, _) => RiskLevel::Critical,
+
+        // Qt WebEngine or Electron = high risk (known Wayland issues)
+        (_, AppFramework::QtWebEngine) => RiskLevel::High,
+        (_, AppFramework::Electron) => RiskLevel::High,
+
+        // Qt6 with native Wayland = medium risk (version-dependent)
+        (WaylandSupport::Native, AppFramework::Qt6) => RiskLevel::Medium,
+
+        // Fallback support = medium risk (may use XWayland)
+        (WaylandSupport::Fallback, _) => RiskLevel::Medium,
+
+        // Qt5 = medium risk
+        (WaylandSupport::Native, AppFramework::Qt5) => RiskLevel::Medium,
+
+        // Native Wayland with GTK3 = low risk (works well)
+        (WaylandSupport::Native, AppFramework::GTK3) => RiskLevel::Low,
+
+        // Native Wayland with native framework = low risk
+        (WaylandSupport::Native, AppFramework::Native) => RiskLevel::Low,
+
+        // Unknown = assume medium risk
+        _ => RiskLevel::Medium,
+    };
+
+    Some(WaylandCompatibility {
+        support,
+        framework,
+        risk_level,
+    })
+}

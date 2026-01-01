@@ -39,7 +39,7 @@ use std::{
 use app_id::AppId;
 mod app_id;
 
-use app_info::{AppIcon, AppInfo, AppKind, AppProvide, AppUrl};
+use app_info::{AppIcon, AppInfo, AppKind, AppProvide, AppUrl, WaylandCompatibility, WaylandSupport, AppFramework, RiskLevel};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -689,6 +689,74 @@ impl SearchResult {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
+        // Determine compatibility badge: green checkmark for native, red warning for critical/high risk only
+        let compat_badge = if let Some(compat) = self.info.wayland_compat_lazy() {
+            match compat.risk_level {
+                // Show green checkmark for native Wayland apps with low risk
+                RiskLevel::Low if matches!(compat.support, WaylandSupport::Native) => {
+                    Some(widget::tooltip(
+                        widget::icon::icon(icon_cache_handle("emblem-ok-symbolic", 16))
+                            .size(16)
+                            .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                                cosmic::iced::widget::svg::Style {
+                                    color: Some(cosmic::iced::Color::from_rgb(0.2, 0.8, 0.3)),
+                                }
+                            }))),
+                        widget::text::caption(fl!("wayland-native-tooltip")),
+                        widget::tooltip::Position::Bottom,
+                    ))
+                }
+                // Show red warning for critical risk
+                RiskLevel::Critical => {
+                    let tooltip_text = fl!("x11-only-tooltip");
+                    Some(widget::tooltip(
+                        widget::icon::icon(icon_cache_handle("dialog-warning-symbolic", 16))
+                            .size(16)
+                            .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                                cosmic::iced::widget::svg::Style {
+                                    color: Some(cosmic::iced::Color::from_rgb(1.0, 0.3, 0.3)),
+                                }
+                            }))),
+                        widget::text::caption(tooltip_text),
+                        widget::tooltip::Position::Bottom,
+                    ))
+                }
+                // Show orange warning for high risk
+                RiskLevel::High => {
+                    let tooltip_text = if matches!(compat.support, WaylandSupport::X11Only) {
+                        fl!("x11-only-tooltip")
+                    } else {
+                        fl!("wayland-issues-warning")
+                    };
+
+                    Some(widget::tooltip(
+                        widget::icon::icon(icon_cache_handle("dialog-warning-symbolic", 16))
+                            .size(16)
+                            .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                                cosmic::iced::widget::svg::Style {
+                                    color: Some(cosmic::iced::Color::from_rgb(1.0, 0.5, 0.0)),
+                                }
+                            }))),
+                        widget::text::caption(tooltip_text),
+                        widget::tooltip::Position::Bottom,
+                    ))
+                }
+                // No badge for medium/unknown risk (reduces visual clutter)
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let mut name_row = vec![];
+        name_row.push(widget::text::body(&self.info.name)
+            .height(Length::Fixed(20.0))
+            .into());
+
+        if let Some(badge) = compat_badge {
+            name_row.push(badge.into());
+        }
+
         widget::container(
             widget::row::with_children(vec![
                 match &self.icon_opt {
@@ -700,8 +768,8 @@ impl SearchResult {
                     }
                 },
                 widget::column::with_children(vec![
-                    widget::text::body(&self.info.name)
-                        .height(Length::Fixed(20.0))
+                    widget::row::with_children(name_row)
+                        .spacing(spacing.space_xxs)
                         .into(),
                     widget::text::caption(&self.info.summary)
                         .height(Length::Fixed(28.0))
@@ -2401,6 +2469,52 @@ impl App {
                     column = column.push(row);
                 }
                 column = column.push(widget::text::body(&selected.info.description));
+
+                // Add compatibility warning banner if needed
+                if let Some(compat) = selected.info.wayland_compat_lazy() {
+                    if compat.risk_level == RiskLevel::Critical || compat.risk_level == RiskLevel::High {
+                        let (title, description, icon_name) = if matches!(compat.support, WaylandSupport::X11Only) {
+                            (
+                                fl!("compatibility-warning"),
+                                fl!("x11-only-description"),
+                                "dialog-warning-symbolic"
+                            )
+                        } else {
+                            let framework_name = match compat.framework {
+                                AppFramework::QtWebEngine => fl!("framework-qtwebengine"),
+                                AppFramework::Electron => fl!("framework-electron"),
+                                _ => fl!("wayland-issues-warning"),
+                            };
+                            (
+                                fl!("wayland-issues-warning"),
+                                fl!("wayland-issues-description", framework = framework_name),
+                                "dialog-warning-symbolic"
+                            )
+                        };
+
+                        let warning_container = widget::container(
+                            widget::column::with_children(vec![
+                                widget::row::with_children(vec![
+                                    widget::icon::from_name(icon_name)
+                                        .size(24)
+                                        .into(),
+                                    widget::text::heading(title)
+                                        .width(Length::Fill)
+                                        .into(),
+                                ])
+                                .spacing(space_s)
+                                .into(),
+                                widget::text::body(description).into(),
+                            ])
+                            .spacing(space_xxs)
+                        )
+                        .padding(space_s)
+                        .class(theme::Container::Card);
+
+                        column = column.push(warning_container);
+                        column = column.push(widget::Space::with_height(Length::Fixed(space_s.into())));
+                    }
+                }
 
                 if !selected.addons.is_empty() {
                     let mut addon_col = widget::column::with_capacity(2).spacing(space_xxxs);
