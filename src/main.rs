@@ -724,41 +724,47 @@ impl SearchResult {
                     }
                 },
                 widget::column::with_children(vec![
+                    widget::text::body(&self.info.name)
+                        .height(Length::Fixed(20.0))
+                        .into(),
+                    widget::text::caption(&self.info.summary)
+                        .height(Length::Fixed(28.0))
+                        .into(),
                     widget::row::with_children(vec![
-                        widget::column::with_children(vec![
-                            widget::text::body(&self.info.name)
-                                .height(Length::Fixed(20.0))
-                                .into(),
-                            widget::text::caption(&self.info.summary)
-                                .height(Length::Fixed(28.0))
-                                .into(),
-                        ])
-                        .into(),
-                        widget::column::with_children(vec![
-                            if self.info.monthly_downloads > 0 {
-                                widget::text::caption(fl!(
-                                    "monthly-downloads",
-                                    count = format_download_count(self.info.monthly_downloads)
-                                ))
-                                .height(Length::Fixed(16.0))
-                                .into()
-                            } else {
-                                widget::Space::with_height(Length::Fixed(16.0)).into()
-                            },
-                            if is_editors_choice {
+                        if self.info.monthly_downloads > 0 {
+                            widget::tooltip(
+                                widget::text::caption(format_download_count(self.info.monthly_downloads)),
+                                widget::text(fl!("monthly-downloads-tooltip")),
+                                widget::tooltip::Position::Bottom,
+                            )
+                            .into()
+                        } else {
+                            widget::Space::with_width(Length::Fixed(0.0)).into()
+                        },
+                        widget::horizontal_space().into(),
+                        if is_editors_choice {
+                            widget::tooltip(
                                 widget::icon::icon(icon_cache_handle("starred-symbolic", 16))
-                                    .size(16)
-                                    .into()
-                            } else if is_verified {
+                                    .size(16),
+                                widget::text(fl!("editors-choice-tooltip")),
+                                widget::tooltip::Position::Bottom,
+                            )
+                            .into()
+                        } else if is_verified {
+                            widget::tooltip(
                                 widget::icon::icon(icon_cache_handle("checkmark-symbolic", 16))
-                                    .size(16)
-                                    .into()
-                            } else {
-                                widget::Space::with_width(Length::Fixed(16.0)).into()
-                            },
-                        ])
-                        .into(),
+                                    .size(16),
+                                widget::text(fl!("verified-tooltip")),
+                                widget::tooltip::Position::Bottom,
+                            )
+                            .into()
+                        } else {
+                            widget::Space::with_width(Length::Fixed(0.0)).into()
+                        },
                     ])
+                    .spacing(spacing.space_xxs)
+                    .align_y(Alignment::Center)
+                    .into()
                 ])
                 .into(),
             ])
@@ -864,6 +870,7 @@ pub struct App {
     search_id: widget::Id,
     search_input: String,
     search_sort_mode: SearchSortMode,
+    search_sort_options: Vec<String>,
     size: Cell<Option<Size>>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
@@ -964,13 +971,14 @@ impl App {
         apps: &Apps,
         backends: &Backends,
         filter_map: F,
+        sort_mode: SearchSortMode,
     ) -> Vec<SearchResult> {
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
                 let mut best_weight: Option<i64> = None;
                 for AppEntry {
-                    backend_name,
+                    backend_name: _,
                     info,
                     installed,
                 } in infos.iter()
@@ -992,7 +1000,7 @@ impl App {
                 let AppEntry {
                     backend_name,
                     info,
-                    installed,
+                    installed: _,
                 } = infos.first()?;
                 Some(SearchResult {
                     backend_name,
@@ -1003,13 +1011,40 @@ impl App {
                 })
             })
             .collect();
-        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
-            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
-                ordering => ordering,
-            },
-            ordering => ordering,
-        });
+
+        // Sort based on the selected sort mode
+        match sort_mode {
+            SearchSortMode::Relevance => {
+                // Sort by weight (relevance), then by name, then by backend
+                results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
+                    cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
+                        cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
+                        ordering => ordering,
+                    },
+                    ordering => ordering,
+                });
+            }
+            SearchSortMode::MostDownloads => {
+                // Sort by monthly downloads (descending), then by name
+                results.par_sort_unstable_by(|a, b| {
+                    match b.info.monthly_downloads.cmp(&a.info.monthly_downloads) {
+                        cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.info.name, &b.info.name),
+                        ordering => ordering,
+                    }
+                });
+            }
+            SearchSortMode::RecentlyUpdated => {
+                // Sort by most recent release timestamp (descending), then by name
+                results.par_sort_unstable_by(|a, b| {
+                    let a_timestamp = a.info.releases.first().and_then(|r| r.timestamp);
+                    let b_timestamp = b.info.releases.first().and_then(|r| r.timestamp);
+                    match b_timestamp.cmp(&a_timestamp) {
+                        cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.info.name, &b.info.name),
+                        ordering => ordering,
+                    }
+                });
+            }
+        }
         // Load only enough icons to show one page of results
         //TODO: load in background
         for result in results.iter_mut().take(MAX_RESULTS) {
@@ -1055,7 +1090,7 @@ impl App {
                                 }
                             }
                             None
-                        });
+                        }, SearchSortMode::Relevance);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for categories {:?} in {:?}, found {} results",
@@ -1087,13 +1122,13 @@ impl App {
                             .iter()
                             .position(|choice_id| choice_id == &id.normalized())
                             .map(|x| x as i64)
-                        }),
+                        }, SearchSortMode::Relevance),
                         ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
                             }
                             Some(-(info.monthly_downloads as i64))
-                        }),
+                        }, SearchSortMode::Relevance),
                         ExplorePage::MadeForCosmic => {
                             let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -1105,12 +1140,12 @@ impl App {
                                 } else {
                                     None
                                 }
-                            })
+                            }, SearchSortMode::Relevance)
                         },
                         ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
                             //TODO
                             None
-                        }),
+                        }, SearchSortMode::Relevance),
                         ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
@@ -1131,7 +1166,7 @@ impl App {
                                 }
                             }
                             Some(min_weight)
-                        }),
+                        }, SearchSortMode::Relevance),
                         _ => {
                             let categories = explore_page.categories();
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -1145,7 +1180,7 @@ impl App {
                                     }
                                 }
                                 None
-                            })
+                            }, SearchSortMode::Relevance)
                         }
                     };
                     let duration = start.elapsed();
@@ -1177,7 +1212,7 @@ impl App {
                         } else {
                             None
                         }
-                    });
+                    }, SearchSortMode::Relevance);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for installed in {:?}, found {} results",
@@ -1238,11 +1273,12 @@ impl App {
         };
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let sort_mode = self.search_sort_mode;
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                    let results = Self::generic_search(&apps, &backends, |_id, info, _installed| {
                         if !matches!(info.kind, AppKind::DesktopApplication) {
                             return None;
                         }
@@ -1278,7 +1314,7 @@ impl App {
                             return Some(weight);
                         }
                         None
-                    });
+                    }, sort_mode);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1801,7 +1837,7 @@ impl App {
                         Self::generic_search(&apps, &backends, |id, _info, _installed| {
                             //TODO: fuzzy search with lower weight?
                             if id == &component_id { Some(0) } else { None }
-                        });
+                        }, SearchSortMode::Relevance);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for ID {:?} in {:?}, found {} results",
@@ -1944,7 +1980,7 @@ impl App {
                             } else {
                                 None
                             }
-                        });
+                        }, SearchSortMode::Relevance);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for mime {:?} in {:?}, found {} results",
@@ -3018,6 +3054,7 @@ impl Application for App {
         });
 
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
+        let search_sort_options = vec![fl!("sort-relevance"), fl!("sort-popular"), fl!("sort-recent")];
 
         let mut nav_model = widget::nav_bar::Model::default();
         for &nav_page in NavPage::all() {
@@ -3069,6 +3106,7 @@ impl Application for App {
             search_id: widget::Id::unique(),
             search_input: String::new(),
             search_sort_mode: SearchSortMode::Relevance,
+            search_sort_options,
             size: Cell::new(None),
             installed: None,
             updates: None,
@@ -4237,38 +4275,41 @@ impl Application for App {
 
     fn header_start(&self) -> Vec<Element<'_, Message>> {
         match self.mode {
-            Mode::Normal => vec![if self.search_active {
-                widget::row::with_children(vec![
-                    widget::text_input::search_input("", &self.search_input)
-                        .width(Length::Fixed(240.0))
-                        .id(self.search_id.clone())
-                        .on_clear(Message::SearchClear)
-                        .on_input(Message::SearchInput)
-                        .on_submit(Message::SearchSubmit)
-                        .into(),
-                    widget::dropdown(
-                        &[fl!("sort-relevance"), fl!("sort-popular"), fl!("sort-recent")],
-                        Some(match self.search_sort_mode {
-                            SearchSortMode::Relevance => 0,
-                            SearchSortMode::MostDownloads => 1,
-                            SearchSortMode::RecentlyUpdated => 2,
-                        }),
-                        |index| match index {
-                            0 => Message::SearchSortMode(SearchSortMode::Relevance),
-                            1 => Message::SearchSortMode(SearchSortMode::MostDownloads),
-                            _ => Message::SearchSortMode(SearchSortMode::RecentlyUpdated),
-                        },
-                    )
-                    .into(),
-                ])
-                .spacing(8)
-                .into()
-            } else {
-                widget::button::icon(widget::icon::from_name("system-search-symbolic"))
-                    .on_press(Message::SearchActivate)
-                    .padding(8)
-                    .into()
-            }],
+            Mode::Normal => {
+                if self.search_active {
+                    vec![
+                        widget::text_input::search_input("", &self.search_input)
+                            .width(Length::Fixed(240.0))
+                            .id(self.search_id.clone())
+                            .on_clear(Message::SearchClear)
+                            .on_input(Message::SearchInput)
+                            .on_submit(Message::SearchSubmit)
+                            .into(),
+                        widget::dropdown(
+                            &self.search_sort_options,
+                            Some(match self.search_sort_mode {
+                                SearchSortMode::Relevance => 0,
+                                SearchSortMode::MostDownloads => 1,
+                                SearchSortMode::RecentlyUpdated => 2,
+                            }),
+                            |index| match index {
+                                0 => Message::SearchSortMode(SearchSortMode::Relevance),
+                                1 => Message::SearchSortMode(SearchSortMode::MostDownloads),
+                                _ => Message::SearchSortMode(SearchSortMode::RecentlyUpdated),
+                            },
+                        )
+                        .width(Length::Fixed(200.0))
+                        .into()
+                    ]
+                } else {
+                    vec![
+                        widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                            .on_press(Message::SearchActivate)
+                            .padding(8)
+                            .into()
+                    ]
+                }
+            }
             Mode::GStreamer { .. } => Vec::new(),
         }
     }

@@ -352,6 +352,7 @@ impl AppInfo {
             description,
             license_opt: component.project_license.map(|x| x.to_string()),
             pkgnames: component.pkgname.map_or(Vec::new(), |x| vec![x]),
+            package_paths: Vec::new(),
             categories,
             desktop_ids,
             flatpak_refs,
