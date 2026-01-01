@@ -6,3 +6,16 @@
 /target/
 /vendor.tar
 /vendor/
+
+# AI assistant documentation (local only, not committed)
+CLAUDE_CODE_PROMPT.md
+CLAUDE_INSTRUCTIONS.md
+plans/FULL_IMPLEMENTATION_INSTRUCTIONS.md
+plans/IMPLEMENTATION_CHECKLIST.md
+plans/QUICK_REFERENCE.md
+plans/SIMPLIFIED_IMPLEMENTATION_GUIDE.md
+plans/COMPATIBILITY_SUMMARY.md
+plans/IMPLEMENTATION_ANALYSIS.md
+plans/ZAPZAP_CASE_STUDY.md
+plans/app-compatibility-detection.md
+plans/phase1-implementation-plan.md

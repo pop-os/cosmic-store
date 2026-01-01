@@ -416,19 +416,20 @@ impl AppInfo {
     /// - `Some(WaylandCompatibility)` if this is a Flatpak app with parseable metadata
     /// - `None` if not a Flatpak app or metadata cannot be parsed
     pub fn wayland_compat_lazy(&self) -> Option<WaylandCompatibility> {
-        // Only parse for Flatpak apps
-        if self.flatpak_refs.is_empty() {
-            return None;
-        }
-
         // Parse metadata from disk
         #[cfg(feature = "flatpak")]
         {
             use crate::backend::parse_flatpak_metadata;
 
             // Try to get app ID from desktop_ids or flatpak_refs
-            let app_id = self.desktop_ids.first()
+            let app_id_raw = self.desktop_ids.first()
                 .or_else(|| self.flatpak_refs.first())?;
+
+            // Strip .desktop suffix if present (desktop_ids have it, flatpak_refs don't)
+            let app_id = app_id_raw.strip_suffix(".desktop").unwrap_or(app_id_raw);
+
+            log::debug!("Checking Wayland compat for app: {} (app_id: {}, desktop_ids: {:?}, flatpak_refs: {:?})",
+                self.name, app_id, self.desktop_ids, self.flatpak_refs);
 
             // Try user installation first, then system
             parse_flatpak_metadata(app_id, true)

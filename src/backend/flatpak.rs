@@ -660,8 +660,16 @@ pub fn parse_flatpak_metadata(
             .join("current/active/metadata")
     };
 
+    log::debug!("Checking Wayland compat for {} at {:?}", app_id, base_path);
+
     // Read metadata file
-    let content = fs::read_to_string(&base_path).ok()?;
+    let content = match fs::read_to_string(&base_path) {
+        Ok(c) => c,
+        Err(e) => {
+            log::debug!("Failed to read metadata for {}: {}", app_id, e);
+            return None;
+        }
+    };
 
     // Parse socket support
     let mut wayland = false;
@@ -764,9 +772,13 @@ pub fn parse_flatpak_metadata(
         _ => RiskLevel::Medium,
     };
 
-    Some(WaylandCompatibility {
+    let result = WaylandCompatibility {
         support,
         framework,
         risk_level,
-    })
+    };
+
+    log::debug!("Wayland compat for {}: {:?}", app_id, result);
+
+    Some(result)
 }
