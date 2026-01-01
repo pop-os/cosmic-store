@@ -50,7 +50,7 @@ use std::{
 use app_id::AppId;
 mod app_id;
 
-use app_info::{AppIcon, AppInfo, AppKind, AppProvide, AppUrl, WaylandSupport, RiskLevel};
+use app_info::{AppIcon, AppInfo, AppKind, AppProvide, AppUrl, WaylandSupport, AppFramework, RiskLevel};
 mod app_info;
 
 use appstream_cache::AppstreamCache;
@@ -586,6 +586,76 @@ fn package_card_view<'a>(
     spacing: &cosmic_theme::Spacing,
     width: usize,
 ) -> Element<'a, Message> {
+    // Determine compatibility badge for installed/update views
+    let compat_badge = if let Some(compat) = info.wayland_compat_lazy() {
+        match compat.risk_level {
+            // Show green checkmark for native Wayland apps with low risk
+            RiskLevel::Low if matches!(compat.support, WaylandSupport::Native) => {
+                Some(widget::tooltip(
+                    widget::icon::icon(icon_cache_handle("emblem-ok-symbolic", 16))
+                        .size(16)
+                        .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                            cosmic::iced::widget::svg::Style {
+                                color: Some(cosmic::iced::Color::from_rgb(0.2, 0.8, 0.3)),
+                            }
+                        }))),
+                    widget::text::caption(fl!("wayland-native-tooltip")),
+                    widget::tooltip::Position::Bottom,
+                ))
+            }
+            // Show red warning for critical risk
+            RiskLevel::Critical => {
+                let tooltip_text = fl!("x11-only-tooltip");
+                Some(widget::tooltip(
+                    widget::icon::icon(icon_cache_handle("dialog-warning-symbolic", 16))
+                        .size(16)
+                        .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                            cosmic::iced::widget::svg::Style {
+                                color: Some(cosmic::iced::Color::from_rgb(1.0, 0.3, 0.3)),
+                            }
+                        }))),
+                    widget::text::caption(tooltip_text),
+                    widget::tooltip::Position::Bottom,
+                ))
+            }
+            // Show orange warning for high risk
+            RiskLevel::High => {
+                let tooltip_text = if matches!(compat.support, WaylandSupport::X11Only) {
+                    fl!("x11-only-tooltip")
+                } else {
+                    fl!("wayland-issues-warning")
+                };
+
+                Some(widget::tooltip(
+                    widget::icon::icon(icon_cache_handle("dialog-warning-symbolic", 16))
+                        .size(16)
+                        .class(cosmic::theme::Svg::Custom(std::rc::Rc::new(|_theme| {
+                            cosmic::iced::widget::svg::Style {
+                                color: Some(cosmic::iced::Color::from_rgb(1.0, 0.5, 0.0)),
+                            }
+                        }))),
+                    widget::text::caption(tooltip_text),
+                    widget::tooltip::Position::Bottom,
+                ))
+            }
+            // No badge for medium/unknown risk (reduces visual clutter)
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let mut name_row = vec![
+        widget::text::body(&info.name)
+            .height(20.0)
+            .width(width as f32 - 180.0)
+            .into()
+    ];
+
+    if let Some(badge) = compat_badge {
+        name_row.push(badge.into());
+    }
+
     let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
     let top_row_cap = 1 + top_controls
         .as_deref()
@@ -594,9 +664,8 @@ fn package_card_view<'a>(
     let column = widget::column::with_children(vec![
         widget::row::with_capacity(top_row_cap)
             .push(widget::column::with_children(vec![
-                widget::text::body(&info.name)
-                    .height(20.0)
-                    .width(width as f32 - 180.0)
+                widget::row::with_children(name_row)
+                    .spacing(spacing.space_xxs)
                     .into(),
                 widget::text::caption(&info.summary)
                     .height(28.0)
