@@ -5,7 +5,7 @@ fn normalize_id(id_raw: &str) -> &str {
     id_raw.trim_end_matches(".desktop")
 }
 
-#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, bitcode::Decode, bitcode::Encode)]
 pub struct AppId(String);
 
 impl AppId {

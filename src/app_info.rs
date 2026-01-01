@@ -160,6 +160,7 @@ pub enum AppFramework {
     #[default]
     Native,
     GTK3,
+    GTK4,
     Qt5,
     Qt6,
     QtWebEngine,
@@ -208,6 +209,7 @@ pub struct AppInfo {
     pub urls: Vec<AppUrl>,
     pub monthly_downloads: u64,
     pub verified: bool,
+    pub wayland_compat: Option<WaylandCompatibility>,
 }
 
 impl AppInfo {
@@ -219,6 +221,7 @@ impl AppInfo {
         locale: &str,
         monthly_downloads: u64,
         verified: bool,
+        wayland_compat: Option<WaylandCompatibility>,
     ) -> Self {
         let name = get_translatable(&component.name, locale);
         let summary = component
@@ -404,39 +407,110 @@ impl AppInfo {
             urls,
             monthly_downloads,
             verified,
+            wayland_compat,
         }
     }
 
-    /// Get Wayland compatibility information by parsing Flatpak metadata on-demand.
+    /// Get Wayland compatibility information using heuristics.
     ///
-    /// This method computes compatibility data when called, without caching.
-    /// File I/O is fast enough (~1-2ms per app) that caching adds unnecessary complexity.
+    /// This method uses a multi-tier approach:
+    /// 1. Pre-computed data from flathub-stats (when available)
+    /// 2. Parse Flatpak metadata from disk for installed apps
+    /// 3. Heuristic detection based on app metadata (categories, name, etc.)
     ///
     /// Returns:
-    /// - `Some(WaylandCompatibility)` if this is a Flatpak app with parseable metadata
-    /// - `None` if not a Flatpak app or metadata cannot be parsed
+    /// - `Some(WaylandCompatibility)` if compatibility data is available
+    /// - `None` if not enough information to make a determination
     pub fn wayland_compat_lazy(&self) -> Option<WaylandCompatibility> {
-        // Parse metadata from disk
+        // First, try to use pre-computed data from flathub-stats
+        if let Some(compat) = &self.wayland_compat {
+            return Some(compat.clone());
+        }
+
+        // Second, try parsing metadata from disk for installed apps
         #[cfg(feature = "flatpak")]
         {
             use crate::backend::parse_flatpak_metadata;
 
             // Try to get app ID from desktop_ids or flatpak_refs
-            let app_id_raw = self.desktop_ids.first()
-                .or_else(|| self.flatpak_refs.first())?;
+            if let Some(app_id_raw) = self.desktop_ids.first().or_else(|| self.flatpak_refs.first()) {
+                // Strip .desktop suffix if present (desktop_ids have it, flatpak_refs don't)
+                let app_id = app_id_raw.strip_suffix(".desktop").unwrap_or(app_id_raw);
 
-            // Strip .desktop suffix if present (desktop_ids have it, flatpak_refs don't)
-            let app_id = app_id_raw.strip_suffix(".desktop").unwrap_or(app_id_raw);
+                log::debug!("Checking Wayland compat for app: {} (app_id: {}, desktop_ids: {:?}, flatpak_refs: {:?})",
+                    self.name, app_id, self.desktop_ids, self.flatpak_refs);
 
-            log::debug!("Checking Wayland compat for app: {} (app_id: {}, desktop_ids: {:?}, flatpak_refs: {:?})",
-                self.name, app_id, self.desktop_ids, self.flatpak_refs);
-
-            // Try user installation first, then system
-            parse_flatpak_metadata(app_id, true)
-                .or_else(|| parse_flatpak_metadata(app_id, false))
+                // Try user installation first, then system
+                if let Some(compat) = parse_flatpak_metadata(app_id, true)
+                    .or_else(|| parse_flatpak_metadata(app_id, false))
+                {
+                    return Some(compat);
+                }
+            }
         }
 
-        #[cfg(not(feature = "flatpak"))]
+        // Third, use heuristics for non-installed Flatpak apps
+        if !self.flatpak_refs.is_empty() {
+            log::debug!("Using heuristics for non-installed Flatpak app: {}", self.name);
+            return self.heuristic_wayland_compat();
+        }
+
+        log::debug!("No Wayland compat data available for: {} (not a Flatpak or no metadata)", self.name);
+        None
+    }
+
+    /// Heuristic-based Wayland compatibility detection for non-installed apps.
+    ///
+    /// This uses app metadata (categories, name, developer) to make educated guesses.
+    /// Conservative approach: only returns data when reasonably confident.
+    fn heuristic_wayland_compat(&self) -> Option<WaylandCompatibility> {
+        // Check categories for framework hints
+        let categories_lower: Vec<String> = self.categories.iter()
+            .map(|c| c.to_lowercase())
+            .collect();
+
+        let name_lower = self.name.to_lowercase();
+        let dev_lower = self.developer_name.to_lowercase();
+
+        log::debug!("Heuristic check for {}: categories={:?}, dev={}, name={}",
+            self.name, categories_lower, dev_lower, name_lower);
+
+        // Detect GNOME/GTK apps (high confidence - Wayland native)
+        if categories_lower.iter().any(|c| c.contains("gnome") || c.contains("gtk"))
+            || dev_lower.contains("gnome")
+            || name_lower.contains("gnome")
+        {
+            log::debug!("  -> Detected as GNOME/GTK app (Low risk)");
+            return Some(WaylandCompatibility {
+                support: WaylandSupport::Native,
+                framework: AppFramework::GTK3,
+                risk_level: RiskLevel::Low,
+            });
+        }
+
+        // Detect KDE/Qt apps (medium confidence - may have issues)
+        if categories_lower.iter().any(|c| c.contains("kde") || c.contains("qt"))
+            || dev_lower.contains("kde")
+            || name_lower.contains("kde")
+        {
+            return Some(WaylandCompatibility {
+                support: WaylandSupport::Native,
+                framework: AppFramework::Qt6, // Assume Qt6 for modern apps
+                risk_level: RiskLevel::Medium,
+            });
+        }
+
+        // Detect known problematic frameworks by name patterns
+        if name_lower.contains("electron") || self.desktop_ids.iter().any(|id| id.to_lowercase().contains("electron")) {
+            return Some(WaylandCompatibility {
+                support: WaylandSupport::Native,
+                framework: AppFramework::Electron,
+                risk_level: RiskLevel::High,
+            });
+        }
+
+        // For other Flatpak apps, we don't have enough info - return None
+        // This is conservative: we only show badges when we're reasonably confident
         None
     }
 }

@@ -457,6 +457,7 @@ impl AppstreamCache {
                     &self.locale,
                     stats::monthly_downloads(&id).unwrap_or(0),
                     false,
+                    stats::wayland_compatibility(&id),
                 ));
                 if let Some(_old) = self.infos.insert(id.clone(), addon_info) {
                     //TODO: merge based on priority
@@ -610,6 +611,7 @@ impl AppstreamCache {
 
                                 let id = AppId::new(&component.id.0);
                                 let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
+                                let wayland_compat = stats::wayland_compatibility(&id);
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
@@ -620,6 +622,7 @@ impl AppstreamCache {
                                         &self.locale,
                                         monthly_downloads,
                                         false,
+                                        wayland_compat,
                                     )),
                                 ));
                             }
@@ -1044,6 +1047,7 @@ impl AppstreamCache {
 
                         let id = AppId::new(&component.id.0);
                         let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
+                        let wayland_compat = stats::wayland_compatibility(&id);
                         infos.push((
                             id,
                             Arc::new(AppInfo::new(
@@ -1054,6 +1058,7 @@ impl AppstreamCache {
                                 &self.locale,
                                 monthly_downloads,
                                 false,
+                                wayland_compat,
                             )),
                         ));
                     }
