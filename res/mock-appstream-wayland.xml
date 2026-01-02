@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components version="0.16">
+  <!-- GNOME Epiphany (GTK4 + Native + Low) -->
+  <component type="desktop-application">
+    <id>org.gnome.Epiphany</id>
+    <name>Web</name>
+    <summary>Web browser for GNOME</summary>
+    <custom>
+      <value key="wayland_compat">0x0A</value>
+    </custom>
+  </component>
+
+  <!-- GNOME Nautilus (GTK4 + Native + Low) -->
+  <component type="desktop-application">
+    <id>org.gnome.Nautilus</id>
+    <name>Files</name>
+    <summary>Access and organize files</summary>
+    <custom>
+      <value key="wayland_compat">0x0A</value>
+    </custom>
+  </component>
+
+  <!-- GNOME Text Editor (GTK4 + Native + Low) -->
+  <component type="desktop-application">
+    <id>org.gnome.TextEditor</id>
+    <name>Text Editor</name>
+    <summary>Edit text files</summary>
+    <custom>
+      <value key="wayland_compat">0x0A</value>
+    </custom>
+  </component>
+
+  <!-- Kate (Qt6 + Native + Medium) -->
+  <component type="desktop-application">
+    <id>org.kde.kate</id>
+    <name>Kate</name>
+    <summary>Advanced Text Editor</summary>
+    <custom>
+      <value key="wayland_compat">0x52</value>
+    </custom>
+  </component>
+
+  <!-- Okular (Qt6 + Native + Medium) -->
+  <component type="desktop-application">
+    <id>org.kde.okular</id>
+    <name>Okular</name>
+    <summary>Universal Document Viewer</summary>
+    <custom>
+      <value key="wayland_compat">0x52</value>
+    </custom>
+  </component>
+
+  <!-- Brave Browser (Electron + Native + High) -->
+  <component type="desktop-application">
+    <id>com.brave.Browser</id>
+    <name>Brave</name>
+    <summary>Web browser</summary>
+    <custom>
+      <value key="wayland_compat">0x96</value>
+    </custom>
+  </component>
+
+  <!-- VS Code (Electron + Native + High) -->
+  <component type="desktop-application">
+    <id>com.visualstudio.code</id>
+    <name>Visual Studio Code</name>
+    <summary>Code editor</summary>
+    <custom>
+      <value key="wayland_compat">0x96</value>
+    </custom>
+  </component>
+
+  <!-- Discord (Electron + Native + High) -->
+  <component type="desktop-application">
+    <id>com.discordapp.Discord</id>
+    <name>Discord</name>
+    <summary>Chat client</summary>
+    <custom>
+      <value key="wayland_compat">0x96</value>
+    </custom>
+  </component>
+
+  <!-- GIMP (GTK3 + Native + Low) -->
+  <component type="desktop-application">
+    <id>org.gimp.GIMP</id>
+    <name>GIMP</name>
+    <summary>GNU Image Manipulation Program</summary>
+    <custom>
+      <value key="wayland_compat">0x06</value>
+    </custom>
+  </component>
+
+  <!-- Inkscape (GTK3 + Native + Low) -->
+  <component type="desktop-application">
+    <id>org.inkscape.Inkscape</id>
+    <name>Inkscape</name>
+    <summary>Vector Graphics Editor</summary>
+    <custom>
+      <value key="wayland_compat">0x06</value>
+    </custom>
+  </component>
+
+  <!-- VLC (Qt5 + Native + Medium) -->
+  <component type="desktop-application">
+    <id>org.videolan.VLC</id>
+    <name>VLC media player</name>
+    <summary>Media player</summary>
+    <custom>
+      <value key="wayland_compat">0x4E</value>
+    </custom>
+  </component>
+
+  <!-- Krita (Qt6 + Native + Medium) -->
+  <component type="desktop-application">
+    <id>org.kde.krita</id>
+    <name>Krita</name>
+    <summary>Digital Painting</summary>
+    <custom>
+      <value key="wayland_compat">0x52</value>
+    </custom>
+  </component>
+</components>

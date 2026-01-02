@@ -186,6 +186,157 @@ pub struct WaylandCompatibility {
     pub risk_level: RiskLevel,
 }
 
+impl WaylandCompatibility {
+    /// Decode an 8-bit Wayland compatibility bitcode.
+    ///
+    /// # Bitcode Format
+    /// - Bits 0-1: Wayland Support (00=Unknown, 01=XWayland, 10=Native)
+    /// - Bits 2-5: Framework (0001=GTK3, 0010=GTK4, 0011=Qt5, 0100=Qt6, 0101=Electron, etc.)
+    /// - Bits 6-7: Risk Level (00=Low, 01=Medium, 10=High, 11=Critical)
+    ///
+    /// # Example Bitcodes
+    /// - 0x0A = GTK4 + Native + Low (GNOME apps)
+    /// - 0x06 = GTK3 + Native + Low (older GNOME apps)
+    /// - 0x52 = Qt6 + Native + Medium (modern KDE apps)
+    /// - 0x4E = Qt5 + Native + Medium (older KDE apps)
+    /// - 0x96 = Electron + Native + High (Electron apps)
+    /// - 0xC1 = X11-only + Critical (legacy apps)
+    pub fn decode_bitcode(bitcode: u8) -> Self {
+        // Bits 0-1: Wayland Support
+        let support = match bitcode & 0b00000011 {
+            0b00 => WaylandSupport::Unknown,
+            0b01 => WaylandSupport::Fallback, // XWayland -> Fallback
+            0b10 => WaylandSupport::Native,
+            _ => WaylandSupport::Unknown,
+        };
+
+        // Bits 2-5: Framework
+        let framework = match (bitcode >> 2) & 0b00001111 {
+            0x01 => AppFramework::GTK3,
+            0x02 => AppFramework::GTK4,
+            0x03 => AppFramework::Qt5,
+            0x04 => AppFramework::Qt6,
+            0x05 => AppFramework::Electron,
+            0x06 => AppFramework::QtWebEngine,
+            0x07 => AppFramework::Unknown, // SDL2 not in enum, use Unknown
+            _ => AppFramework::Unknown,
+        };
+
+        // Bits 6-7: Risk Level
+        let risk_level = match (bitcode >> 6) & 0b00000011 {
+            0b00 => RiskLevel::Low,
+            0b01 => RiskLevel::Medium,
+            0b10 => RiskLevel::High,
+            0b11 => RiskLevel::Critical,
+            _ => RiskLevel::Low,
+        };
+
+        WaylandCompatibility {
+            support,
+            framework,
+            risk_level,
+        }
+    }
+}
+
+#[cfg(test)]
+mod wayland_bitcode_tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_gtk4_native_low() {
+        let compat = WaylandCompatibility::decode_bitcode(0x0A);
+        assert_eq!(compat.framework, AppFramework::GTK4);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn test_decode_gtk3_native_low() {
+        let compat = WaylandCompatibility::decode_bitcode(0x06);
+        assert_eq!(compat.framework, AppFramework::GTK3);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn test_decode_electron_native_high() {
+        let compat = WaylandCompatibility::decode_bitcode(0x96);
+        assert_eq!(compat.framework, AppFramework::Electron);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::High);
+    }
+
+    #[test]
+    fn test_decode_qt6_native_medium() {
+        let compat = WaylandCompatibility::decode_bitcode(0x52);
+        assert_eq!(compat.framework, AppFramework::Qt6);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn test_decode_qt5_native_medium() {
+        let compat = WaylandCompatibility::decode_bitcode(0x4E);
+        assert_eq!(compat.framework, AppFramework::Qt5);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn test_decode_x11_only_critical() {
+        let compat = WaylandCompatibility::decode_bitcode(0xC1);
+        // 0xC1 = 11000001
+        // Bits 0-1: 01 = Fallback (XWayland)
+        // Bits 2-5: 0000 = Unknown
+        // Bits 6-7: 11 = Critical
+        assert_eq!(compat.framework, AppFramework::Unknown);
+        assert_eq!(compat.support, WaylandSupport::Fallback);
+        assert_eq!(compat.risk_level, RiskLevel::Critical);
+    }
+
+    #[test]
+    fn test_all_risk_levels() {
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x0A).risk_level, RiskLevel::Low);
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x52).risk_level, RiskLevel::Medium);
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x96).risk_level, RiskLevel::High);
+        assert_eq!(WaylandCompatibility::decode_bitcode(0xC1).risk_level, RiskLevel::Critical);
+    }
+
+    #[test]
+    fn test_all_frameworks() {
+        // GTK3: 0x06 = 00000110 (bits 2-5 = 0001)
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x06).framework, AppFramework::GTK3);
+
+        // GTK4: 0x0A = 00001010 (bits 2-5 = 0010)
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x0A).framework, AppFramework::GTK4);
+
+        // Qt5: 0x0E = 00001110 (bits 2-5 = 0011)
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x0E).framework, AppFramework::Qt5);
+
+        // Qt6: 0x12 = 00010010 (bits 2-5 = 0100)
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x12).framework, AppFramework::Qt6);
+
+        // Electron: 0x16 = 00010110 (bits 2-5 = 0101)
+        assert_eq!(WaylandCompatibility::decode_bitcode(0x16).framework, AppFramework::Electron);
+    }
+
+    #[test]
+    fn test_all_support_levels() {
+        // Unknown: bits 0-1 = 00
+        let compat = WaylandCompatibility::decode_bitcode(0x00);
+        assert_eq!(compat.support, WaylandSupport::Unknown);
+
+        // Fallback (XWayland): bits 0-1 = 01
+        let compat = WaylandCompatibility::decode_bitcode(0x01);
+        assert_eq!(compat.support, WaylandSupport::Fallback);
+
+        // Native: bits 0-1 = 10
+        let compat = WaylandCompatibility::decode_bitcode(0x02);
+        assert_eq!(compat.support, WaylandSupport::Native);
+    }
+}
+
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppInfo {
     pub source_id: String,

@@ -22,7 +22,51 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{AppIcon, AppId, AppInfo, stats};
+use crate::{AppIcon, AppId, AppInfo, app_info::WaylandCompatibility, stats};
+
+/// Extract Wayland compatibility bitcode from AppStream XML custom fields.
+///
+/// This function looks for a custom value with key "wayland_compat" in the XML
+/// and decodes it from hex format to a WaylandCompatibility struct.
+///
+/// # Example XML
+/// ```xml
+/// <custom>
+///   <value key="wayland_compat">0x0A</value>
+/// </custom>
+/// ```
+fn extract_wayland_bitcode(element: &xmltree::Element) -> Option<WaylandCompatibility> {
+    // Find the custom element
+    let custom_elem = element.get_child("custom")?;
+
+    // Find all value elements within custom
+    for node in custom_elem.children.iter() {
+        if let xmltree::XMLNode::Element(value_elem) = node {
+            if value_elem.name == "value" {
+                // Check if this is the wayland_compat key
+                if let Some(key) = value_elem.attributes.get("key") {
+                    if key == "wayland_compat" {
+                        // Get the text content
+                        if let Some(xmltree::XMLNode::Text(text)) = value_elem.children.first() {
+                            // Parse hex string (e.g., "0x0A")
+                            let text = text.trim();
+                            if let Some(hex_str) = text.strip_prefix("0x") {
+                                if let Ok(bitcode) = u8::from_str_radix(hex_str, 16) {
+                                    log::debug!("Found wayland_compat bitcode: 0x{:02X}", bitcode);
+                                    return Some(WaylandCompatibility::decode_bitcode(bitcode));
+                                } else {
+                                    log::warn!("Failed to parse wayland_compat bitcode: {}", text);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
 
 const PREFIXES: &[&str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &[&str] = &["swcatalog", "app-info"];
@@ -475,6 +519,80 @@ impl AppstreamCache {
             self.load_original();
             self.save_cache(&source_id);
         }
+
+        // DEBUG: Inject mock bitcode data if COSMIC_STORE_INJECT_BITCODE is set
+        if std::env::var("COSMIC_STORE_INJECT_BITCODE").is_ok() {
+            self.inject_mock_bitcode_data();
+        }
+    }
+
+    /// DEBUG ONLY: Inject mock bitcode data into existing apps for testing
+    /// This simulates receiving bitcode data from Flathub without needing actual AppStream updates
+    fn inject_mock_bitcode_data(&mut self) {
+        use crate::app_info::WaylandCompatibility;
+
+        log::info!("🧪 DEBUG MODE: Injecting mock bitcode data into existing apps");
+
+        // Map of app IDs to their bitcode values
+        let bitcode_map: Vec<(&str, u8)> = vec![
+            // GNOME apps - GTK4 + Native + Low (0x0A)
+            ("org.gnome.Epiphany", 0x0A),
+            ("org.gnome.Nautilus", 0x0A),
+            ("org.gnome.TextEditor", 0x0A),
+            ("org.gnome.Calculator", 0x0A),
+            ("org.gnome.Calendar", 0x0A),
+            ("org.gnome.Contacts", 0x0A),
+            ("org.gnome.Weather", 0x0A),
+            ("org.gnome.Maps", 0x0A),
+            ("org.gnome.Cheese", 0x0A),
+            ("org.gnome.Evince", 0x0A),
+
+            // KDE apps - Qt6 + Native + Medium (0x52)
+            ("org.kde.kate", 0x52),
+            ("org.kde.okular", 0x52),
+            ("org.kde.krita", 0x52),
+            ("org.kde.kdenlive", 0x52),
+            ("org.kde.dolphin", 0x52),
+            ("org.kde.konsole", 0x52),
+
+            // Electron apps - Electron + Native + High (0x96)
+            ("com.brave.Browser", 0x96),
+            ("com.visualstudio.code", 0x96),
+            ("com.discordapp.Discord", 0x96),
+            ("com.slack.Slack", 0x96),
+            ("org.signal.Signal", 0x96),
+
+            // GTK3 apps - GTK3 + Native + Low (0x06)
+            ("org.gimp.GIMP", 0x06),
+            ("org.inkscape.Inkscape", 0x06),
+            ("org.audacityteam.Audacity", 0x06),
+
+            // Qt5 apps - Qt5 + Native + Medium (0x4E)
+            ("org.videolan.VLC", 0x4E),
+            ("org.qbittorrent.qBittorrent", 0x4E),
+        ];
+
+        let mut injected_count = 0;
+        for (app_id_str, bitcode) in bitcode_map {
+            let app_id = AppId::new(app_id_str);
+            if let Some(info_arc) = self.infos.get_mut(&app_id) {
+                // We need to modify the Arc<AppInfo>, so we'll create a new one
+                if let Some(info) = Arc::get_mut(info_arc) {
+                    info.wayland_compat = Some(WaylandCompatibility::decode_bitcode(bitcode));
+                    log::debug!("  ✅ Injected bitcode 0x{:02X} into {}", bitcode, app_id_str);
+                    injected_count += 1;
+                } else {
+                    // Arc has multiple references, need to clone and modify
+                    let mut new_info = (**info_arc).clone();
+                    new_info.wayland_compat = Some(WaylandCompatibility::decode_bitcode(bitcode));
+                    *info_arc = Arc::new(new_info);
+                    log::debug!("  ✅ Injected bitcode 0x{:02X} into {} (cloned)", bitcode, app_id_str);
+                    injected_count += 1;
+                }
+            }
+        }
+
+        log::info!("🧪 Injected bitcode data into {} apps", injected_count);
     }
 
     pub fn icon_path(
@@ -594,6 +712,9 @@ impl AppstreamCache {
             .filter_map(|node| {
                 if let xmltree::XMLNode::Element(e) = node {
                     if &*e.name == "component" {
+                        // Extract wayland_compat from custom fields before converting to Component
+                        let wayland_compat_from_xml = extract_wayland_bitcode(e);
+
                         match Component::try_from(e) {
                             Ok(component) => {
                                 match component.kind {
@@ -611,7 +732,15 @@ impl AppstreamCache {
 
                                 let id = AppId::new(&component.id.0);
                                 let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
-                                let wayland_compat = stats::wayland_compatibility(&id);
+
+                                // Use bitcode from XML if available, otherwise fall back to stats
+                                let wayland_compat = wayland_compat_from_xml
+                                    .or_else(|| stats::wayland_compatibility(&id));
+
+                                if wayland_compat_from_xml.is_some() {
+                                    log::debug!("Using wayland_compat from AppStream XML for {}", component.id.0);
+                                }
+
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
@@ -1047,7 +1176,26 @@ impl AppstreamCache {
 
                         let id = AppId::new(&component.id.0);
                         let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
-                        let wayland_compat = stats::wayland_compatibility(&id);
+
+                        // Extract wayland_compat from YAML custom fields if available
+                        let wayland_compat_from_yaml = value.get("Custom")
+                            .and_then(|custom| custom.get("wayland_compat"))
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.strip_prefix("0x"))
+                            .and_then(|hex| u8::from_str_radix(hex, 16).ok())
+                            .map(|bitcode| {
+                                log::debug!("Found wayland_compat bitcode in YAML: 0x{:02X}", bitcode);
+                                WaylandCompatibility::decode_bitcode(bitcode)
+                            });
+
+                        // Use bitcode from YAML if available, otherwise fall back to stats
+                        let wayland_compat = wayland_compat_from_yaml
+                            .or_else(|| stats::wayland_compatibility(&id));
+
+                        if wayland_compat_from_yaml.is_some() {
+                            log::debug!("Using wayland_compat from AppStream YAML for {}", component.id.0);
+                        }
+
                         infos.push((
                             id,
                             Arc::new(AppInfo::new(
@@ -1076,5 +1224,241 @@ impl AppstreamCache {
             duration
         );
         Ok((origin_opt, infos, Vec::new()))
+    }
+}
+
+#[cfg(test)]
+mod wayland_bitcode_tests {
+    use super::*;
+    use crate::app_info::{AppFramework, RiskLevel, WaylandSupport};
+    use std::io::Cursor;
+
+    #[test]
+    fn test_extract_wayland_bitcode() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>org.gnome.Epiphany</id>
+  <name>Web</name>
+  <custom>
+    <value key="wayland_compat">0x0A</value>
+  </custom>
+</component>
+"##;
+
+        let element = xmltree::Element::parse(xml.as_bytes()).unwrap();
+        let wayland_compat = extract_wayland_bitcode(&element);
+
+        assert!(wayland_compat.is_some());
+        let compat = wayland_compat.unwrap();
+        assert_eq!(compat.framework, AppFramework::GTK4);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn test_extract_wayland_bitcode_multiple_custom_values() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>com.brave.Browser</id>
+  <name>Brave</name>
+  <custom>
+    <value key="other_key">some_value</value>
+    <value key="wayland_compat">0x96</value>
+    <value key="another_key">another_value</value>
+  </custom>
+</component>
+"##;
+
+        let element = xmltree::Element::parse(xml.as_bytes()).unwrap();
+        let wayland_compat = extract_wayland_bitcode(&element);
+
+        assert!(wayland_compat.is_some());
+        let compat = wayland_compat.unwrap();
+        assert_eq!(compat.framework, AppFramework::Electron);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::High);
+    }
+
+    #[test]
+    fn test_extract_wayland_bitcode_no_custom() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>org.example.App</id>
+  <name>Example</name>
+</component>
+"##;
+
+        let element = xmltree::Element::parse(xml.as_bytes()).unwrap();
+        let wayland_compat = extract_wayland_bitcode(&element);
+
+        assert!(wayland_compat.is_none());
+    }
+
+    #[test]
+    fn test_extract_wayland_bitcode_invalid_hex() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>org.example.App</id>
+  <name>Example</name>
+  <custom>
+    <value key="wayland_compat">0xZZ</value>
+  </custom>
+</component>
+"##;
+
+        let element = xmltree::Element::parse(xml.as_bytes()).unwrap();
+        let wayland_compat = extract_wayland_bitcode(&element);
+
+        assert!(wayland_compat.is_none());
+    }
+
+    #[test]
+    fn test_extract_wayland_bitcode_qt6() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<component>
+  <id>org.kde.kate</id>
+  <name>Kate</name>
+  <custom>
+    <value key="wayland_compat">0x52</value>
+  </custom>
+</component>
+"##;
+
+        let element = xmltree::Element::parse(xml.as_bytes()).unwrap();
+        let wayland_compat = extract_wayland_bitcode(&element);
+
+        assert!(wayland_compat.is_some());
+        let compat = wayland_compat.unwrap();
+        assert_eq!(compat.framework, AppFramework::Qt6);
+        assert_eq!(compat.support, WaylandSupport::Native);
+        assert_eq!(compat.risk_level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn test_parse_xml_with_wayland_bitcode() {
+        let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<components version="0.16">
+  <component type="desktop-application">
+    <id>org.gnome.Epiphany</id>
+    <name>Web</name>
+    <summary>Web browser for GNOME</summary>
+    <custom>
+      <value key="wayland_compat">0x0A</value>
+    </custom>
+  </component>
+  <component type="desktop-application">
+    <id>com.brave.Browser</id>
+    <name>Brave</name>
+    <summary>Web browser</summary>
+    <custom>
+      <value key="wayland_compat">0x96</value>
+    </custom>
+  </component>
+</components>
+"##;
+
+        let cache = AppstreamCache {
+            source_id: "test".to_string(),
+            source_name: "Test".to_string(),
+            ..Default::default()
+        };
+
+        let result = cache.parse_xml("test.xml", Cursor::new(xml));
+        assert!(result.is_ok());
+
+        let (_origin, infos, _addons) = result.unwrap();
+        assert_eq!(infos.len(), 2);
+
+        // Check first app (Epiphany - GTK4 + Native + Low)
+        let (_id, info1) = &infos[0];
+        assert_eq!(info1.name, "Web");
+        assert!(info1.wayland_compat.is_some());
+        let compat1 = info1.wayland_compat.unwrap();
+        assert_eq!(compat1.framework, AppFramework::GTK4);
+        assert_eq!(compat1.support, WaylandSupport::Native);
+        assert_eq!(compat1.risk_level, RiskLevel::Low);
+
+        // Check second app (Brave - Electron + Native + High)
+        let (_id, info2) = &infos[1];
+        assert_eq!(info2.name, "Brave");
+        assert!(info2.wayland_compat.is_some());
+        let compat2 = info2.wayland_compat.unwrap();
+        assert_eq!(compat2.framework, AppFramework::Electron);
+        assert_eq!(compat2.support, WaylandSupport::Native);
+        assert_eq!(compat2.risk_level, RiskLevel::High);
+    }
+
+    #[test]
+    fn test_parse_mock_appstream_file() {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        // Load the mock AppStream file
+        let file = File::open("res/mock-appstream-wayland.xml");
+        if file.is_err() {
+            // Skip test if file doesn't exist (e.g., in CI)
+            eprintln!("Skipping test: res/mock-appstream-wayland.xml not found");
+            return;
+        }
+
+        let file = file.unwrap();
+        let reader = BufReader::new(file);
+
+        let cache = AppstreamCache {
+            source_id: "test".to_string(),
+            source_name: "Test".to_string(),
+            ..Default::default()
+        };
+
+        let result = cache.parse_xml("mock-appstream-wayland.xml", reader);
+        assert!(result.is_ok(), "Failed to parse mock AppStream file");
+
+        let (_origin, infos, _addons) = result.unwrap();
+        assert_eq!(infos.len(), 12, "Expected 12 apps in mock file");
+
+        // Verify specific apps have correct bitcode data
+        for (id, info) in &infos {
+            let id_str = id.raw();
+            println!("Testing app: {} ({})", info.name, id_str);
+            assert!(info.wayland_compat.is_some(), "App {} should have wayland_compat", id_str);
+
+            let compat = info.wayland_compat.unwrap();
+
+            match id_str {
+                "org.gnome.Epiphany" | "org.gnome.Nautilus" | "org.gnome.TextEditor" => {
+                    // GTK4 + Native + Low (0x0A)
+                    assert_eq!(compat.framework, AppFramework::GTK4, "Wrong framework for {}", id_str);
+                    assert_eq!(compat.support, WaylandSupport::Native, "Wrong support for {}", id_str);
+                    assert_eq!(compat.risk_level, RiskLevel::Low, "Wrong risk level for {}", id_str);
+                }
+                "org.kde.kate" | "org.kde.okular" | "org.kde.krita" => {
+                    // Qt6 + Native + Medium (0x52)
+                    assert_eq!(compat.framework, AppFramework::Qt6, "Wrong framework for {}", id_str);
+                    assert_eq!(compat.support, WaylandSupport::Native, "Wrong support for {}", id_str);
+                    assert_eq!(compat.risk_level, RiskLevel::Medium, "Wrong risk level for {}", id_str);
+                }
+                "com.brave.Browser" | "com.visualstudio.code" | "com.discordapp.Discord" => {
+                    // Electron + Native + High (0x96)
+                    assert_eq!(compat.framework, AppFramework::Electron, "Wrong framework for {}", id_str);
+                    assert_eq!(compat.support, WaylandSupport::Native, "Wrong support for {}", id_str);
+                    assert_eq!(compat.risk_level, RiskLevel::High, "Wrong risk level for {}", id_str);
+                }
+                "org.gimp.GIMP" | "org.inkscape.Inkscape" => {
+                    // GTK3 + Native + Low (0x06)
+                    assert_eq!(compat.framework, AppFramework::GTK3, "Wrong framework for {}", id_str);
+                    assert_eq!(compat.support, WaylandSupport::Native, "Wrong support for {}", id_str);
+                    assert_eq!(compat.risk_level, RiskLevel::Low, "Wrong risk level for {}", id_str);
+                }
+                "org.videolan.VLC" => {
+                    // Qt5 + Native + Medium (0x4E)
+                    assert_eq!(compat.framework, AppFramework::Qt5, "Wrong framework for {}", id_str);
+                    assert_eq!(compat.support, WaylandSupport::Native, "Wrong support for {}", id_str);
+                    assert_eq!(compat.risk_level, RiskLevel::Medium, "Wrong risk level for {}", id_str);
+                }
+                _ => panic!("Unexpected app ID: {}", id_str),
+            }
+        }
+
+        println!("✅ All 12 apps parsed correctly with bitcode data!");
     }
 }
