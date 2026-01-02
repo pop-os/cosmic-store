@@ -79,19 +79,21 @@ The `flathub-stats` tool analyzes Flatpak manifests to detect:
 
 **Option 1: Merge as-is (Recommended for initial release)**
 - Merge this PR now with grey icons
-- Generate v0-7 compatibility data separately (requires fetching ~2000+ manifests from GitHub)
-- Add v0-7 file in a follow-up PR when ready
+- Wait for Flathub to provide v0-7 compatibility data
+- Add v0-7 file in a follow-up PR when Flathub makes it available
 - Users see grey icons initially, then colored badges after v0-7 is added
 
-**Option 2: Wait for v0-7 data**
-- Generate v0-7 file before merging (takes ~30-60 minutes)
-- Include compatibility data in this PR
-- Users see colored badges immediately
+**Option 2: Wait for Flathub v0-7 data**
+- Hold merge until Flathub provides compatibility data
+- Include v0-7 file in this PR
+- Users see colored badges immediately upon release
 
 **Option 3: Revert to heuristic approach**
-- If the bitcode approach proves problematic, we can revert to the earlier heuristic-based implementation
+- If the Flathub dependency is problematic, we can revert to the earlier heuristic-based implementation
 - That version analyzed app metadata in real-time (no external data file needed)
 - Available in git history if needed
+
+**Note:** The `flathub-stats` tool can generate v0-7 data by fetching manifests from GitHub, but ideally this should be provided by Flathub as an official data source to ensure consistency and reduce maintenance burden.
 
 ### Why Bitcode Approach?
 
@@ -117,10 +119,10 @@ rm -rf ~/.cache/cosmic-store/*
 - ✅ Filter and sort dropdowns functional
 - ⚪ All apps show grey "?" (Unknown) - expected without v0-7 data
 
-### Full Test (with v0-7):
+### Full Test (with v0-7 - when available from Flathub):
 ```bash
 cd flathub-stats
-cargo run --release  # Generates v0-7 with compatibility data
+cargo run --release  # Generates v0-7 by fetching manifests from GitHub
 cd ..
 cargo build --release
 rm -rf ~/.cache/cosmic-store/*
@@ -132,6 +134,8 @@ rm -rf ~/.cache/cosmic-store/*
 - ✅ Colored compatibility badges
 - ✅ Filtering by compatibility level works
 - ✅ Sorting by Wayland support works
+
+**Note:** The `flathub-stats` tool can generate this data independently, but ideally Flathub would provide it as an official data source.
 
 ## Screenshots
 
