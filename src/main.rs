@@ -926,28 +926,33 @@ impl App {
                     installed,
                 } in infos.iter()
                 {
-                    // Origin-based pre-filter (fast)
-                    if let Some(origin) = &info.origin_opt {
-                        if !origin.is_empty() && !origin.contains(os_codename) {
-                            log::debug!(
-                                "Filtering out {} due to origin mismatch: {} (expected {})",
-                                info.name,
-                                origin,
-                                os_codename
-                            );
-                            continue;
-                        }
-                    }
+                    // Skip OS-based filtering for Flatpak (self-contained packages)
+                    let is_flatpak = backend_name.starts_with("flatpak-");
 
-                    // PackageKit availability check (accurate)
-                    if *backend_name == "packagekit" && !info.pkgnames.is_empty() {
-                        if let Some(backend) = backends.get(*backend_name) {
-                            if !backend.is_package_available(&info.pkgnames) {
+                    if !is_flatpak {
+                        // Origin-based pre-filter (fast) - only for non-Flatpak packages
+                        if let Some(origin) = &info.origin_opt {
+                            if !origin.is_empty() && !origin.contains(os_codename) {
                                 log::debug!(
-                                    "Filtering out {} - not available in PackageKit",
-                                    info.name
+                                    "Filtering out {} due to origin mismatch: {} (expected {})",
+                                    info.name,
+                                    origin,
+                                    os_codename
                                 );
                                 continue;
+                            }
+                        }
+
+                        // PackageKit availability check (accurate)
+                        if *backend_name == "packagekit" && !info.pkgnames.is_empty() {
+                            if let Some(backend) = backends.get(*backend_name) {
+                                if !backend.is_package_available(&info.pkgnames) {
+                                    log::debug!(
+                                        "Filtering out {} - not available in PackageKit",
+                                        info.name
+                                    );
+                                    continue;
+                                }
                             }
                         }
                     }
