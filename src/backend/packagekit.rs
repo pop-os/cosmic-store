@@ -4,7 +4,7 @@ use packagekit_zbus::{
     Transaction::TransactionProxyBlocking,
     zbus::{blocking::Connection, zvariant},
 };
-use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
+use std::{collections::{HashMap, HashSet}, error::Error, fmt::Write, sync::{Arc, Mutex}, time::Instant};
 
 use super::{Backend, Package};
 use crate::{AppId, AppInfo, AppUrl, AppstreamCache, GStreamerCodec, Operation, OperationKind};
@@ -135,6 +135,7 @@ enum TransactionFlag {
 pub struct Packagekit {
     connection: Connection,
     appstream_caches: Vec<AppstreamCache>,
+    available_packages_cache: Arc<Mutex<Option<HashSet<String>>>>,
 }
 
 impl Packagekit {
@@ -151,7 +152,52 @@ impl Packagekit {
                 source_name.to_string(),
                 locale,
             )],
+            available_packages_cache: Arc::new(Mutex::new(None)),
         })
+    }
+
+    /// Build a cache of available package names from PackageKit
+    fn build_available_packages_cache(&self) -> Result<HashSet<String>, Box<dyn Error>> {
+        log::info!("Building available packages cache from PackageKit...");
+        let start = Instant::now();
+
+        let tx = self.transaction()?;
+        tx.get_packages(FilterKind::NotInstalled as u64 | FilterKind::Arch as u64)?;
+        let packages = self.package_transaction(tx)?;
+
+        let mut available = HashSet::new();
+        for package in packages {
+            for pkgname in &package.info.pkgnames {
+                available.insert(pkgname.clone());
+            }
+        }
+
+        log::info!(
+            "Built available packages cache with {} packages in {:?}",
+            available.len(),
+            start.elapsed()
+        );
+        Ok(available)
+    }
+
+    /// Check if a package is available for installation
+    pub fn is_package_available(&self, pkgnames: &[String]) -> bool {
+        // Lazy-load cache on first use
+        let mut cache = self.available_packages_cache.lock().unwrap();
+        if cache.is_none() {
+            match self.build_available_packages_cache() {
+                Ok(c) => *cache = Some(c),
+                Err(e) => {
+                    log::error!("Failed to build available packages cache: {}", e);
+                    // If cache build fails, assume package is available (fail open)
+                    return true;
+                }
+            }
+        }
+
+        // Check if any of the package names are available
+        let cache_ref = cache.as_ref().unwrap();
+        pkgnames.iter().any(|name| cache_ref.contains(name))
     }
 
     fn transaction(&self) -> Result<TransactionProxyBlocking<'_>, Box<dyn Error>> {
@@ -302,6 +348,8 @@ impl Backend for Packagekit {
             let tx = self.transaction()?;
             tx.set_hints(&["interactive=true", "cache-age=300"])?;
             tx.refresh_cache(false)?;
+            // Invalidate available packages cache
+            *self.available_packages_cache.lock().unwrap() = None;
         }
 
         for appstream_cache in self.appstream_caches.iter_mut() {
@@ -456,5 +504,9 @@ impl Backend for Packagekit {
             f(total_percentage as f32);
         })?;
         Ok(())
+    }
+
+    fn is_package_available(&self, pkgnames: &[String]) -> bool {
+        self.is_package_available(pkgnames)
     }
 }

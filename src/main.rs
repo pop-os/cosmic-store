@@ -71,6 +71,9 @@ mod localize;
 #[cfg(feature = "logind")]
 mod logind;
 
+use os_info::OsInfo;
+mod os_info;
+
 use operation::{Operation, OperationKind, RepositoryAdd, RepositoryRemove, RepositoryRemoveError};
 mod operation;
 
@@ -789,6 +792,7 @@ pub struct App {
     config: Config,
     mode: Mode,
     locale: String,
+    os_codename: String,
     app_themes: Vec<String>,
     apps: Arc<Apps>,
     backends: Backends,
@@ -909,6 +913,7 @@ impl App {
     fn generic_search<F: Fn(&AppId, &AppInfo, bool) -> Option<i64> + Send + Sync>(
         apps: &Apps,
         backends: &Backends,
+        os_codename: &str,
         filter_map: F,
     ) -> Vec<SearchResult> {
         let mut results: Vec<SearchResult> = apps
@@ -921,6 +926,32 @@ impl App {
                     installed,
                 } in infos.iter()
                 {
+                    // Origin-based pre-filter (fast)
+                    if let Some(origin) = &info.origin_opt {
+                        if !origin.is_empty() && !origin.contains(os_codename) {
+                            log::debug!(
+                                "Filtering out {} due to origin mismatch: {} (expected {})",
+                                info.name,
+                                origin,
+                                os_codename
+                            );
+                            continue;
+                        }
+                    }
+
+                    // PackageKit availability check (accurate)
+                    if *backend_name == "packagekit" && !info.pkgnames.is_empty() {
+                        if let Some(backend) = backends.get(*backend_name) {
+                            if !backend.is_package_available(&info.pkgnames) {
+                                log::debug!(
+                                    "Filtering out {} - not available in PackageKit",
+                                    info.name
+                                );
+                                continue;
+                            }
+                        }
+                    }
+
                     if let Some(weight) = filter_map(id, info, *installed) {
                         // Skip if best weight has equal or lower weight
                         if let Some(prev_weight) = best_weight {
@@ -938,7 +969,7 @@ impl App {
                 let AppEntry {
                     backend_name,
                     info,
-                    installed,
+                    installed: _,
                 } = infos.first()?;
                 Some(SearchResult {
                     backend_name,
@@ -977,13 +1008,14 @@ impl App {
     fn categories(&self, categories: &'static [Category]) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
                     let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                        Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
                             }
@@ -1021,6 +1053,7 @@ impl App {
     fn explore_results(&self, explore_page: ExplorePage) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
@@ -1028,13 +1061,13 @@ impl App {
                     let start = Instant::now();
                     let now = chrono::Utc::now().timestamp();
                     let results = match explore_page {
-                        ExplorePage::EditorsChoice => Self::generic_search(&apps, &backends, |id, _info, _installed | {
+                        ExplorePage::EditorsChoice => Self::generic_search(&apps, &backends, &os_codename, |id, _info, _installed | {
                             EDITORS_CHOICE
                             .iter()
                             .position(|choice_id| choice_id == &id.normalized())
                             .map(|x| x as i64)
                         }),
-                        ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                        ExplorePage::PopularApps => Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
                             }
@@ -1042,7 +1075,7 @@ impl App {
                         }),
                         ExplorePage::MadeForCosmic => {
                             let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                                 if !matches!(info.kind, AppKind::DesktopApplication) {
                                     return None;
                                 }
@@ -1053,11 +1086,11 @@ impl App {
                                 }
                             })
                         },
-                        ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
+                        ExplorePage::NewApps => Self::generic_search(&apps, &backends, &os_codename, |_id, _info, _installed| {
                             //TODO
                             None
                         }),
-                        ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, &os_codename, |id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
                             }
@@ -1080,7 +1113,7 @@ impl App {
                         }),
                         _ => {
                             let categories = explore_page.categories();
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                            Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                                 if !matches!(info.kind, AppKind::DesktopApplication) {
                                     return None;
                                 }
@@ -1113,11 +1146,12 @@ impl App {
     fn installed_results(&self) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |id, _info, installed| {
+                    let results = Self::generic_search(&apps, &backends, &os_codename, |id, _info, installed| {
                         if installed {
                             Some(if id.is_system() { -1 } else { 0 })
                         } else {
@@ -1184,11 +1218,12 @@ impl App {
         };
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                    let results = Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                         if !matches!(info.kind, AppKind::DesktopApplication) {
                             return None;
                         }
@@ -1738,13 +1773,14 @@ impl App {
         // https://freedesktop.org/software/appstream/docs/sect-AppStream-Misc-URIHandler.html
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         let component_id = AppId::new(path.trim_start_matches('/'));
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let results =
-                        Self::generic_search(&apps, &backends, |id, _info, _installed| {
+                        Self::generic_search(&apps, &backends, &os_codename, |id, _info, _installed| {
                             //TODO: fuzzy search with lower weight?
                             if id == &component_id { Some(0) } else { None }
                         });
@@ -1876,6 +1912,7 @@ impl App {
     fn handle_mime_url(&self, input: String, path: &str) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let os_codename = self.os_codename.clone();
         let mime = path.trim_matches('/').to_string();
         let provide = AppProvide::MediaType(mime.clone());
         Task::perform(
@@ -1883,7 +1920,7 @@ impl App {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
+                        Self::generic_search(&apps, &backends, &os_codename, |_id, info, _installed| {
                             //TODO: monthly downloads as weight?
                             if info.provides.contains(&provide) {
                                 Some(-(info.monthly_downloads as i64))
@@ -2963,6 +3000,13 @@ impl Application for App {
             String::from("en-US")
         });
 
+        let os_codename = OsInfo::detect()
+            .map(|info| info.codename().to_string())
+            .unwrap_or_else(|e| {
+                log::warn!("failed to detect OS codename: {}", e);
+                String::new()
+            });
+
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
 
         let mut nav_model = widget::nav_bar::Model::default();
@@ -2993,6 +3037,7 @@ impl Application for App {
             config: flags.config,
             mode: flags.mode,
             locale,
+            os_codename,
             app_themes,
             apps: Arc::new(Apps::new()),
             backends: Backends::new(),

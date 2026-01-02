@@ -45,6 +45,12 @@ pub trait Backend: fmt::Debug + Send + Sync {
         op: &Operation,
         f: Box<dyn FnMut(f32) + 'static>,
     ) -> Result<(), Box<dyn Error>>;
+
+    /// Check if a package is available for installation on this system
+    /// Default implementation returns true (assume available)
+    fn is_package_available(&self, _pkgnames: &[String]) -> bool {
+        true
+    }
 }
 
 // BTreeMap for stable sort order
