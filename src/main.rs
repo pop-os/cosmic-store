@@ -181,6 +181,17 @@ pub enum SearchSortMode {
     Relevance,
     MostDownloads,
     RecentlyUpdated,
+    BestWaylandSupport,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WaylandFilter {
+    All,
+    Excellent,  // Low risk
+    Good,       // Medium risk
+    Caution,    // High risk
+    Limited,    // Critical risk
+    Unknown,    // No data
 }
 
 impl Action {
@@ -316,6 +327,7 @@ pub enum Message {
     SearchResults(String, Vec<SearchResult>, bool),
     SearchSortMode(SearchSortMode),
     SearchSubmit(String),
+    WaylandFilter(WaylandFilter),
     Select(
         &'static str,
         AppId,
@@ -1056,6 +1068,8 @@ pub struct App {
     search_input: String,
     search_sort_mode: SearchSortMode,
     search_sort_options: Vec<String>,
+    wayland_filter: WaylandFilter,
+    wayland_filter_options: Vec<String>,
     size: Cell<Option<Size>>,
     //TODO: use hashset?
     installed: Option<Vec<(&'static str, Package)>>,
@@ -1157,7 +1171,10 @@ impl App {
         backends: &Backends,
         filter_map: F,
         sort_mode: SearchSortMode,
+        wayland_filter: WaylandFilter,
     ) -> Vec<SearchResult> {
+        use crate::app_info::RiskLevel;
+
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
@@ -1187,6 +1204,32 @@ impl App {
                     info,
                     installed: _,
                 } = infos.first()?;
+
+                // Apply Wayland compatibility filter
+                if wayland_filter != WaylandFilter::All {
+                    let compat_opt = info.wayland_compat_lazy();
+                    let matches_filter = match wayland_filter {
+                        WaylandFilter::All => true,
+                        WaylandFilter::Excellent => {
+                            compat_opt.map(|c| c.risk_level == RiskLevel::Low).unwrap_or(false)
+                        }
+                        WaylandFilter::Good => {
+                            compat_opt.map(|c| c.risk_level == RiskLevel::Medium).unwrap_or(false)
+                        }
+                        WaylandFilter::Caution => {
+                            compat_opt.map(|c| c.risk_level == RiskLevel::High).unwrap_or(false)
+                        }
+                        WaylandFilter::Limited => {
+                            compat_opt.map(|c| c.risk_level == RiskLevel::Critical).unwrap_or(false)
+                        }
+                        WaylandFilter::Unknown => compat_opt.is_none(),
+                    };
+
+                    if !matches_filter {
+                        return None;
+                    }
+                }
+
                 Some(SearchResult {
                     backend_name,
                     id: id.clone(),
@@ -1224,6 +1267,33 @@ impl App {
                     let a_timestamp = a.info.releases.first().and_then(|r| r.timestamp);
                     let b_timestamp = b.info.releases.first().and_then(|r| r.timestamp);
                     match b_timestamp.cmp(&a_timestamp) {
+                        cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.info.name, &b.info.name),
+                        ordering => ordering,
+                    }
+                });
+            }
+            SearchSortMode::BestWaylandSupport => {
+                use crate::app_info::RiskLevel;
+                // Sort by Wayland compatibility (Low -> Medium -> High -> Critical -> Unknown), then by name
+                results.par_sort_unstable_by(|a, b| {
+                    let a_risk = a.info.wayland_compat_lazy().map(|c| c.risk_level).unwrap_or(RiskLevel::Critical);
+                    let b_risk = b.info.wayland_compat_lazy().map(|c| c.risk_level).unwrap_or(RiskLevel::Critical);
+
+                    // Lower risk level = better (Low=0, Medium=1, High=2, Critical=3)
+                    let a_score = match a_risk {
+                        RiskLevel::Low => 0,
+                        RiskLevel::Medium => 1,
+                        RiskLevel::High => 2,
+                        RiskLevel::Critical => 3,
+                    };
+                    let b_score = match b_risk {
+                        RiskLevel::Low => 0,
+                        RiskLevel::Medium => 1,
+                        RiskLevel::High => 2,
+                        RiskLevel::Critical => 3,
+                    };
+
+                    match a_score.cmp(&b_score) {
                         cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.info.name, &b.info.name),
                         ordering => ordering,
                     }
@@ -1275,7 +1345,7 @@ impl App {
                                 }
                             }
                             None
-                        }, SearchSortMode::Relevance);
+                        }, SearchSortMode::Relevance, WaylandFilter::All);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for categories {:?} in {:?}, found {} results",
@@ -1307,13 +1377,13 @@ impl App {
                             .iter()
                             .position(|choice_id| choice_id == &id.normalized())
                             .map(|x| x as i64)
-                        }, SearchSortMode::Relevance),
+                        }, SearchSortMode::Relevance, WaylandFilter::All),
                         ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
                             }
                             Some(-(info.monthly_downloads as i64))
-                        }, SearchSortMode::Relevance),
+                        }, SearchSortMode::Relevance, WaylandFilter::All),
                         ExplorePage::MadeForCosmic => {
                             let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -1325,12 +1395,12 @@ impl App {
                                 } else {
                                     None
                                 }
-                            }, SearchSortMode::Relevance)
+                            }, SearchSortMode::Relevance, WaylandFilter::All)
                         },
                         ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
                             //TODO
                             None
-                        }, SearchSortMode::Relevance),
+                        }, SearchSortMode::Relevance, WaylandFilter::All),
                         ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
                             if !matches!(info.kind, AppKind::DesktopApplication) {
                                 return None;
@@ -1351,7 +1421,7 @@ impl App {
                                 }
                             }
                             Some(min_weight)
-                        }, SearchSortMode::Relevance),
+                        }, SearchSortMode::Relevance, WaylandFilter::All),
                         _ => {
                             let categories = explore_page.categories();
                             Self::generic_search(&apps, &backends, |_id, info, _installed| {
@@ -1365,7 +1435,7 @@ impl App {
                                     }
                                 }
                                 None
-                            }, SearchSortMode::Relevance)
+                            }, SearchSortMode::Relevance, WaylandFilter::All)
                         }
                     };
                     let duration = start.elapsed();
@@ -1397,7 +1467,7 @@ impl App {
                         } else {
                             None
                         }
-                    }, SearchSortMode::Relevance);
+                    }, SearchSortMode::Relevance, WaylandFilter::All);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for installed in {:?}, found {} results",
@@ -1459,6 +1529,7 @@ impl App {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
         let sort_mode = self.search_sort_mode;
+        let wayland_filter = self.wayland_filter;
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
@@ -1499,7 +1570,7 @@ impl App {
                             return Some(weight);
                         }
                         None
-                    }, sort_mode);
+                    }, sort_mode, wayland_filter);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -2022,7 +2093,7 @@ impl App {
                         Self::generic_search(&apps, &backends, |id, _info, _installed| {
                             //TODO: fuzzy search with lower weight?
                             if id == &component_id { Some(0) } else { None }
-                        }, SearchSortMode::Relevance);
+                        }, SearchSortMode::Relevance, WaylandFilter::All);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for ID {:?} in {:?}, found {} results",
@@ -2165,7 +2236,7 @@ impl App {
                             } else {
                                 None
                             }
-                        }, SearchSortMode::Relevance);
+                        }, SearchSortMode::Relevance, WaylandFilter::All);
                     let duration = start.elapsed();
                     log::info!(
                         "searched for mime {:?} in {:?}, found {} results",
@@ -3285,7 +3356,20 @@ impl Application for App {
         });
 
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
-        let search_sort_options = vec![fl!("sort-relevance"), fl!("sort-popular"), fl!("sort-recent")];
+        let search_sort_options = vec![
+            fl!("sort-relevance"),
+            fl!("sort-popular"),
+            fl!("sort-recent"),
+            fl!("sort-wayland"),
+        ];
+        let wayland_filter_options = vec![
+            fl!("filter-all"),
+            fl!("filter-excellent"),
+            fl!("filter-good"),
+            fl!("filter-caution"),
+            fl!("filter-limited"),
+            fl!("filter-unknown"),
+        ];
 
         let mut nav_model = widget::nav_bar::Model::default();
         for &nav_page in NavPage::all() {
@@ -3338,6 +3422,8 @@ impl Application for App {
             search_input: String::new(),
             search_sort_mode: SearchSortMode::Relevance,
             search_sort_options,
+            wayland_filter: WaylandFilter::All,
+            wayland_filter_options,
             size: Cell::new(None),
             installed: None,
             updates: None,
@@ -3942,6 +4028,12 @@ impl Application for App {
                     return self.search();
                 }
             }
+            Message::WaylandFilter(filter) => {
+                self.wayland_filter = filter;
+                if !self.search_input.is_empty() {
+                    return self.search();
+                }
+            }
             Message::Select(backend_name, id, icon, info) => {
                 return self.select(backend_name, id, icon, info);
             }
@@ -4522,11 +4614,34 @@ impl Application for App {
                                 SearchSortMode::Relevance => 0,
                                 SearchSortMode::MostDownloads => 1,
                                 SearchSortMode::RecentlyUpdated => 2,
+                                SearchSortMode::BestWaylandSupport => 3,
                             }),
                             |index| match index {
                                 0 => Message::SearchSortMode(SearchSortMode::Relevance),
                                 1 => Message::SearchSortMode(SearchSortMode::MostDownloads),
-                                _ => Message::SearchSortMode(SearchSortMode::RecentlyUpdated),
+                                2 => Message::SearchSortMode(SearchSortMode::RecentlyUpdated),
+                                _ => Message::SearchSortMode(SearchSortMode::BestWaylandSupport),
+                            },
+                        )
+                        .width(Length::Fixed(200.0))
+                        .into(),
+                        widget::dropdown(
+                            &self.wayland_filter_options,
+                            Some(match self.wayland_filter {
+                                WaylandFilter::All => 0,
+                                WaylandFilter::Excellent => 1,
+                                WaylandFilter::Good => 2,
+                                WaylandFilter::Caution => 3,
+                                WaylandFilter::Limited => 4,
+                                WaylandFilter::Unknown => 5,
+                            }),
+                            |index| match index {
+                                0 => Message::WaylandFilter(WaylandFilter::All),
+                                1 => Message::WaylandFilter(WaylandFilter::Excellent),
+                                2 => Message::WaylandFilter(WaylandFilter::Good),
+                                3 => Message::WaylandFilter(WaylandFilter::Caution),
+                                4 => Message::WaylandFilter(WaylandFilter::Limited),
+                                _ => Message::WaylandFilter(WaylandFilter::Unknown),
                             },
                         )
                         .width(Length::Fixed(200.0))
