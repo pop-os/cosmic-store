@@ -3,12 +3,6 @@ use std::{collections::HashMap, sync::OnceLock, time::Instant};
 use crate::app_info::WaylandCompatibility;
 use crate::AppId;
 
-// Old format (v0-6) - only downloads
-#[derive(bitcode::Decode)]
-struct FlathubStatsV6 {
-    downloads: HashMap<AppId, u64>,
-}
-
 // New format (v0-7) - downloads + compatibility
 #[derive(bitcode::Decode)]
 struct FlathubStatsV7 {
@@ -43,15 +37,15 @@ fn load_stats() -> &'static FlathubStats {
             }
         }
 
-        // Use v0-6 (downloads only)
-        match bitcode::decode::<FlathubStatsV6>(include_bytes!(
+        // Use v0-6 (downloads only) - this is just a HashMap<AppId, u64>
+        match bitcode::decode::<HashMap<AppId, u64>>(include_bytes!(
             "../res/flathub-stats.bitcode-v0-6"
         )) {
-            Ok(v6) => {
+            Ok(downloads) => {
                 let elapsed = start.elapsed();
                 log::info!("loaded flathub statistics v0-6 in {:?}", elapsed);
                 FlathubStats {
-                    downloads: v6.downloads,
+                    downloads,
                     compatibility: HashMap::new(),
                 }
             }
