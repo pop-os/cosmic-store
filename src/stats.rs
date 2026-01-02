@@ -3,7 +3,20 @@ use std::{collections::HashMap, sync::OnceLock, time::Instant};
 use crate::app_info::WaylandCompatibility;
 use crate::AppId;
 
+// Old format (v0-6) - only downloads
 #[derive(bitcode::Decode)]
+struct FlathubStatsV6 {
+    downloads: HashMap<AppId, u64>,
+}
+
+// New format (v0-7) - downloads + compatibility
+#[derive(bitcode::Decode)]
+struct FlathubStatsV7 {
+    downloads: HashMap<AppId, u64>,
+    compatibility: HashMap<AppId, WaylandCompatibility>,
+}
+
+// Internal unified format
 struct FlathubStats {
     downloads: HashMap<AppId, u64>,
     compatibility: HashMap<AppId, WaylandCompatibility>,
@@ -11,17 +24,36 @@ struct FlathubStats {
 
 static STATS: OnceLock<FlathubStats> = OnceLock::new();
 
-pub fn monthly_downloads(id: &AppId) -> Option<u64> {
-    let stats = STATS.get_or_init(|| {
+fn load_stats() -> &'static FlathubStats {
+    STATS.get_or_init(|| {
         let start = Instant::now();
-        // Try v0-7 first (with compatibility data), fallback to v0-6 (downloads only)
-        match bitcode::decode::<FlathubStats>(include_bytes!(
+
+        // Try v0-7 first (with compatibility data) if it exists
+        #[cfg(feature = "flathub-stats-v7")]
+        {
+            if let Ok(v7) = bitcode::decode::<FlathubStatsV7>(include_bytes!(
+                "../res/flathub-stats.bitcode-v0-7"
+            )) {
+                let elapsed = start.elapsed();
+                log::info!("loaded flathub statistics v0-7 in {:?}", elapsed);
+                return FlathubStats {
+                    downloads: v7.downloads,
+                    compatibility: v7.compatibility,
+                };
+            }
+        }
+
+        // Use v0-6 (downloads only)
+        match bitcode::decode::<FlathubStatsV6>(include_bytes!(
             "../res/flathub-stats.bitcode-v0-6"
         )) {
-            Ok(ok) => {
+            Ok(v6) => {
                 let elapsed = start.elapsed();
-                log::info!("loaded flathub statistics in {:?}", elapsed);
-                ok
+                log::info!("loaded flathub statistics v0-6 in {:?}", elapsed);
+                FlathubStats {
+                    downloads: v6.downloads,
+                    compatibility: HashMap::new(),
+                }
             }
             Err(err) => {
                 log::warn!("failed to load flathub statistics: {}", err);
@@ -31,30 +63,13 @@ pub fn monthly_downloads(id: &AppId) -> Option<u64> {
                 }
             }
         }
-    });
-    stats.downloads.get(id).copied()
+    })
+}
+
+pub fn monthly_downloads(id: &AppId) -> Option<u64> {
+    load_stats().downloads.get(id).copied()
 }
 
 pub fn wayland_compatibility(id: &AppId) -> Option<WaylandCompatibility> {
-    let stats = STATS.get_or_init(|| {
-        let start = Instant::now();
-        // Try v0-7 first (with compatibility data), fallback to v0-6 (downloads only)
-        match bitcode::decode::<FlathubStats>(include_bytes!(
-            "../res/flathub-stats.bitcode-v0-6"
-        )) {
-            Ok(ok) => {
-                let elapsed = start.elapsed();
-                log::info!("loaded flathub statistics in {:?}", elapsed);
-                ok
-            }
-            Err(err) => {
-                log::warn!("failed to load flathub statistics: {}", err);
-                FlathubStats {
-                    downloads: HashMap::new(),
-                    compatibility: HashMap::new(),
-                }
-            }
-        }
-    });
-    stats.compatibility.get(id).cloned()
+    load_stats().compatibility.get(id).cloned()
 }
