@@ -260,16 +260,15 @@ impl Packagekit {
             }
         }
         if !system_packages.is_empty() {
-            let name = "System Packages".to_string();
-            let summary = format!(
-                "{} package{}",
-                system_packages.len(),
-                if system_packages.len() == 1 { "" } else { "s" }
-            );
+            let name = crate::fl!("system-packages");
+            let summary = crate::fl!("system-packages-summary", count = system_packages.len());
             let mut description = String::new();
             let mut pkgnames = Vec::with_capacity(system_packages.len());
+            let mut extra = HashMap::new();
             for (package_name, version) in system_packages {
                 let _ = writeln!(description, " * {}: {}", package_name, version);
+                // Store update version in extra for UI display
+                extra.insert(format!("{}_update", package_name), version);
                 pkgnames.push(package_name);
             }
             //TODO: translate
@@ -289,7 +288,7 @@ impl Packagekit {
                     ..Default::default()
                 }),
                 version: String::new(),
-                extra: HashMap::new(),
+                extra,
             });
         }
         Ok(packages)
@@ -323,7 +322,29 @@ impl Backend for Packagekit {
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
         let tx = self.transaction()?;
         tx.get_updates(FilterKind::None as u64)?;
-        self.package_transaction(tx)
+        let mut packages = self.package_transaction(tx)?;
+
+        // For system packages, fetch current installed versions
+        for package in packages.iter_mut() {
+            if package.id.is_system() && !package.info.pkgnames.is_empty() {
+                // Get current installed versions for all system packages
+                let tx = self.transaction()?;
+                tx.resolve(FilterKind::Installed as u64, &package.info.pkgnames.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+                let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
+
+                // Build a map of package name to installed version
+                for tx_package in tx_packages {
+                    let mut parts = tx_package.package_id.split(';');
+                    if let Some(pkg_name) = parts.next() {
+                        if let Some(version) = parts.next() {
+                            package.extra.insert(format!("{}_installed", pkg_name), version.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(packages)
     }
 
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>> {
