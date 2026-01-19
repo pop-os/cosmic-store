@@ -26,7 +26,7 @@ use std::{
     any::TypeId,
     cell::Cell,
     cmp,
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     env,
     fmt::Debug,
     future::pending,
@@ -182,6 +182,7 @@ pub struct AppEntry {
 }
 
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
+pub type CategoryIndex = HashMap<String, Vec<AppId>>;
 
 enum SourceKind {
     Recommended { data: &'static [u8], enabled: bool },
@@ -793,6 +794,7 @@ pub struct App {
     locale: String,
     app_themes: Vec<String>,
     apps: Arc<Apps>,
+    category_index: Arc<CategoryIndex>,
     backends: Backends,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
@@ -976,6 +978,68 @@ impl App {
         results
     }
 
+    /// Fast category search using pre-built index - O(results) instead of O(all_apps)
+    fn category_search_indexed(
+        apps: &Apps,
+        backends: &Backends,
+        category_index: &CategoryIndex,
+        categories: &[Category],
+    ) -> Vec<SearchResult> {
+        // Collect all app IDs matching any of the categories
+        let mut matching_ids: HashSet<&AppId> = HashSet::new();
+        for category in categories {
+            if let Some(ids) = category_index.get(category.id()) {
+                matching_ids.extend(ids.iter());
+            }
+        }
+
+        // Process only matching apps (all indexed apps are already DesktopApplications)
+        let mut results: Vec<SearchResult> = matching_ids
+            .par_iter()
+            .filter_map(|id| {
+                let entries = apps.get(*id)?;
+                let AppEntry {
+                    backend_name,
+                    info,
+                    installed: _,
+                } = entries.first()?;
+
+                Some(SearchResult {
+                    backend_name,
+                    id: (*id).clone(),
+                    icon_opt: None,
+                    info: info.clone(),
+                    weight: -(info.monthly_downloads as i64),
+                })
+            })
+            .collect();
+
+        // Sort by weight (monthly downloads), then by name
+        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
+            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
+                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
+                ordering => ordering,
+            },
+            ordering => ordering,
+        });
+
+        // Load icons for top results
+        for result in results.iter_mut().take(MAX_RESULTS) {
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            result.icon_opt = Some(appstream_cache.icon(&result.info));
+        }
+        results
+    }
+
     fn categories(&self, categories: &'static [Category]) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
@@ -1023,6 +1087,7 @@ impl App {
     fn explore_results(&self, explore_page: ExplorePage) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
+        let category_index = self.category_index.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
@@ -1081,19 +1146,9 @@ impl App {
                             Some(min_weight)
                         }),
                         _ => {
+                            // Use indexed search for category-based queries - O(results) instead of O(all_apps)
                             let categories = explore_page.categories();
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                                if !matches!(info.kind, AppKind::DesktopApplication) {
-                                    return None;
-                                }
-                                for category in categories {
-                                    //TODO: contains doesn't work due to type mismatch
-                                    if info.categories.iter().any(|x| x == category.id()) {
-                                        return Some(-(info.monthly_downloads as i64));
-                                    }
-                                }
-                                None
-                            })
+                            Self::category_search_indexed(&apps, &backends, &category_index, categories)
                         }
                     };
                     let duration = start.elapsed();
@@ -1627,6 +1682,24 @@ impl App {
         apps.par_iter_mut().for_each(|(id, entries)| {
             entries.sort_unstable_by(|a, b| entry_sort(a, b, id));
         });
+
+        // Build category index for fast category lookups (only desktop apps)
+        let mut category_index = CategoryIndex::new();
+        for (id, entries) in apps.iter() {
+            // Use the first entry (highest priority) for category indexing
+            if let Some(entry) = entries.first() {
+                // Only index desktop applications
+                if matches!(entry.info.kind, AppKind::DesktopApplication) {
+                    for category in &entry.info.categories {
+                        category_index
+                            .entry(category.clone())
+                            .or_default()
+                            .push(id.clone());
+                    }
+                }
+            }
+        }
+        self.category_index = Arc::new(category_index);
 
         self.apps = Arc::new(apps);
 
@@ -3084,6 +3157,7 @@ impl Application for App {
             locale,
             app_themes,
             apps: Arc::new(Apps::new()),
+            category_index: Arc::new(CategoryIndex::new()),
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
