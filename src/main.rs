@@ -283,6 +283,9 @@ pub enum Message {
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
+    HomebrewReady(Option<Arc<dyn backend::Backend>>),
+    HomebrewInstalled(Vec<Package>),
+    HomebrewUpdates(Vec<Package>),
     Installed(Vec<(BackendName, Package)>),
     InstalledResults(Vec<SearchResult>),
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
@@ -830,6 +833,19 @@ fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widge
             result.icon_opt = Some(icon);
         }
     }
+}
+
+/// Sort packages with system packages first, then alphabetically by name
+fn sort_packages_system_first(packages: &mut Vec<(BackendName, Package)>) {
+    packages.sort_unstable_by(|a, b| {
+        if a.1.id.is_system() {
+            cmp::Ordering::Less
+        } else if b.1.id.is_system() {
+            cmp::Ordering::Greater
+        } else {
+            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
+        }
+    });
 }
 
 impl SearchResult {
@@ -2045,6 +2061,7 @@ impl App {
                     let collect_start = Instant::now();
                     let mut installed: Vec<_> = backends
                         .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != BackendName::Homebrew)
                         .flat_map(|(backend_name, backend)| {
                             let start = Instant::now();
                             let result: Vec<_> = match backend.installed() {
@@ -2102,6 +2119,7 @@ impl App {
                     let collect_start = Instant::now();
                     let mut updates: Vec<_> = backends
                         .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != BackendName::Homebrew)
                         .flat_map(|(backend_name, backend)| {
                             let start = Instant::now();
                             let result: Vec<_> = match backend.updates() {
@@ -2140,6 +2158,86 @@ impl App {
                         total_start.elapsed()
                     );
                     action::app(Message::Updates(updates))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Initialize homebrew backend in background (deferred to not delay explore page)
+    fn init_homebrew_task(&self) -> Task<Message> {
+        let locale = self.locale.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let backend = backend::init_homebrew(&locale);
+                    action::app(Message::HomebrewReady(backend))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Load homebrew installed in background
+    fn update_homebrew_installed(&self) -> Task<Message> {
+        let homebrew = match self.backends.get(&BackendName::Homebrew) {
+            Some(backend) => backend.clone(),
+            None => return Task::none(),
+        };
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let installed = match homebrew.installed() {
+                        Ok(packages) => packages,
+                        Err(err) => {
+                            log::error!("failed to list homebrew installed: {}", err);
+                            Vec::new()
+                        }
+                    };
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded homebrew installed in background: {} packages in {:?}",
+                        installed.len(),
+                        duration
+                    );
+                    action::app(Message::HomebrewInstalled(installed))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Load homebrew updates in background
+    fn update_homebrew_updates(&self) -> Task<Message> {
+        let homebrew = match self.backends.get(&BackendName::Homebrew) {
+            Some(backend) => backend.clone(),
+            None => return Task::none(),
+        };
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let updates = match homebrew.updates() {
+                        Ok(packages) => packages,
+                        Err(err) => {
+                            log::error!("failed to list homebrew updates: {}", err);
+                            Vec::new()
+                        }
+                    };
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded homebrew updates in background: {} packages in {:?}",
+                        updates.len(),
+                        duration
+                    );
+                    action::app(Message::HomebrewUpdates(updates))
                 })
                 .await
                 .unwrap_or(action::none())
@@ -3858,6 +3956,33 @@ impl Application for App {
                     }
                 }
             },
+            Message::HomebrewReady(homebrew_opt) => {
+                // Add homebrew backend and start loading its installed/updates
+                if let Some(homebrew) = homebrew_opt {
+                    self.backends.insert(BackendName::Homebrew, homebrew);
+                    return self.update_homebrew_installed();
+                }
+            }
+            Message::HomebrewInstalled(homebrew_packages) => {
+                // Merge homebrew packages into installed list
+                if let Some(installed) = &mut self.installed {
+                    for package in homebrew_packages {
+                        installed.push((BackendName::Homebrew, package));
+                    }
+                    sort_packages_system_first(installed);
+                    // Refresh installed results if on that page
+                    return Task::batch([self.installed_results(), self.update_homebrew_updates()]);
+                }
+            }
+            Message::HomebrewUpdates(homebrew_packages) => {
+                // Merge homebrew updates into updates list
+                if let Some(updates) = &mut self.updates {
+                    for package in homebrew_packages {
+                        updates.push((BackendName::Homebrew, package));
+                    }
+                    sort_packages_system_first(updates);
+                }
+            }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
