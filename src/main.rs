@@ -1995,12 +1995,75 @@ impl App {
     }
 
     fn release_notes(&self, index: usize) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_s, space_xxs, ..
+        } = theme::active().cosmic().spacing;
+
+        // Check if this is a system package update
+        if let Some(package) = self
+            .updates
+            .as_deref()
+            .and_then(|updates| updates.get(index).map(|(_, package)| package))
+        {
+            if package.id.is_system() {
+                // Use pkgnames for most backends, flatpak_refs for flatpak
+                let refs: Vec<&str> = if !package.info.pkgnames.is_empty() {
+                    package.info.pkgnames.iter().map(|s| s.as_str()).collect()
+                } else {
+                    package
+                        .info
+                        .flatpak_refs
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect()
+                };
+
+                // Display list of system packages with version info
+                let mut package_list = widget::column::with_capacity(refs.len()).spacing(space_xxs);
+
+                for ref_name in refs {
+                    let installed_version = package
+                        .extra
+                        .get(&format!("{}_installed", ref_name))
+                        .map(|s| s.as_str());
+                    let update_version = package
+                        .extra
+                        .get(&format!("{}_update", ref_name))
+                        .map(|s| s.as_str());
+
+                    let version_text = match (installed_version, update_version) {
+                        (Some(installed), Some(update)) => {
+                            format!("{}: {} → {}", ref_name, installed, update)
+                        }
+                        (Some(installed), None) => {
+                            format!("{}: {}", ref_name, installed)
+                        }
+                        (None, Some(update)) => {
+                            format!("{}: → {}", ref_name, update)
+                        }
+                        (None, None) => ref_name.to_string(),
+                    };
+
+                    package_list = package_list.push(widget::text(version_text));
+                }
+
+                return widget::column::with_capacity(2)
+                    .push(widget::text::title4(fl!("system-package-updates")))
+                    .push(widget::scrollable(package_list))
+                    .width(Length::Fill)
+                    .spacing(space_s)
+                    .into();
+            }
+        }
+
+        // Regular package release notes
+        // Note: appstream releases are ordered from newest to oldest, so first() is the latest
         let (version, date, summary, url) = {
             self.updates
                 .as_deref()
                 .and_then(|updates| updates.get(index).map(|(_, package)| package))
                 .and_then(|selected| {
-                    selected.info.releases.last().map(|latest| {
+                    selected.info.releases.first().map(|latest| {
                         (
                             &*latest.version,
                             latest.timestamp,
@@ -2011,7 +2074,6 @@ impl App {
                 })
                 .unwrap_or(("", None, None, None))
         };
-        let cosmic_theme::Spacing { space_s, .. } = theme::active().cosmic().spacing;
         widget::column::with_capacity(3)
             .push(
                 widget::column::with_capacity(2)
