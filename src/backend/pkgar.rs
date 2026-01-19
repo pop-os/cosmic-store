@@ -81,12 +81,8 @@ impl Backend for Pkgar {
         }
 
         if !system_packages.is_empty() {
-            let name = "System Packages".to_string();
-            let summary = format!(
-                "{} package{}",
-                system_packages.len(),
-                if system_packages.len() == 1 { "" } else { "s" }
-            );
+            let name = crate::fl!("system-packages");
+            let summary = crate::fl!("system-packages-summary", count = system_packages.len());
             let mut description = String::new();
             let mut pkgnames = Vec::with_capacity(system_packages.len());
             for (package_name, version) in system_packages {
