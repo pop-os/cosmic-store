@@ -192,16 +192,15 @@ impl Flatpak {
         if !system_packages.is_empty() {
             //TODO: use correct appstream cache, or do not bother to specify it
             let appstream_cache = &self.appstream_caches[0];
-            let name = "System Packages".to_string();
-            let summary = format!(
-                "{} package{}",
-                system_packages.len(),
-                if system_packages.len() == 1 { "" } else { "s" }
-            );
+            let name = crate::fl!("flatpak-runtimes");
+            let summary = crate::fl!("system-packages-summary", count = system_packages.len());
             let mut description = String::new();
             let mut flatpak_refs = Vec::with_capacity(system_packages.len());
+            let mut extra = HashMap::new();
             for (flatpak_ref, version) in system_packages {
                 let _ = writeln!(description, " * {}: {}", flatpak_ref, version);
+                // Store version info for the release notes display
+                extra.insert(format!("{}_installed", flatpak_ref), version);
                 flatpak_refs.push(flatpak_ref);
             }
             //TODO: translate
@@ -221,7 +220,7 @@ impl Flatpak {
                     ..Default::default()
                 }),
                 version: String::new(),
-                extra: HashMap::new(),
+                extra,
             });
         }
 
