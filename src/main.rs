@@ -2602,7 +2602,8 @@ impl App {
                     column = column.push(addon_col);
                 }
 
-                for release in selected.info.releases.iter() {
+                // Show the first (latest) release only
+                if let Some(release) = selected.info.releases.first() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
                     release_col = release_col.push(widget::text::title4(fl!(
                         "version",
@@ -2623,8 +2624,6 @@ impl App {
                         release_col = release_col.push(widget::text::body(description));
                     }
                     column = column.push(release_col);
-                    //TODO: show more releases, or make sure this is the latest?
-                    break;
                 }
 
                 if let Some(license) = &selected.info.license_opt {
