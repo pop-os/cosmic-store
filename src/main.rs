@@ -1063,87 +1063,91 @@ impl App {
         )
     }
 
-    fn explore_results(&self, explore_page: ExplorePage) -> Task<Message> {
-        let apps = self.apps.clone();
-        let backends = self.backends.clone();
-        let category_index = self.category_index.clone();
-        Task::perform(
-            async move {
-                tokio::task::spawn_blocking(move || {
-                    log::info!("start search for {:?}", explore_page);
-                    let start = Instant::now();
-                    let now = chrono::Utc::now().timestamp();
-                    let results = match explore_page {
-                        ExplorePage::EditorsChoice => Self::generic_search(&apps, &backends, |id, _info, _installed | {
-                            EDITORS_CHOICE
-                            .iter()
-                            .position(|choice_id| choice_id == &id.normalized())
-                            .map(|x| x as i64)
-                        }),
-                        ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            Some(-(info.monthly_downloads as i64))
-                        }),
-                        ExplorePage::MadeForCosmic => {
-                            let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                                if !matches!(info.kind, AppKind::DesktopApplication) {
-                                    return None;
-                                }
-                                if info.provides.contains(&provide) {
-                                    Some(-(info.monthly_downloads as i64))
-                                } else {
-                                    None
-                                }
-                            })
-                        },
-                        ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
-                            //TODO
-                            None
-                        }),
-                        ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            // Finds the newest release and sorts from newest to oldest
-                            //TODO: appstream release info is often incomplete
-                            let mut min_weight = 0;
-                            for release in info.releases.iter() {
-                                if let Some(timestamp) = release.timestamp {
-                                    if timestamp < now {
-                                        let weight = -timestamp;
-                                        if weight < min_weight {
-                                            min_weight = weight;
-                                        }
-                                    } else {
-                                        log::info!("{:?} has release timestamp {} which is past the present {}", id, timestamp, now);
-                                    }
-                                }
-                            }
-                            Some(min_weight)
-                        }),
-                        _ => {
-                            // Use indexed search for category-based queries - O(results) instead of O(all_apps)
-                            let categories = explore_page.categories();
-                            Self::category_search_indexed(&apps, &backends, &category_index, categories)
-                        }
-                    };
-                    let duration = start.elapsed();
-                    log::info!(
-                        "searched for {:?} in {:?}, found {} results",
-                        explore_page,
-                        duration,
-                        results.len()
-                    );
-                    action::app(Message::ExploreResults(explore_page, results))
+    /// Run a single explore page search synchronously (for immediate results)
+    fn explore_search_sync(
+        apps: &Apps,
+        backends: &Backends,
+        category_index: &CategoryIndex,
+        explore_page: ExplorePage,
+    ) -> Vec<SearchResult> {
+        log::info!("start search for {:?}", explore_page);
+        let start = Instant::now();
+        let now = chrono::Utc::now().timestamp();
+        let results = match explore_page {
+            ExplorePage::EditorsChoice => {
+                Self::generic_search(apps, backends, |id, _info, _installed| {
+                    EDITORS_CHOICE
+                        .iter()
+                        .position(|choice_id| choice_id == &id.normalized())
+                        .map(|x| x as i64)
                 })
-                .await
-                .unwrap_or(action::none())
-            },
-            |x| x,
-        )
+            }
+            ExplorePage::PopularApps => {
+                Self::generic_search(apps, backends, |_id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    Some(-(info.monthly_downloads as i64))
+                })
+            }
+            ExplorePage::MadeForCosmic => {
+                let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
+                Self::generic_search(apps, backends, |_id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    if info.provides.contains(&provide) {
+                        Some(-(info.monthly_downloads as i64))
+                    } else {
+                        None
+                    }
+                })
+            }
+            ExplorePage::NewApps => {
+                Self::generic_search(apps, backends, |_id, _info, _installed| {
+                    //TODO
+                    None
+                })
+            }
+            ExplorePage::RecentlyUpdated => {
+                Self::generic_search(apps, backends, |id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    let mut min_weight = 0;
+                    for release in info.releases.iter() {
+                        if let Some(timestamp) = release.timestamp {
+                            if timestamp < now {
+                                let weight = -timestamp;
+                                if weight < min_weight {
+                                    min_weight = weight;
+                                }
+                            } else {
+                                log::info!(
+                                    "{:?} has release timestamp {} which is past the present {}",
+                                    id,
+                                    timestamp,
+                                    now
+                                );
+                            }
+                        }
+                    }
+                    Some(min_weight)
+                })
+            }
+            _ => {
+                let categories = explore_page.categories();
+                Self::category_search_indexed(apps, backends, category_index, categories)
+            }
+        };
+        let duration = start.elapsed();
+        log::info!(
+            "searched for {:?} in {:?}, found {} results",
+            explore_page,
+            duration,
+            results.len()
+        );
+        results
     }
 
     fn load_explore_icons(&self, explore_page: ExplorePage) -> Task<Message> {
@@ -3397,14 +3401,47 @@ impl Application for App {
                 self.explore_results.clear();
                 self.category_results = None;
                 self.installed_results = None;
-                let mut tasks = Vec::with_capacity(2);
-                tasks.push(self.update_installed());
+
+                // Build app cache immediately so explore page can render
+                self.update_apps();
+
+                let mut tasks = Vec::new();
+
+                // Run all explore searches IN PARALLEL, wait for completion
+                // This ensures explore page is fully populated before installed/updates start
                 match self.mode {
                     Mode::Normal => {
-                        tasks.push(self.update_updates());
+                        let apps = &self.apps;
+                        let backends_ref = &self.backends;
+                        let category_index = &self.category_index;
+
+                        // Run all searches in parallel using rayon
+                        let results: Vec<_> = ExplorePage::all()
+                            .par_iter()
+                            .map(|explore_page| {
+                                let search_results = Self::explore_search_sync(
+                                    apps,
+                                    backends_ref,
+                                    category_index,
+                                    *explore_page,
+                                );
+                                (*explore_page, search_results)
+                            })
+                            .collect();
+
+                        // Store results and queue icon loading
+                        for (explore_page, search_results) in results {
+                            self.explore_results.insert(explore_page, search_results);
+                            tasks.push(self.load_explore_icons(explore_page));
+                        }
                     }
                     Mode::GStreamer { .. } => {}
                 }
+
+                // Load installed/updates in background AFTER explore searches complete
+                tasks.push(self.update_installed());
+                tasks.push(self.update_updates());
+
                 return Task::batch(tasks);
             }
             Message::CategoryResults(categories, results) => {
@@ -3550,7 +3587,9 @@ impl Application for App {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
 
+                // Refresh app cache with installed status
                 self.update_apps();
+
                 let mut commands = Vec::new();
                 //TODO: search not done if item is selected because that would clear selection
                 if self.search_active && self.selected_opt.is_none() {
@@ -3566,16 +3605,9 @@ impl Application for App {
                         {
                             commands.push(self.categories(categories));
                         }
+                        // Refresh installed results
                         commands.push(self.installed_results());
-                        // Only search explore pages that don't have cached results
-                        for explore_page in ExplorePage::all() {
-                            if !self.explore_results.contains_key(explore_page) {
-                                commands.push(self.explore_results(*explore_page));
-                            } else {
-                                // Reload icons for cached results
-                                commands.push(self.load_explore_icons(*explore_page));
-                            }
-                        }
+                        // Explore searches already triggered from Message::Backends
                     }
                     Mode::GStreamer { .. } => {}
                 }
