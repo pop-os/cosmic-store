@@ -324,30 +324,38 @@ impl Backend for Packagekit {
         tx.get_updates(FilterKind::None as u64)?;
         let mut packages = self.package_transaction(tx)?;
 
-        // For system packages, fetch current installed versions
-        for package in packages.iter_mut() {
-            if package.id.is_system() && !package.info.pkgnames.is_empty() {
-                // Get current installed versions for all system packages
-                let tx = self.transaction()?;
-                tx.resolve(
-                    FilterKind::Installed as u64,
-                    &package
-                        .info
-                        .pkgnames
-                        .iter()
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>(),
-                )?;
-                let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
+        // Collect all package names from system packages for a single batched resolve
+        let all_pkgnames: Vec<&str> = packages
+            .iter()
+            .filter(|p| p.id.is_system())
+            .flat_map(|p| p.info.pkgnames.iter().map(|s| s.as_str()))
+            .collect();
 
-                // Build a map of package name to installed version
-                for tx_package in tx_packages {
-                    let mut parts = tx_package.package_id.split(';');
-                    if let Some(pkg_name) = parts.next() {
-                        if let Some(version) = parts.next() {
+        if !all_pkgnames.is_empty() {
+            // Single batched resolve call for all system packages
+            let tx = self.transaction()?;
+            tx.resolve(FilterKind::Installed as u64, &all_pkgnames)?;
+            let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
+
+            // Build a map of package name to installed version
+            let mut version_map: HashMap<String, String> = HashMap::new();
+            for tx_package in tx_packages {
+                let mut parts = tx_package.package_id.split(';');
+                if let Some(pkg_name) = parts.next() {
+                    if let Some(version) = parts.next() {
+                        version_map.insert(pkg_name.to_string(), version.to_string());
+                    }
+                }
+            }
+
+            // Apply versions to system packages
+            for package in packages.iter_mut() {
+                if package.id.is_system() {
+                    for pkgname in &package.info.pkgnames {
+                        if let Some(version) = version_map.get(pkgname) {
                             package
                                 .extra
-                                .insert(format!("{}_installed", pkg_name), version.to_string());
+                                .insert(format!("{}_installed", pkgname), version.clone());
                         }
                     }
                 }
