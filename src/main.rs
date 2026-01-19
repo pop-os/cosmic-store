@@ -108,10 +108,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("starting cosmic-store");
 
     localize::localize();
-    log::info!("localization loaded");
+    log::debug!("localization loaded");
 
     let cli = Cli::parse();
-    log::info!("CLI parsed");
+    log::debug!("CLI parsed");
 
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
@@ -142,7 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mode: Mode::Normal,
     };
 
-    log::info!("config loaded, launching app");
+    log::debug!("config loaded, launching app");
 
     if let Some(codec) = flags
         .subcommand_opt
@@ -778,6 +778,39 @@ fn backend_name_from_string(name: &str) -> &'static str {
         "homebrew" => "homebrew",
         "pkgar" => "pkgar",
         _ => "unknown",
+    }
+}
+
+/// Preserve icons from old results when new results arrive (avoids flicker)
+fn preserve_icons_from(old_results: &[SearchResult], new_results: &mut [SearchResult]) {
+    let old_icons: HashMap<&AppId, &widget::icon::Handle> = old_results
+        .iter()
+        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+        .collect();
+    for result in new_results {
+        if result.icon_opt.is_none() {
+            if let Some(icon) = old_icons.get(&result.id) {
+                result.icon_opt = Some((*icon).clone());
+            }
+        }
+    }
+}
+
+/// Sort packages with system packages first, then alphabetically by name
+fn sort_packages_system_first(packages: &mut [(&'static str, Package)]) {
+    packages.sort_unstable_by(|a, b| match (a.1.id.is_system(), b.1.id.is_system()) {
+        (true, false) => cmp::Ordering::Less,
+        (false, true) => cmp::Ordering::Greater,
+        _ => LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name),
+    });
+}
+
+/// Apply loaded icons to search results
+fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widget::icon::Handle)>) {
+    for (i, icon) in icons {
+        if let Some(result) = results.get_mut(i) {
+            result.icon_opt = Some(icon);
+        }
     }
 }
 
@@ -1952,17 +1985,7 @@ impl App {
                             result
                         })
                         .collect();
-                    installed.par_sort_unstable_by(|a, b| {
-                        let a_is_system = a.1.id.is_system();
-                        let b_is_system = b.1.id.is_system();
-                        if a_is_system && !b_is_system {
-                            cmp::Ordering::Less
-                        } else if b_is_system && !a_is_system {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
+                    sort_packages_system_first(&mut installed);
                     action::app(Message::Installed(installed))
                 })
                 .await
@@ -1996,15 +2019,7 @@ impl App {
                             result
                         })
                         .collect();
-                    updates.par_sort_unstable_by(|a, b| {
-                        if a.1.id.is_system() {
-                            cmp::Ordering::Less
-                        } else if b.1.id.is_system() {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
+                    sort_packages_system_first(&mut updates);
                     action::app(Message::Updates(updates))
                 })
                 .await
@@ -3564,22 +3579,9 @@ impl Application for App {
                             .collect();
 
                         // Store results and queue icon loading
-                        // Preserve icons from cached results to avoid flicker
                         for (explore_page, mut search_results) in results {
                             if let Some(old_results) = self.explore_results.get(&explore_page) {
-                                // Build a map of old icons by app id
-                                let old_icons: std::collections::HashMap<_, _> = old_results
-                                    .iter()
-                                    .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                                    .collect();
-                                // Copy icons to new results for matching apps
-                                for result in &mut search_results {
-                                    if result.icon_opt.is_none() {
-                                        if let Some(icon) = old_icons.get(&result.id) {
-                                            result.icon_opt = Some((*icon).clone());
-                                        }
-                                    }
-                                }
+                                preserve_icons_from(old_results, &mut search_results);
                             }
                             self.explore_results.insert(explore_page, search_results);
                             tasks.push(self.load_explore_icons(explore_page));
@@ -3615,19 +3617,8 @@ impl Application for App {
                 return Task::batch(tasks);
             }
             Message::CategoryResults(categories, mut results) => {
-                // Preserve icons from old results to avoid flicker
                 if let Some((_, old_results)) = &self.category_results {
-                    let old_icons: std::collections::HashMap<_, _> = old_results
-                        .iter()
-                        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                        .collect();
-                    for result in &mut results {
-                        if result.icon_opt.is_none() {
-                            if let Some(icon) = old_icons.get(&result.id) {
-                                result.icon_opt = Some((*icon).clone());
-                            }
-                        }
-                    }
+                    preserve_icons_from(old_results, &mut results);
                 }
                 self.category_results = Some((categories, results));
                 // Load icons in background
@@ -3636,11 +3627,7 @@ impl Application for App {
             Message::CategoryIconsLoaded(categories, icons) => {
                 if let Some((cats, results)) = &mut self.category_results {
                     if *cats == categories {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }
@@ -3703,12 +3690,8 @@ impl Application for App {
             }
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
-                    for (i, icon) in &icons {
-                        if let Some(result) = results.get_mut(*i) {
-                            result.icon_opt = Some(icon.clone());
-                        }
-                    }
-                    log::info!("loaded {} icons for {:?}", icons.len(), explore_page);
+                    log::debug!("loaded {} icons for {:?}", icons.len(), explore_page);
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::ExploreCacheSaved(result) => match result {
@@ -3809,11 +3792,7 @@ impl Application for App {
             }
             Message::InstalledIconsLoaded(icons) => {
                 if let Some(results) = &mut self.installed_results {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
-                        }
-                    }
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::Key(modifiers, key, text) => {
@@ -4116,11 +4095,7 @@ impl Application for App {
             Message::SearchIconsLoaded(input, icons) => {
                 if let Some((query, results)) = &mut self.search_results {
                     if *query == input {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }
@@ -4730,12 +4705,6 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
-        use std::sync::atomic::{AtomicBool, Ordering};
-        static FIRST_VIEW: AtomicBool = AtomicBool::new(true);
-        if FIRST_VIEW.swap(false, Ordering::Relaxed) {
-            log::info!("first view() call");
-        }
-
         let cosmic_theme::Spacing {
             space_s,
             space_xs,
