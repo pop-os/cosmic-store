@@ -3393,6 +3393,10 @@ impl Application for App {
             Message::Backends(backends) => {
                 self.backends = backends;
                 self.repos_changing.clear();
+                // Clear cached results since app catalog may have changed
+                self.explore_results.clear();
+                self.category_results = None;
+                self.installed_results = None;
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
                 match self.mode {
@@ -3563,8 +3567,14 @@ impl Application for App {
                             commands.push(self.categories(categories));
                         }
                         commands.push(self.installed_results());
+                        // Only search explore pages that don't have cached results
                         for explore_page in ExplorePage::all() {
-                            commands.push(self.explore_results(*explore_page));
+                            if !self.explore_results.contains_key(explore_page) {
+                                commands.push(self.explore_results(*explore_page));
+                            } else {
+                                // Reload icons for cached results
+                                commands.push(self.load_explore_icons(*explore_page));
+                            }
                         }
                     }
                     Mode::GStreamer { .. } => {}
