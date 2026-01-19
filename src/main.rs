@@ -849,6 +849,19 @@ fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widge
     }
 }
 
+/// Sort packages with system packages first, then alphabetically by name
+fn sort_packages_system_first(packages: &mut Vec<(&'static str, Package)>) {
+    packages.sort_unstable_by(|a, b| {
+        if a.1.id.is_system() {
+            cmp::Ordering::Less
+        } else if b.1.id.is_system() {
+            cmp::Ordering::Greater
+        } else {
+            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
+        }
+    });
+}
+
 impl SearchResult {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
