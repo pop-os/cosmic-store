@@ -19,6 +19,9 @@ mod packagekit;
 #[cfg(feature = "pkgar")]
 mod pkgar;
 
+#[cfg(feature = "homebrew")]
+mod homebrew;
+
 #[derive(Clone, Debug)]
 pub struct Package {
     pub id: AppId,
@@ -96,6 +99,22 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
             }
             Err(err) => {
                 log::error!("failed to load pkgar backend: {}", err);
+            }
+        }
+    }
+
+    #[cfg(feature = "homebrew")]
+    {
+        let start = Instant::now();
+        match homebrew::Homebrew::new(locale) {
+            Ok(backend) => {
+                backends.insert("homebrew", Arc::new(backend));
+                let duration = start.elapsed();
+                log::info!("initialized homebrew backend in {:?}", duration);
+            }
+            Err(err) => {
+                // Silent skip - homebrew not being installed is expected on most systems
+                log::debug!("homebrew backend not available: {}", err);
             }
         }
     }
