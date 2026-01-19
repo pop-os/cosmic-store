@@ -6,7 +6,7 @@ use std::{
     fmt::Write,
     io::{BufRead, BufReader},
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use super::{Backend, Package};
@@ -77,10 +77,26 @@ struct BrewOutdatedCask {
     current_version: String,
 }
 
-#[derive(Debug)]
+/// Cached results from brew commands (info and outdated run in parallel)
+struct BrewCache {
+    info: BrewInfoOutput,
+    outdated: BrewOutdatedOutput,
+}
+
 pub struct Homebrew {
     brew_path: String,
     appstream_caches: Vec<AppstreamCache>,
+    /// Cache for brew command results - populated on first access
+    cache: Mutex<Option<BrewCache>>,
+}
+
+impl std::fmt::Debug for Homebrew {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Homebrew")
+            .field("brew_path", &self.brew_path)
+            .field("appstream_caches", &self.appstream_caches)
+            .finish()
+    }
 }
 
 impl Homebrew {
@@ -113,7 +129,51 @@ impl Homebrew {
                 locale: locale.to_string(),
                 ..Default::default()
             }],
+            cache: Mutex::new(None),
         })
+    }
+
+    /// Ensure cache is populated by running both brew commands in parallel
+    fn ensure_cache(&self) -> Result<(), Box<dyn Error>> {
+        let mut cache = self.cache.lock().unwrap();
+        if cache.is_some() {
+            return Ok(());
+        }
+
+        // Run both brew commands in parallel (convert errors to strings for Send safety)
+        let (info_result, outdated_result) = rayon::join(
+            || {
+                self.run_brew(&["info", "--json=v2", "--installed"])
+                    .map_err(|e| e.to_string())
+            },
+            || {
+                self.run_brew(&["outdated", "--json"])
+                    .map_err(|e| e.to_string())
+            },
+        );
+
+        let info_output = info_result.map_err(|e| -> Box<dyn Error> { e.into() })?;
+        let outdated_output = outdated_result.map_err(|e| -> Box<dyn Error> { e.into() })?;
+
+        let info: BrewInfoOutput = serde_json::from_slice(&info_output).map_err(|e| {
+            log::error!("Failed to parse brew info JSON: {}", e);
+            e
+        })?;
+
+        let outdated: BrewOutdatedOutput =
+            serde_json::from_slice(&outdated_output).map_err(|e| {
+                log::error!("Failed to parse brew outdated JSON: {}", e);
+                e
+            })?;
+
+        *cache = Some(BrewCache { info, outdated });
+        Ok(())
+    }
+
+    /// Clear the cache (called on refresh)
+    fn clear_cache(&self) {
+        let mut cache = self.cache.lock().unwrap();
+        *cache = None;
     }
 
     /// Detect brew in PATH or common locations
@@ -355,6 +415,9 @@ impl Homebrew {
 
 impl Backend for Homebrew {
     fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>> {
+        // Clear cache so next installed()/updates() call will refresh
+        self.clear_cache();
+
         if refresh {
             log::info!("Refreshing Homebrew index");
             if let Err(e) = self.run_brew(&["update"]) {
@@ -369,25 +432,25 @@ impl Backend for Homebrew {
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        let output = self.run_brew(&["info", "--json=v2", "--installed"])?;
-        let info: BrewInfoOutput = serde_json::from_slice(&output).map_err(|e| {
-            log::error!("Failed to parse brew info JSON: {}", e);
-            e
-        })?;
+        // Ensure cache is populated (runs both brew commands in parallel on first call)
+        self.ensure_cache()?;
+
+        let cache = self.cache.lock().unwrap();
+        let info = &cache.as_ref().unwrap().info;
 
         let mut packages = Vec::new();
 
         // Collect formulae
         let formulae: Vec<_> = info
             .formulae
-            .into_iter()
+            .iter()
             .map(|f| {
                 let version = f
                     .installed
                     .first()
                     .map(|i| i.version.clone())
                     .unwrap_or_default();
-                (f.full_name, version, String::new())
+                (f.full_name.clone(), version, String::new())
             })
             .collect();
 
@@ -396,31 +459,31 @@ impl Backend for Homebrew {
         }
 
         // Add casks as individual entries
-        for cask in info.casks {
+        for cask in &info.casks {
             let version = cask.installed.clone().unwrap_or_default();
-            packages.push(self.cask_to_package(&cask, &version));
+            packages.push(self.cask_to_package(cask, &version));
         }
 
         Ok(packages)
     }
 
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        let output = self.run_brew(&["outdated", "--json"])?;
-        let outdated: BrewOutdatedOutput = serde_json::from_slice(&output).map_err(|e| {
-            log::error!("Failed to parse brew outdated JSON: {}", e);
-            e
-        })?;
+        // Ensure cache is populated (runs both brew commands in parallel on first call)
+        self.ensure_cache()?;
+
+        let cache = self.cache.lock().unwrap();
+        let outdated = &cache.as_ref().unwrap().outdated;
 
         let mut packages = Vec::new();
 
         // Collect formula updates (skip pinned)
         let formulae: Vec<_> = outdated
             .formulae
-            .into_iter()
+            .iter()
             .filter(|f| !f.pinned)
             .map(|f| {
                 let installed = f.installed_versions.first().cloned().unwrap_or_default();
-                (f.name, installed, f.current_version)
+                (f.name.clone(), installed, f.current_version.clone())
             })
             .collect();
 
@@ -429,8 +492,8 @@ impl Backend for Homebrew {
         }
 
         // Add cask updates as individual entries
-        for cask in outdated.casks {
-            packages.push(self.outdated_cask_to_package(&cask));
+        for cask in &outdated.casks {
+            packages.push(self.outdated_cask_to_package(cask));
         }
 
         Ok(packages)
