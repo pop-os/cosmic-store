@@ -28,13 +28,7 @@ struct BrewInfoOutput {
 
 #[derive(Debug, Deserialize)]
 struct BrewFormula {
-    #[allow(dead_code)]
-    name: String,
     full_name: String,
-    #[allow(dead_code)]
-    desc: Option<String>,
-    #[allow(dead_code)]
-    homepage: Option<String>,
     installed: Vec<BrewInstalled>,
 }
 
@@ -234,18 +228,15 @@ impl Homebrew {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        on_progress(5.0);
+        on_progress(10.0);
 
-        // Read stdout for progress estimation
+        // Read stdout and report steady progress
         if let Some(stdout) = child.stdout.take() {
             let reader = BufReader::new(stdout);
-            let mut lines = 0;
+            on_progress(50.0);
 
             for line in reader.lines().map_while(Result::ok) {
                 log::debug!("brew: {}", line);
-                lines += 1;
-                // Estimate progress based on output lines (cap at 90%)
-                on_progress(5.0 + (lines as f32 * 5.0).min(85.0));
             }
         }
 
