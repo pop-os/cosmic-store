@@ -15,6 +15,7 @@ use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 pub enum BackendName {
     FlatpakUser,
     FlatpakSystem,
+    Homebrew,
     Packagekit,
     Pkgar,
 }
@@ -25,6 +26,7 @@ impl BackendName {
         match self {
             BackendName::FlatpakUser => "flatpak-user",
             BackendName::FlatpakSystem => "flatpak-system",
+            BackendName::Homebrew => "homebrew",
             BackendName::Packagekit => "packagekit",
             BackendName::Pkgar => "pkgar",
         }
@@ -49,6 +51,7 @@ impl std::str::FromStr for BackendName {
         match s {
             "flatpak-user" => Ok(BackendName::FlatpakUser),
             "flatpak-system" => Ok(BackendName::FlatpakSystem),
+            "homebrew" => Ok(BackendName::Homebrew),
             "packagekit" => Ok(BackendName::Packagekit),
             "pkgar" => Ok(BackendName::Pkgar),
             _ => Err(format!("unknown backend name: {}", s)),
@@ -64,6 +67,9 @@ mod packagekit;
 
 #[cfg(feature = "pkgar")]
 mod pkgar;
+
+#[cfg(feature = "homebrew")]
+mod homebrew;
 
 #[derive(Clone, Debug)]
 pub struct Package {
@@ -161,6 +167,22 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         }
     }
 
+    #[cfg(feature = "homebrew")]
+    {
+        let start = Instant::now();
+        match homebrew::Homebrew::new(locale) {
+            Ok(backend) => {
+                backends.insert(BackendName::Homebrew, Arc::new(backend));
+                let duration = start.elapsed();
+                log::info!("initialized homebrew backend in {:?}", duration);
+            }
+            Err(err) => {
+                // Silent skip - homebrew not being installed is expected on most systems
+                log::debug!("homebrew backend not available: {}", err);
+            }
+        }
+    }
+
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
         match Arc::get_mut(backend).unwrap().load_caches(refresh) {
@@ -186,4 +208,21 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     }
 
     backends
+}
+
+/// Initialize the homebrew backend separately (deferred init to not delay startup)
+#[cfg(feature = "homebrew")]
+pub fn init_homebrew(locale: &str) -> Option<Arc<dyn Backend>> {
+    let start = Instant::now();
+    match homebrew::Homebrew::new(locale) {
+        Ok(backend) => {
+            let duration = start.elapsed();
+            log::info!("initialized homebrew backend in {:?}", duration);
+            Some(Arc::new(backend))
+        }
+        Err(err) => {
+            log::debug!("homebrew backend not available: {}", err);
+            None
+        }
+    }
 }

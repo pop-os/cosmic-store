@@ -26,7 +26,7 @@ use crate::backend::BackendName;
 use crate::explore::ExplorePage;
 use crate::nav::NavPage;
 use crate::operation::{Operation, OperationKind, RepositoryAdd};
-use crate::search::{apply_icons_to_results, preserve_icons_from};
+use crate::search::{apply_icons_to_results, preserve_icons_from, sort_packages_system_first};
 use crate::{App, DialogPage, GStreamerExitCode, Message, Mode};
 
 impl App {
@@ -254,6 +254,33 @@ impl App {
                     }
                 }
             },
+            Message::HomebrewReady(homebrew_opt) => {
+                // Add homebrew backend and start loading its installed/updates
+                if let Some(homebrew) = homebrew_opt {
+                    self.backends.insert(BackendName::Homebrew, homebrew);
+                    return self.update_homebrew_installed();
+                }
+            }
+            Message::HomebrewInstalled(homebrew_packages) => {
+                // Merge homebrew packages into installed list
+                if let Some(installed) = &mut self.installed {
+                    for package in homebrew_packages {
+                        installed.push((BackendName::Homebrew, package));
+                    }
+                    sort_packages_system_first(installed);
+                    // Refresh installed results if on that page
+                    return Task::batch([self.installed_results(), self.update_homebrew_updates()]);
+                }
+            }
+            Message::HomebrewUpdates(homebrew_packages) => {
+                // Merge homebrew updates into updates list
+                if let Some(updates) = &mut self.updates {
+                    for package in homebrew_packages {
+                        updates.push((BackendName::Homebrew, package));
+                    }
+                    sort_packages_system_first(updates);
+                }
+            }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
