@@ -3771,8 +3771,9 @@ impl Application for App {
                 self.backends = backends;
                 self.repos_changing.clear();
                 // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
-                let mut tasks = Vec::with_capacity(2);
+                let mut tasks = Vec::with_capacity(3);
                 tasks.push(self.update_installed());
+                tasks.push(self.init_homebrew_task());
                 match self.mode {
                     Mode::Normal => {
                         tasks.push(self.update_updates());
