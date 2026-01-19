@@ -329,7 +329,15 @@ impl Backend for Packagekit {
             if package.id.is_system() && !package.info.pkgnames.is_empty() {
                 // Get current installed versions for all system packages
                 let tx = self.transaction()?;
-                tx.resolve(FilterKind::Installed as u64, &package.info.pkgnames.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+                tx.resolve(
+                    FilterKind::Installed as u64,
+                    &package
+                        .info
+                        .pkgnames
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>(),
+                )?;
                 let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
 
                 // Build a map of package name to installed version
@@ -337,7 +345,9 @@ impl Backend for Packagekit {
                     let mut parts = tx_package.package_id.split(';');
                     if let Some(pkg_name) = parts.next() {
                         if let Some(version) = parts.next() {
-                            package.extra.insert(format!("{}_installed", pkg_name), version.to_string());
+                            package
+                                .extra
+                                .insert(format!("{}_installed", pkg_name), version.to_string());
                         }
                     }
                 }
