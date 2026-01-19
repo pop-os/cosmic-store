@@ -167,21 +167,8 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         }
     }
 
-    #[cfg(feature = "homebrew")]
-    {
-        let start = Instant::now();
-        match homebrew::Homebrew::new(locale) {
-            Ok(backend) => {
-                backends.insert(BackendName::Homebrew, Arc::new(backend));
-                let duration = start.elapsed();
-                log::info!("initialized homebrew backend in {:?}", duration);
-            }
-            Err(err) => {
-                // Silent skip - homebrew not being installed is expected on most systems
-                log::debug!("homebrew backend not available: {}", err);
-            }
-        }
-    }
+    // Note: Homebrew is initialized separately via init_homebrew() to avoid
+    // delaying the explore page load (homebrew has no appstream data)
 
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
@@ -210,7 +197,7 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     backends
 }
 
-/// Initialize the homebrew backend separately (deferred init to not delay startup)
+/// Initialize homebrew backend separately (deferred to avoid delaying explore page)
 #[cfg(feature = "homebrew")]
 pub fn init_homebrew(locale: &str) -> Option<Arc<dyn Backend>> {
     let start = Instant::now();
@@ -225,4 +212,9 @@ pub fn init_homebrew(locale: &str) -> Option<Arc<dyn Backend>> {
             None
         }
     }
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn init_homebrew(_locale: &str) -> Option<Arc<dyn Backend>> {
+    None
 }
