@@ -105,9 +105,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format_timestamp_millis()
         .init();
 
+    log::info!("starting cosmic-store");
+
     localize::localize();
+    log::info!("localization loaded");
 
     let cli = Cli::parse();
+    log::info!("CLI parsed");
 
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
@@ -137,6 +141,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config,
         mode: Mode::Normal,
     };
+
+    log::info!("config loaded, launching app");
 
     if let Some(codec) = flags
         .subcommand_opt
@@ -277,6 +283,7 @@ pub enum Message {
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
+    ExploreCacheSaved(Result<(), String>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
@@ -470,7 +477,7 @@ impl NavPage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum ExplorePage {
     EditorsChoice,
     PopularApps,
@@ -654,6 +661,95 @@ pub struct SearchResult {
     // Info from selected source
     info: Arc<AppInfo>,
     weight: i64,
+}
+
+/// Cached version of SearchResult for disk storage (without icons)
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedSearchResult {
+    backend_name: String,
+    id: AppId,
+    info: AppInfo,
+    weight: i64,
+}
+
+/// Cached explore page results
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedExploreResults {
+    results: Vec<(ExplorePage, Vec<CachedSearchResult>)>,
+}
+
+impl CachedExploreResults {
+    fn cache_path() -> Option<std::path::PathBuf> {
+        dirs::cache_dir().map(|p| p.join("cosmic-store").join("explore_cache.bin.zst"))
+    }
+
+    fn load() -> Option<Self> {
+        let path = Self::cache_path()?;
+        let compressed = std::fs::read(&path).ok()?;
+        let data = zstd::decode_all(compressed.as_slice()).ok()?;
+        bitcode::decode(&data).ok()
+    }
+
+    fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Self::cache_path().ok_or("no cache dir")?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let data = bitcode::encode(self);
+        let compressed = zstd::encode_all(data.as_slice(), 3)?;
+        std::fs::write(path, compressed)?;
+        Ok(())
+    }
+
+    fn from_results(results: &HashMap<ExplorePage, Vec<SearchResult>>) -> Self {
+        let cached: Vec<_> = results
+            .iter()
+            .map(|(page, search_results)| {
+                let cached_results: Vec<_> = search_results
+                    .iter()
+                    .map(|r| CachedSearchResult {
+                        backend_name: r.backend_name.to_string(),
+                        id: r.id.clone(),
+                        info: (*r.info).clone(),
+                        weight: r.weight,
+                    })
+                    .collect();
+                (*page, cached_results)
+            })
+            .collect();
+        Self { results: cached }
+    }
+
+    fn to_results(&self) -> HashMap<ExplorePage, Vec<SearchResult>> {
+        self.results
+            .iter()
+            .map(|(page, cached_results)| {
+                let results: Vec<_> = cached_results
+                    .iter()
+                    .map(|c| SearchResult {
+                        backend_name: backend_name_from_string(&c.backend_name),
+                        id: c.id.clone(),
+                        icon_opt: None,
+                        info: Arc::new(c.info.clone()),
+                        weight: c.weight,
+                    })
+                    .collect();
+                (*page, results)
+            })
+            .collect()
+    }
+}
+
+/// Convert backend name string back to static str
+fn backend_name_from_string(name: &str) -> &'static str {
+    match name {
+        "flatpak-user" => "flatpak-user",
+        "flatpak-system" => "flatpak-system",
+        "packagekit" => "packagekit",
+        "homebrew" => "homebrew",
+        "pkgar" => "pkgar",
+        _ => "unknown",
+    }
 }
 
 impl SearchResult {
@@ -3200,6 +3296,7 @@ impl Application for App {
 
     /// Creates the application, and optionally emits command on initialize.
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
+        log::info!("App::init started");
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
@@ -3271,6 +3368,15 @@ impl Application for App {
             uninstall_purge_data: false,
         };
 
+        // Load cached explore results for instant display
+        if let Some(cached) = CachedExploreResults::load() {
+            app.explore_results = cached.to_results();
+            log::info!(
+                "loaded {} cached explore categories",
+                app.explore_results.len()
+            );
+        }
+
         if let Some(subcommand) = flags.subcommand_opt {
             // Search for term
             app.search_active = true;
@@ -3284,6 +3390,8 @@ impl Application for App {
             }
         }
 
+        // Note: Icon loading for cached results happens in Message::Backends
+        // after backends are initialized (icons need backend info_caches)
         let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
@@ -3434,6 +3542,23 @@ impl Application for App {
                             self.explore_results.insert(explore_page, search_results);
                             tasks.push(self.load_explore_icons(explore_page));
                         }
+                        log::info!(
+                            "explore page ready with {} categories",
+                            self.explore_results.len()
+                        );
+
+                        // Save to cache asynchronously for instant loading on next launch
+                        let cached = CachedExploreResults::from_results(&self.explore_results);
+                        tasks.push(Task::perform(
+                            async move {
+                                tokio::task::spawn_blocking(move || {
+                                    cached.save().map_err(|e| e.to_string())
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(e.to_string()))
+                            },
+                            |result| action::app(Message::ExploreCacheSaved(result)),
+                        ));
                     }
                     Mode::GStreamer { .. } => {}
                 }
@@ -3519,13 +3644,18 @@ impl Application for App {
             }
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
+                    for (i, icon) in &icons {
+                        if let Some(result) = results.get_mut(*i) {
+                            result.icon_opt = Some(icon.clone());
                         }
                     }
+                    log::info!("loaded {} icons for {:?}", icons.len(), explore_page);
                 }
             }
+            Message::ExploreCacheSaved(result) => match result {
+                Ok(()) => log::info!("saved explore cache"),
+                Err(err) => log::warn!("failed to save explore cache: {}", err),
+            },
             Message::GStreamerExit(code) => match self.mode {
                 Mode::Normal => {}
                 Mode::GStreamer { .. } => {
@@ -4541,6 +4671,12 @@ impl Application for App {
 
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static FIRST_VIEW: AtomicBool = AtomicBool::new(true);
+        if FIRST_VIEW.swap(false, Ordering::Relaxed) {
+            log::info!("first view() call");
+        }
+
         let cosmic_theme::Spacing {
             space_s,
             space_xs,
