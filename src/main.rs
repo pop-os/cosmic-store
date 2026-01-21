@@ -919,6 +919,8 @@ impl App {
         backends: &Backends,
         filter_map: F,
     ) -> Vec<SearchResult> {
+        let filter_start = Instant::now();
+        let num_apps = apps.len();
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
@@ -964,8 +966,26 @@ impl App {
             },
             ordering => ordering,
         });
-        // Skip icon loading in search to return results faster
-        // Icons will be loaded on-demand in the view or by a background task
+        log::debug!(
+            "generic_search: scanned {} apps in {:?}",
+            num_apps,
+            filter_start.elapsed()
+        );
+        // Load only enough icons to show one page of results
+        //TODO: load in background
+        for result in results.iter_mut().take(MAX_RESULTS) {
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            result.icon_opt = Some(appstream_cache.icon(&result.info));
+        }
         results
     }
 
