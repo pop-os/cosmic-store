@@ -1575,6 +1575,8 @@ impl App {
         };
 
         //TODO: par_iter?
+        let collect_start = Instant::now();
+        let mut entry_count = 0;
         for (backend_name, backend) in self.backends.iter() {
             for appstream_cache in backend.info_caches() {
                 for (id, info) in appstream_cache.infos.iter() {
@@ -1585,9 +1587,15 @@ impl App {
                         installed: self.is_installed(backend_name, id, info),
                     });
                     entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
+                    entry_count += 1;
                 }
             }
         }
+        log::debug!(
+            "update_apps: collected and sorted {} entries in {:?}",
+            entry_count,
+            collect_start.elapsed()
+        );
 
         // Manually insert system apps
         if let Some(installed) = &self.installed {
@@ -1631,8 +1639,10 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    let total_start = Instant::now();
                     let mut installed = Vec::new();
                     //TODO: par_iter?
+                    let collect_start = Instant::now();
                     for (backend_name, backend) in backends.iter() {
                         let start = Instant::now();
                         match backend.installed() {
@@ -1648,6 +1658,12 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded installed from {} in {:?}", backend_name, duration);
                     }
+                    log::debug!(
+                        "update_installed: collected {} packages in {:?}",
+                        installed.len(),
+                        collect_start.elapsed()
+                    );
+                    let sort_start = Instant::now();
                     installed.par_sort_unstable_by(|a, b| {
                         let a_is_system = a.1.id.is_system();
                         let b_is_system = b.1.id.is_system();
@@ -1659,6 +1675,11 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
+                    log::debug!(
+                        "update_installed: sorted in {:?}, total {:?}",
+                        sort_start.elapsed(),
+                        total_start.elapsed()
+                    );
                     action::app(Message::Installed(installed))
                 })
                 .await
@@ -1673,8 +1694,10 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    let total_start = Instant::now();
                     let mut updates = Vec::new();
                     //TODO: par_iter?
+                    let collect_start = Instant::now();
                     for (backend_name, backend) in backends.iter() {
                         let start = Instant::now();
                         match backend.updates() {
@@ -1690,6 +1713,12 @@ impl App {
                         let duration = start.elapsed();
                         log::info!("loaded updates from {} in {:?}", backend_name, duration);
                     }
+                    log::debug!(
+                        "update_updates: collected {} packages in {:?}",
+                        updates.len(),
+                        collect_start.elapsed()
+                    );
+                    let sort_start = Instant::now();
                     updates.par_sort_unstable_by(|a, b| {
                         if a.1.id.is_system() {
                             cmp::Ordering::Less
@@ -1699,6 +1728,11 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
+                    log::debug!(
+                        "update_updates: sorted in {:?}, total {:?}",
+                        sort_start.elapsed(),
+                        total_start.elapsed()
+                    );
                     action::app(Message::Updates(updates))
                 })
                 .await
