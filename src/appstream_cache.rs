@@ -656,8 +656,11 @@ impl AppstreamCache {
         let mut origin_opt = None;
         let mut media_base_url_opt = None;
         let mut infos = Vec::new();
+        let mut doc_count = 0usize;
+        let yaml_start = Instant::now();
         //TODO: par_iter?
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
+            doc_count = doc_i + 1;
             let value = match serde_yaml::Value::deserialize(doc) {
                 Ok(ok) => ok,
                 Err(err) => {
@@ -1060,6 +1063,13 @@ impl AppstreamCache {
                 }
             }
         }
+        let yaml_duration = yaml_start.elapsed();
+        log::debug!(
+            "processed {} YAML documents from {:?} in {:?}",
+            doc_count,
+            path,
+            yaml_duration
+        );
         let duration = start.elapsed();
         log::info!(
             "loaded {} items from {:?} in {:?}",
