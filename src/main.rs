@@ -1721,24 +1721,26 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let total_start = Instant::now();
-                    let mut updates = Vec::new();
-                    //TODO: par_iter?
                     let collect_start = Instant::now();
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.updates() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    updates.push((*backend_name, package));
+                    let mut updates: Vec<_> = backends
+                        .par_iter()
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.updates() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list updates: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list updates: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
-                    }
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
                     log::debug!(
                         "update_updates: collected {} packages in {:?}",
                         updates.len(),
