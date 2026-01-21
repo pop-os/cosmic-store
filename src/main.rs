@@ -1546,7 +1546,6 @@ impl App {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
-    //TODO: run in background
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
@@ -1574,25 +1573,45 @@ impl App {
             }
         };
 
-        //TODO: par_iter?
+        // Collect all entries from backends in parallel
         let collect_start = Instant::now();
-        let mut entry_count = 0;
-        for (backend_name, backend) in self.backends.iter() {
-            for appstream_cache in backend.info_caches() {
-                for (id, info) in appstream_cache.infos.iter() {
-                    let entry = apps.entry(id.clone()).or_default();
-                    entry.push(AppEntry {
-                        backend_name,
-                        info: info.clone(),
-                        installed: self.is_installed(backend_name, id, info),
-                    });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
-                    entry_count += 1;
-                }
-            }
+        let installed_ref = &self.installed;
+        let all_entries: Vec<(AppId, AppEntry)> = self
+            .backends
+            .par_iter()
+            .flat_map(|(backend_name, backend)| {
+                backend
+                    .info_caches()
+                    .iter()
+                    .flat_map(|appstream_cache| {
+                        appstream_cache.infos.iter().map(|(id, info)| {
+                            (
+                                id.clone(),
+                                AppEntry {
+                                    backend_name,
+                                    info: info.clone(),
+                                    installed: Self::is_installed_inner(
+                                        installed_ref,
+                                        backend_name,
+                                        id,
+                                        info,
+                                    ),
+                                },
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let entry_count = all_entries.len();
+
+        // Merge entries into HashMap
+        for (id, entry) in all_entries {
+            apps.entry(id).or_default().push(entry);
         }
         log::debug!(
-            "update_apps: collected and sorted {} entries in {:?}",
+            "update_apps: collected {} entries in {:?}",
             entry_count,
             collect_start.elapsed()
         );
@@ -1601,16 +1620,21 @@ impl App {
         if let Some(installed) = &self.installed {
             for (backend_name, package) in installed {
                 if package.id.is_system() {
-                    let entry = apps.entry(package.id.clone()).or_default();
-                    entry.push(AppEntry {
+                    apps.entry(package.id.clone()).or_default().push(AppEntry {
                         backend_name,
                         info: package.info.clone(),
                         installed: true,
                     });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, &package.id));
                 }
             }
         }
+
+        // Sort all entries once at the end (in parallel)
+        let sort_start = Instant::now();
+        apps.par_iter_mut().for_each(|(id, entries)| {
+            entries.sort_unstable_by(|a, b| entry_sort(a, b, id));
+        });
+        log::debug!("update_apps: sorted entries in {:?}", sort_start.elapsed());
 
         self.apps = Arc::new(apps);
 
