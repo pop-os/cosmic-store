@@ -1664,24 +1664,26 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let total_start = Instant::now();
-                    let mut installed = Vec::new();
-                    //TODO: par_iter?
                     let collect_start = Instant::now();
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.installed() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    installed.push((*backend_name, package));
+                    let mut installed: Vec<_> = backends
+                        .par_iter()
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.installed() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list installed: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list installed: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded installed from {} in {:?}", backend_name, duration);
-                    }
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded installed from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
                     log::debug!(
                         "update_installed: collected {} packages in {:?}",
                         installed.len(),
