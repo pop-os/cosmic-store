@@ -50,11 +50,11 @@ adding = Adicionando...
 remove = Remover
 removing = Removendo...
 # Uninstall Dialog
-uninstall-app = Desinstalar { $name }
-uninstall-app-warning = Tem certeza de que deseja desinstalar { $name }?
+uninstall-app = Desinstalar { $name }?
+uninstall-app-warning = A desinstalação de { $name } apagará todos os dados do aplicativo.
 # Nav Pages
 explore = Explorar
-create = Criar
+create = Criação
 work = Trabalho
 develop = Desenvolvimento
 learn = Educação
@@ -142,3 +142,6 @@ dark = Estilo escuro
 light = Estilo claro
 addons = Complementos
 view-more = Ver mais
+delete-app-data = Apagar permanentemente os dados do aplicativo
+uninstall-app-flatpak-warning = A desinstalação de { $name } manterá seus documentos e dados.
+version = Versão { $version }

@@ -2,15 +2,15 @@ app-name = COSMIC Áruház
 back = Vissza
 cancel = Mégse
 check-for-updates = Frissítések keresése
-checking-for-updates = Frissítések keresése...
+checking-for-updates = Frissítések keresése…
 close = Bezárás
 install = Telepítés
-no-installed-applications = Nincsenek telepített alkalmazások.
-no-updates = Minden telepített alkalmazás naprakész.
-no-results = Nincs találat a következőre: „{ $search }”.
-notification-in-progress = Telepítések és frissítések folyamatban.
+no-installed-applications = Nincsenek telepített alkalmazások
+no-updates = Minden telepített alkalmazás naprakész
+no-results = Nincs találat a következőre: „{ $search }”
+notification-in-progress = Telepítések és frissítések folyamatban
 open = Megnyitás
-see-all = Összes mutatása
+see-all = Összes megjelenítése
 uninstall = Eltávolítás
 update = Frissítés
 update-all = Összes frissítése
@@ -22,20 +22,20 @@ dock = Dokk
 place-and-refine = Elhelyezés és pontosítás
 # Codec dialog
 codec-title = További csomagok telepítése?
-codec-header = „{ $application }” további csomagokat igényel, amelyek biztosítják: „{ $description }”.
+codec-header = „{ $application }” további csomagokat igényel, amelyek biztosítják: „{ $description }”
 codec-footer =
     Ezeknek a kiegészítő csomagoknak a használata egyes országokban korlátozott lehet.
     Ellenőrizned kell, hogy az alábbiak közül legalább egy igaz:
      • Ezek a korlátozások nem vonatkoznak a lakóhelyed szerinti országra
      • Van engedélyed a szoftver használatára (például szabadalmi licenc)
      • Csak kutatási célokra használod ezt a szoftvert
-codec-error = Hiba történt a csomagok telepítése közben.
+codec-error = Hiba történt a csomagok telepítésekor.
 codec-installed = A csomagok telepítve lettek.
 # Progress footer
 details = Részletek
 dismiss = Üzenet bezárása
-operations-running = { $running } művelet fut ({ $percent }%)...
-operations-running-finished = { $running } művelet fut ({ $percent }%), { $finished } befejeződött...
+operations-running = { $running } művelet fut ({ $percent }%)…
+operations-running-finished = { $running } művelet fut ({ $percent }%), { $finished } befejeződött…
 # Repository add error dialog
 repository-add-error-title = „Nem sikerült hozzáadni a tárolót”
 # Repository remove dialog
@@ -46,9 +46,9 @@ repository-remove-body =
        *[other] eltávolítja ezt: „{ $dependency }”, és törli
     } a következő alkalmazásokat és elemeket. Újra kell majd telepíteni őket, ha újra hozzáadod a tárolót.
 add = Hozzáadás
-adding = Hozzáadás...
+adding = Hozzáadás…
 remove = Eltávolítás
-removing = Eltávolítás...
+removing = Eltávolítás…
 # Uninstall Dialog
 uninstall-app = Eltávolítod ezt: { $name }?
 uninstall-app-warning = A(z) { $name } eltávolítása törölni fogja annak adatait.
@@ -60,7 +60,7 @@ develop = Fejlesztés
 learn = Tanulás
 game = Játék
 relax = Pihenés
-socialize = Társalgás
+socialize = Kapcsolattartás
 utilities = Segédprogramok
 applets = Kisalkalmazások
 installed-apps = Telepített alkalmazások
@@ -87,18 +87,18 @@ apps-for-learning = Alkalmazások tanuláshoz
 # Details Page
 source-installed = { $source } (telepítve)
 developer = Fejlesztő
-app-developers = { $app } Fejlesztői
-monthly-downloads = Flathub havi letöltések
+app-developers = { $app } fejlesztők
+monthly-downloads = Havi letöltések a Flathubon
 licenses = Licencek
 proprietary = Zárt forráskódú
 
 ## App URLs
 
-bug-tracker = Problémakövető
+bug-tracker = Hibakövető
 contact = Kapcsolat
 donation = Adomány
 faq = GYIK
-help = Segítség
+help = Súgó
 homepage = Honlap
 translate = Fordítás
 
@@ -109,7 +109,7 @@ translate = Fordítás
 
 cancelled = Megszakítva
 operations = Műveletek
-no-operations = Nincsenek műveletek az előzményekben.
+no-operations = Nincsenek műveletek az előzményekben
 pending = Függőben
 failed = Sikertelen
 complete = Befejezett
@@ -121,13 +121,13 @@ settings = Beállítások
 ## Release notes
 
 latest-version = Legújabb verzió
-no-description = Nincs leírás.
+no-description = Nem érhető el leírás.
 
 ## Repositories
 
 recommended-flatpak-sources = Ajánlott Flatpak-források
 custom-flatpak-sources = Egyéni Flatpak-források
-import-flatpakrepo = { "." }flatpakrepo fájl importálása egyéni forrás hozzáadásához
+import-flatpakrepo = Egyéni forrás hozzáadásához importálj egy .flatpakrepo fájlt
 import = Importálás
 no-flatpak = Nincs Flatpak-támogatás
 software-repositories = Szoftvertárolók
@@ -143,3 +143,5 @@ no-custom-flatpak-sources = Nincsenek egyéni Flatpak-források
 addons = Kiegészítők
 view-more = Több megjelenítése
 version = Verzió { $version }
+delete-app-data = Alkalmazásadatok végleges törlése
+uninstall-app-flatpak-warning = A(z) { $name } eltávolítása után az alkalmazás adatai megmaradnak.

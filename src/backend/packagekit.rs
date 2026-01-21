@@ -391,7 +391,7 @@ impl Backend for Packagekit {
                         | FilterKind::Newest as u64
                         | FilterKind::Arch as u64
                 }
-                OperationKind::Uninstall => FilterKind::Installed as u64,
+                OperationKind::Uninstall { .. } => FilterKind::Installed as u64,
                 // Other operations not supported
                 _ => 0,
             };
@@ -416,9 +416,21 @@ impl Backend for Packagekit {
                     tx.install_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
                 }
             }
-            OperationKind::Uninstall => {
-                log::info!("uninstalling packages {:?}", package_ids);
+            OperationKind::Uninstall { purge_data } => {
+                log::info!(
+                    "uninstalling packages {:?} (purge_data: {})",
+                    package_ids,
+                    purge_data
+                );
+                if *purge_data {
+                    log::warn!(
+                        "PackageKit backend does not fully support purging configuration files. \
+                        Only the package will be removed. Configuration files may remain in user directories."
+                    );
+                }
                 //TODO: transaction flags?
+                //TODO: investigate if we can detect package managers like dnf, apt, etc
+                // and use purge-specific functionality
                 tx.remove_packages(0, &package_ids, true, true)?;
             }
             OperationKind::Update => {

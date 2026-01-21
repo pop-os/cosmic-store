@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::Write,
-    fs,
+    fs, ptr,
     rc::Rc,
     sync::Arc,
 };
@@ -283,44 +283,39 @@ impl Backend for Flatpak {
             return Err(format!("flatpak ref {path:?} missing Flatpak Ref section").into());
         }
 
-        let section = entry.section("Flatpak Ref");
-        let Some(id) = section.attr("Name") else {
-            return Err(format!("flatpak ref {path:?} missing Name attribute").into());
-        };
-        let Some(url) = section.attr("Url") else {
-            return Err(format!("flatpak ref {path:?} missing Url attribute").into());
-        };
+        let get_attr = |key| entry.get("Flatpak Ref", key).and_then(|attr| attr.first());
+
+        let id = get_attr("Name")
+            .ok_or_else(|| format!("flatpak ref {path:?} missing Name attribute"))?;
+        let url =
+            get_attr("Url").ok_or_else(|| format!("flatpak ref {path:?} missing Url attribute"))?;
 
         let mut source_id = url.to_string();
         let mut source_name = url.to_string();
         let inst = self.installation()?;
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            let Some(remote_url) = remote.url() else {
-                continue;
-            };
-            if url == remote_url {
+            if remote.url().is_some_and(|u| u == *url) {
                 // Check if already installed
                 if let Ok(r) = inst.current_installed_app(id, Cancellable::NONE) {
                     return Ok(self.refs_to_packages(vec![r]));
                 }
+                let Some(name) = remote.name() else {
+                    log::warn!("remote {:?} missing name", remote);
+                    continue;
+                };
 
-                source_id = match remote.name() {
-                    Some(name) => self.source_id(&name),
-                    None => {
-                        log::warn!("remote {:?} missing name", remote);
-                        continue;
-                    }
-                };
-                source_name = match remote.title() {
-                    Some(title) => self.source_id(&title),
-                    None => source_id.clone(),
-                };
+                source_id = self.source_id(&name);
+                source_name = remote
+                    .title()
+                    .map(|t| self.source_id(&t))
+                    .unwrap_or(source_id.clone());
+
                 break;
             }
         }
 
         let mut extra = HashMap::new();
-        if let Some(branch) = section.attr("Branch") {
+        if let Some(branch) = get_attr("Branch") {
             extra.insert("branch".to_string(), branch.to_string());
         }
 
@@ -333,14 +328,12 @@ impl Backend for Flatpak {
             info: Arc::new(AppInfo {
                 source_id,
                 source_name,
-                name: section.attr("Title").unwrap_or(id).to_string(),
-                summary: section.attr("Comment").unwrap_or_default().to_string(),
-                description: section.attr("Description").unwrap_or_default().to_string(),
-                urls: if let Some(homepage) = section.attr("Homepage") {
-                    vec![AppUrl::Homepage(homepage.to_string())]
-                } else {
-                    Vec::new()
-                },
+                name: get_attr("Title").unwrap_or(id).to_string(),
+                summary: get_attr("Comment").cloned().unwrap_or_default(),
+                description: get_attr("Description").cloned().unwrap_or_default(),
+                urls: get_attr("Homepage")
+                    .map(|h| vec![AppUrl::Homepage(h.to_string())])
+                    .unwrap_or_default(),
                 package_paths: vec![path.to_string()],
                 ..Default::default()
             }),
@@ -449,8 +442,9 @@ impl Backend for Flatpak {
                     }
                 }
             }
-            OperationKind::Uninstall => {
+            OperationKind::Uninstall { purge_data } => {
                 //TODO: deduplicate code
+                let mut app_ids_to_purge = Vec::new();
                 for info in op.infos.iter() {
                     for r_str in info.flatpak_refs.iter() {
                         let r = match Ref::parse(r_str) {
@@ -474,10 +468,53 @@ impl Backend for Flatpak {
                             }
                         };
 
-                        log::info!("uninstalling flatpak {}", r_str);
+                        log::info!(
+                            "uninstalling flatpak {} (purge_data: {})",
+                            r_str,
+                            purge_data
+                        );
                         tx.add_uninstall(r_str)?;
+
+                        // If purge_data is requested, collect app IDs for later deletion
+                        if *purge_data {
+                            if let Some(app_id) = r.name() {
+                                app_ids_to_purge.push(app_id.to_string());
+                            }
+                        }
                     }
                 }
+
+                tx.run(Cancellable::NONE)?;
+
+                // After successful uninstall, delete user data if requested
+                if *purge_data {
+                    for app_id in app_ids_to_purge {
+                        // User data is always stored in ~/.var/app/<app-id> regardless of installation type
+                        if let Ok(home) = std::env::var("HOME") {
+                            let data_path = std::path::PathBuf::from(home)
+                                .join(".var")
+                                .join("app")
+                                .join(&app_id);
+
+                            if data_path.exists() {
+                                log::info!("Purging user data for {}: {:?}", app_id, data_path);
+                                if let Err(err) = std::fs::remove_dir_all(&data_path) {
+                                    log::warn!(
+                                        "Failed to remove user data for {}: {}",
+                                        app_id,
+                                        err
+                                    );
+                                } else {
+                                    log::info!("Successfully removed user data for {}", app_id);
+                                }
+                            } else {
+                                log::info!("No user data found for {} at {:?}", app_id, data_path);
+                            }
+                        }
+                    }
+                }
+
+                return Ok(());
             }
             OperationKind::Update => {
                 //TODO: deduplicate code
@@ -490,22 +527,63 @@ impl Backend for Flatpak {
                                 continue;
                             }
                         };
+                        let id = r.name().unwrap_or_default();
                         match inst.installed_ref(
                             r.kind(),
-                            &r.name().unwrap_or_default(),
+                            &id,
                             r.arch().as_deref(),
                             r.branch().as_deref(),
                             Cancellable::NONE,
                         ) {
-                            Ok(_) => {}
+                            Ok(inst_r) => {
+                                if let Some(eol_rebase) = inst_r.eol_rebase() {
+                                    log::info!("eol rebase: {} -> {}", r_str, eol_rebase);
+                                    let origin = inst_r.origin().unwrap_or_default();
+                                    unsafe {
+                                        // Subpaths is NULL for installing complete ref
+                                        let subpaths = ptr::null_mut();
+                                        let mut previous_ids = vec![id.as_ptr()];
+                                        let mut error: *mut libflatpak::glib::ffi::GError =
+                                            ptr::null_mut();
+                                        //TODO: wrap in libflatpak crate
+                                        if libflatpak::ffi::flatpak_transaction_add_rebase(
+                                            tx.as_ptr(),
+                                            origin.as_ptr(),
+                                            eol_rebase.as_ptr(),
+                                            subpaths,
+                                            previous_ids.as_mut_ptr(),
+                                            &mut error,
+                                        ) == 0
+                                        {
+                                            let error_message = if error.is_null() {
+                                                format!("unspecified error")
+                                            } else {
+                                                libflatpak::glib::Error::from_glib_ptr_borrow(
+                                                    &error,
+                                                )
+                                                .message()
+                                                .to_string()
+                                            };
+                                            //TODO: get message from error
+                                            return Err(format!(
+                                                "failed to rebase {} to {}: {}",
+                                                r_str, eol_rebase, error_message
+                                            )
+                                            .into());
+                                        }
+                                    }
+
+                                    log::info!("uninstalling {} after rebase", r_str);
+                                    tx.add_uninstall(r_str)?;
+                                } else {
+                                    log::info!("updating flatpak {}", r_str);
+                                    tx.add_update(r_str, &[], None)?;
+                                }
+                            }
                             Err(err) => {
                                 log::info!("failed to find {} installed locally: {}", r_str, err);
-                                continue;
                             }
-                        };
-
-                        log::info!("updating flatpak {}", r_str);
-                        tx.add_update(r_str, &[], None)?;
+                        }
                     }
                 }
             }

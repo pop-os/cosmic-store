@@ -12,7 +12,7 @@ use cosmic::{
         core::SmolStr,
         event::{self, Event},
         futures::{self, SinkExt},
-        keyboard::{Event as KeyEvent, Key, Modifiers},
+        keyboard::{Event as KeyEvent, Key, Modifiers, key},
         stream,
         widget::scrollable,
         window::{self, Event as WindowEvent},
@@ -312,6 +312,7 @@ pub enum Message {
     SelectedAddonsViewMore(bool),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
+    ToggleUninstallPurgeData(bool),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
@@ -824,6 +825,7 @@ pub struct App {
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
+    uninstall_purge_data: bool,
 }
 
 impl App {
@@ -850,12 +852,12 @@ impl App {
                         }
                     };
                     //TODO: handle Terminal=true
-                    let exec = match entry.section("Desktop Entry").attr("Exec") {
-                        Some(some) => some,
-                        None => {
-                            log::warn!("no exec section in {:?}", path);
-                            return None;
-                        }
+                    let Some(exec) = entry
+                        .get("Desktop Entry", "Exec")
+                        .and_then(|attr| attr.first())
+                    else {
+                        log::warn!("no exec section in {:?}", path);
+                        return None;
                     };
                     //TODO: use libcosmic for loading desktop data
                     Some((exec.to_string(), desktop_id))
@@ -912,7 +914,7 @@ impl App {
         let mut results: Vec<SearchResult> = apps
             .par_iter()
             .filter_map(|(id, infos)| {
-                let mut best_result: Option<SearchResult> = None;
+                let mut best_weight: Option<i64> = None;
                 for AppEntry {
                     backend_name,
                     info,
@@ -920,25 +922,31 @@ impl App {
                 } in infos.iter()
                 {
                     if let Some(weight) = filter_map(id, info, *installed) {
-                        // Skip if best result has lower weight
-                        if let Some(prev_result) = &best_result {
-                            if prev_result.weight < weight {
+                        // Skip if best weight has equal or lower weight
+                        if let Some(prev_weight) = best_weight {
+                            if prev_weight <= weight {
                                 continue;
                             }
                         }
 
-                        //TODO: put all infos into search result?
-                        // Replace best result
-                        best_result = Some(SearchResult {
-                            backend_name,
-                            id: id.clone(),
-                            icon_opt: None,
-                            info: info.clone(),
-                            weight,
-                        });
+                        // Replace best weight
+                        best_weight = Some(weight);
                     }
                 }
-                best_result
+                let weight = best_weight?;
+                // Use first info as it is preferred, even if other ones had a higher weight
+                let AppEntry {
+                    backend_name,
+                    info,
+                    installed,
+                } = infos.first()?;
+                Some(SearchResult {
+                    backend_name,
+                    id: id.clone(),
+                    icon_opt: None,
+                    info: info.clone(),
+                    weight,
+                })
             })
             .collect();
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
@@ -1180,67 +1188,43 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            //TODO: improve performance
-                            let stats_weight = |weight: i64| {
-                                //TODO: make sure no overflows
-                                (weight << 56) - (info.monthly_downloads as i64)
-                            };
-                            //TODO: fuzzy match (nucleus-matcher?)
-                            match regex.find(&info.name) {
-                                Some(mat) => {
-                                    if mat.range().start == 0 {
-                                        if mat.range().end == info.name.len() {
-                                            // Name equals search phrase
-                                            Some(stats_weight(0))
-                                        } else {
-                                            // Name starts with search phrase
-                                            Some(stats_weight(1))
-                                        }
-                                    } else {
-                                        // Name contains search phrase
-                                        Some(stats_weight(2))
-                                    }
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        if !matches!(info.kind, AppKind::DesktopApplication) {
+                            return None;
+                        }
+                        //TODO: improve performance
+                        let stats_weight = |weight: i64| -> i64 {
+                            //TODO: make sure no overflows
+                            (weight << 56) - (info.monthly_downloads as i64)
+                        };
+
+                        //TODO: fuzzy match (nucleus-matcher?)
+                        let regex_weight = |string: &str, weight: i64| -> Option<i64> {
+                            let mat = regex.find(string)?;
+                            if mat.range().start == 0 {
+                                if mat.range().end == string.len() {
+                                    // String equals search phrase
+                                    Some(stats_weight(weight + 0))
+                                } else {
+                                    // String starts with search phrase
+                                    Some(stats_weight(weight + 1))
                                 }
-                                None => match regex.find(&info.summary) {
-                                    Some(mat) => {
-                                        if mat.range().start == 0 {
-                                            if mat.range().end == info.summary.len() {
-                                                // Summary equals search phrase
-                                                Some(stats_weight(3))
-                                            } else {
-                                                // Summary starts with search phrase
-                                                Some(stats_weight(4))
-                                            }
-                                        } else {
-                                            // Summary contains search phrase
-                                            Some(stats_weight(5))
-                                        }
-                                    }
-                                    None => match regex.find(&info.description) {
-                                        Some(mat) => {
-                                            if mat.range().start == 0 {
-                                                if mat.range().end == info.summary.len() {
-                                                    // Description equals search phrase
-                                                    Some(stats_weight(6))
-                                                } else {
-                                                    // Description starts with search phrase
-                                                    Some(stats_weight(7))
-                                                }
-                                            } else {
-                                                // Description contains search phrase
-                                                Some(stats_weight(8))
-                                            }
-                                        }
-                                        None => None,
-                                    },
-                                },
+                            } else {
+                                // String contains search phrase
+                                Some(stats_weight(weight + 2))
                             }
-                        });
+                        };
+                        if let Some(weight) = regex_weight(&info.name, 0) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.summary, 3) {
+                            return Some(weight);
+                        }
+                        if let Some(weight) = regex_weight(&info.description, 6) {
+                            return Some(weight);
+                        }
+                        None
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for {:?} in {:?}, found {} results",
@@ -1569,12 +1553,12 @@ impl App {
 
         let entry_sort = |a: &AppEntry, b: &AppEntry, id: &AppId| {
             // Sort with installed first
-            match a.installed.cmp(&b.installed) {
+            match b.installed.cmp(&a.installed) {
                 cmp::Ordering::Equal => {
                     // Sort by highest priority first to lowest priority
                     let a_priority = priority(a.backend_name, &a.info.source_id, id);
                     let b_priority = priority(b.backend_name, &b.info.source_id, id);
-                    match a_priority.cmp(&b_priority) {
+                    match b_priority.cmp(&a_priority) {
                         cmp::Ordering::Equal => {
                             match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
                                 cmp::Ordering::Equal => {
@@ -3041,6 +3025,7 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
+            uninstall_purge_data: false,
         };
 
         if let Some(subcommand) = flags.subcommand_opt {
@@ -3205,6 +3190,7 @@ impl Application for App {
             }
             Message::DialogCancel => {
                 self.dialog_pages.pop_front();
+                self.uninstall_purge_data = false;
             }
             Message::DialogConfirm => match self.dialog_pages.pop_front() {
                 Some(DialogPage::RepositoryRemove(backend_name, repo_rm)) => {
@@ -3216,8 +3202,10 @@ impl Application for App {
                     });
                 }
                 Some(DialogPage::Uninstall(backend_name, id, info)) => {
+                    let purge_data = self.uninstall_purge_data;
+                    self.uninstall_purge_data = false;
                     return self.update(Message::Operation(
-                        OperationKind::Uninstall,
+                        OperationKind::Uninstall { purge_data },
                         backend_name,
                         id,
                         info,
@@ -3260,7 +3248,7 @@ impl Application for App {
                                 );
                                 if installed != selected.contains(&i) {
                                     let kind = if installed {
-                                        OperationKind::Uninstall
+                                        OperationKind::Uninstall { purge_data: false }
                                     } else {
                                         OperationKind::Install
                                     };
@@ -3325,6 +3313,17 @@ impl Application for App {
                 self.installed_results = Some(installed_results);
             }
             Message::Key(modifiers, key, text) => {
+                // Handle ESC key to close dialogs
+                if !self.dialog_pages.is_empty()
+                    && matches!(key, Key::Named(key::Named::Escape))
+                    && !modifiers.logo()
+                    && !modifiers.control()
+                    && !modifiers.alt()
+                    && !modifiers.shift()
+                {
+                    return self.update(Message::DialogCancel);
+                }
+
                 for (key_bind, action) in self.key_binds.iter() {
                     if key_bind.matches(modifiers, &key) {
                         return self.update(action.message());
@@ -3733,6 +3732,9 @@ impl Application for App {
                     selected.screenshot_shown = i;
                 }
             }
+            Message::ToggleUninstallPurgeData(value) => {
+                self.uninstall_purge_data = value;
+            }
             Message::SelectedSource(i) => {
                 //TODO: show warnings if anything is not found?
                 let mut next_ids = None;
@@ -4041,16 +4043,34 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
             }
-            DialogPage::Uninstall(_backend_name, _id, info) => widget::dialog()
-                .title(fl!("uninstall-app", name = info.name.as_str()))
-                .body(fl!("uninstall-app-warning", name = info.name.as_str()))
-                .icon(widget::icon::from_name(Self::APP_ID).size(64))
-                .primary_action(
-                    widget::button::destructive(fl!("uninstall")).on_press(Message::DialogConfirm),
-                )
-                .secondary_action(
-                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                ),
+            DialogPage::Uninstall(backend_name, _id, info) => {
+                let is_flatpak = backend_name.starts_with("flatpak");
+                let mut dialog = widget::dialog()
+                    .title(fl!("uninstall-app", name = info.name.as_str()))
+                    .body(if is_flatpak {
+                        fl!("uninstall-app-flatpak-warning", name = info.name.as_str())
+                    } else {
+                        fl!("uninstall-app-warning", name = info.name.as_str())
+                    })
+                    .icon(widget::icon::from_name(Self::APP_ID).size(64));
+
+                // Only show data deletion option for Flatpak apps
+                if is_flatpak {
+                    dialog = dialog.control(
+                        widget::checkbox(fl!("delete-app-data"), self.uninstall_purge_data)
+                            .on_toggle(Message::ToggleUninstallPurgeData),
+                    );
+                }
+
+                dialog
+                    .primary_action(
+                        widget::button::destructive(fl!("uninstall"))
+                            .on_press(Message::DialogConfirm),
+                    )
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+            }
             DialogPage::Place(id) => widget::dialog()
                 .title(fl!("place-applet"))
                 .body(fl!("place-applet-desc"))
