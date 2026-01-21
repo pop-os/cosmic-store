@@ -516,8 +516,9 @@ impl AppstreamCache {
         None
     }
 
-    pub fn icon(&self, info: &AppInfo) -> widget::icon::Handle {
-        let mut icon_opt = None;
+    /// Get the resolved icon path for an AppInfo (for caching)
+    pub fn icon_path_for_info(&self, info: &AppInfo) -> Option<PathBuf> {
+        let mut best_path = None;
         let mut cached_size = 0;
         for info_icon in info.icons.iter() {
             //TODO: support other types of icons
@@ -531,7 +532,7 @@ impl AppstreamCache {
                     if let Some(icon_path) =
                         self.icon_path(info.origin_opt.as_deref(), name, *width, *height, *scale)
                     {
-                        icon_opt = Some(widget::icon::from_path(icon_path));
+                        best_path = Some(icon_path);
                         cached_size = size;
                     }
                 }
@@ -542,7 +543,7 @@ impl AppstreamCache {
                     }
                     if let Some(icon_path) = widget::icon::from_name(stock.clone()).size(128).path()
                     {
-                        icon_opt = Some(widget::icon::from_path(icon_path));
+                        best_path = Some(icon_path);
                     }
                 }
                 AppIcon::Remote(_url, _width, _height, _scale) => {
@@ -556,18 +557,24 @@ impl AppstreamCache {
                     }
                     let icon_path = Path::new(path);
                     if icon_path.is_file() {
-                        icon_opt = Some(widget::icon::from_path(icon_path.to_path_buf()));
+                        best_path = Some(icon_path.to_path_buf());
                         cached_size = size;
                     }
                 }
             }
         }
-        icon_opt.unwrap_or_else(|| {
-            log::debug!("failed to get icon from {:?}", info.icons);
-            widget::icon::from_name("package-x-generic")
-                .size(128)
-                .handle()
-        })
+        best_path
+    }
+
+    pub fn icon(&self, info: &AppInfo) -> widget::icon::Handle {
+        self.icon_path_for_info(info)
+            .map(widget::icon::from_path)
+            .unwrap_or_else(|| {
+                log::debug!("failed to get icon from {:?}", info.icons);
+                widget::icon::from_name("package-x-generic")
+                    .size(128)
+                    .handle()
+            })
     }
 
     fn parse_xml<P: AsRef<Path>, R: Read>(
@@ -653,28 +660,39 @@ impl AppstreamCache {
     ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
-        let mut origin_opt = None;
-        let mut media_base_url_opt = None;
-        let mut infos = Vec::new();
-        //TODO: par_iter?
+
+        // First, collect all documents sequentially (streaming parser limitation)
+        let mut values: Vec<serde_yaml::Value> = Vec::new();
         for (doc_i, doc) in serde_yaml::Deserializer::from_reader(reader).enumerate() {
-            let value = match serde_yaml::Value::deserialize(doc) {
-                Ok(ok) => ok,
+            match serde_yaml::Value::deserialize(doc) {
+                Ok(value) => values.push(value),
                 Err(err) => {
                     log::error!("failed to parse document {} in {:?}: {}", doc_i, path, err);
-                    continue;
                 }
-            };
-            if doc_i == 0 {
-                origin_opt = value["Origin"].as_str().map(|x| x.to_string());
-                media_base_url_opt = value["MediaBaseUrl"].as_str().map(|x| x.to_string());
-            } else {
-                match Component::deserialize(&value) {
+            }
+        }
+
+        // Extract metadata from first document
+        let (origin_opt, media_base_url_opt) = if let Some(first_doc) = values.first() {
+            (
+                first_doc["Origin"].as_str().map(|x| x.to_string()),
+                first_doc["MediaBaseUrl"].as_str().map(|x| x.to_string()),
+            )
+        } else {
+            (None, None)
+        };
+
+        // Process remaining documents in parallel
+        let infos: Vec<(AppId, Arc<AppInfo>)> = values
+            .par_iter()
+            .skip(1)
+            .filter_map(|value| {
+                match Component::deserialize(value) {
                     Ok(mut component) => {
                         if component.kind != ComponentKind::DesktopApplication {
                             // Skip anything that is not a desktop application
                             //TODO: should we allow more components?
-                            continue;
+                            return None;
                         }
 
                         //TODO: move to appstream crate
@@ -1042,7 +1060,7 @@ impl AppstreamCache {
 
                         let id = AppId::new(&component.id.0);
                         let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
-                        infos.push((
+                        Some((
                             id,
                             Arc::new(AppInfo::new(
                                 &self.source_id,
@@ -1052,14 +1070,16 @@ impl AppstreamCache {
                                 &self.locale,
                                 monthly_downloads,
                             )),
-                        ));
+                        ))
                     }
                     Err(err) => {
                         log::error!("failed to parse {:?} in {:?}: {}", value["ID"], path, err);
+                        None
                     }
                 }
-            }
-        }
+            })
+            .collect();
+
         let duration = start.elapsed();
         log::info!(
             "loaded {} items from {:?} in {:?}",
