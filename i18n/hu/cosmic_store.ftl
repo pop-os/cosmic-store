@@ -29,8 +29,8 @@ codec-footer =
      • Ezek a korlátozások nem vonatkoznak a lakóhelyed szerinti országra
      • Van engedélyed a szoftver használatára (például szabadalmi licenc)
      • Csak kutatási célokra használod ezt a szoftvert
-codec-error = Hiba történt a csomagok telepítése közben.
-codec-installed = A csomagok telepítve lettek
+codec-error = Hiba történt a csomagok telepítésekor.
+codec-installed = A csomagok telepítve lettek.
 # Progress footer
 details = Részletek
 dismiss = Üzenet bezárása
@@ -60,7 +60,7 @@ develop = Fejlesztés
 learn = Tanulás
 game = Játék
 relax = Pihenés
-socialize = Társalgás
+socialize = Kapcsolattartás
 utilities = Segédprogramok
 applets = Kisalkalmazások
 installed-apps = Telepített alkalmazások
@@ -87,18 +87,18 @@ apps-for-learning = Alkalmazások tanuláshoz
 # Details Page
 source-installed = { $source } (telepítve)
 developer = Fejlesztő
-app-developers = { $app } Fejlesztői
+app-developers = { $app } fejlesztők
 monthly-downloads = Havi letöltések a Flathubon
 licenses = Licencek
 proprietary = Zárt forráskódú
 
 ## App URLs
 
-bug-tracker = Problémakövető
+bug-tracker = Hibakövető
 contact = Kapcsolat
 donation = Adomány
 faq = GYIK
-help = Segítség
+help = Súgó
 homepage = Honlap
 translate = Fordítás
 
@@ -121,7 +121,7 @@ settings = Beállítások
 ## Release notes
 
 latest-version = Legújabb verzió
-no-description = Nincs leírás
+no-description = Nem érhető el leírás.
 
 ## Repositories
 
