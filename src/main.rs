@@ -1184,6 +1184,10 @@ impl App {
         let icon_start = Instant::now();
         let mut icons = Vec::new();
         for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+            // Skip results that already have icons (e.g., preserved from previous results)
+            if result.icon_opt.is_some() {
+                continue;
+            }
             let Some(backend) = backends.get(result.backend_name) else {
                 continue;
             };
@@ -3724,8 +3728,22 @@ impl Application for App {
                     }
                 }
             }
-            Message::SearchResults(input, results, auto_select) => {
+            Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
+                    // Preserve icons from previous results to avoid flicker
+                    if let Some((_, old_results)) = &self.search_results {
+                        let old_icons: HashMap<_, _> = old_results
+                            .iter()
+                            .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+                            .collect();
+                        for result in &mut results {
+                            if result.icon_opt.is_none() {
+                                if let Some(icon) = old_icons.get(&result.id) {
+                                    result.icon_opt = Some((*icon).clone());
+                                }
+                            }
+                        }
+                    }
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
                     if auto_select && results.len() == 1 {
