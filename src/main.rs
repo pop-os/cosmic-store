@@ -958,6 +958,8 @@ impl App {
         });
         // Load only enough icons to show one page of results
         //TODO: load in background
+        let icon_start = Instant::now();
+        let mut icons_loaded = 0usize;
         for result in results.iter_mut().take(MAX_RESULTS) {
             let Some(backend) = backends.get(result.backend_name) else {
                 continue;
@@ -970,7 +972,13 @@ impl App {
                 continue;
             };
             result.icon_opt = Some(appstream_cache.icon(&result.info));
+            icons_loaded += 1;
         }
+        log::debug!(
+            "icon loading: loaded {} icons in {:?} (blocking)",
+            icons_loaded,
+            icon_start.elapsed()
+        );
         results
     }
 
