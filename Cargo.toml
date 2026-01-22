@@ -38,6 +38,7 @@ serde_yaml = "0.9"
 atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "6"
+zstd = "0.13"
 # flatpak feature
 libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
@@ -49,6 +50,8 @@ notify-rust = { version = "4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
+# homebrew feature
+serde_json = { version = "1", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -61,6 +64,7 @@ default = [
     "dbus-config",
     "desktop-systemd-scope",
     "flatpak",
+    "homebrew",
     "logind",
     "notify",
     "packagekit",
@@ -78,6 +82,7 @@ logind = ["dep:logind-zbus", "dep:nix", "dep:zbus"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus"]
 pkgar = []
+homebrew = ["dep:serde_json"]
 single-instance = ["libcosmic/single-instance"]
 wayland = ["libcosmic/wayland", "dep:cosmic-panel-config"]
 wgpu = ["libcosmic/wgpu"]

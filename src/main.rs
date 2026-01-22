@@ -26,7 +26,7 @@ use std::{
     any::TypeId,
     cell::Cell,
     cmp,
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     env,
     fmt::Debug,
     future::pending,
@@ -101,11 +101,17 @@ struct Cli {
 
 /// Runs application with these settings
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .format_timestamp_millis()
+        .init();
+
+    log::info!("starting cosmic-store");
 
     localize::localize();
+    log::debug!("localization loaded");
 
     let cli = Cli::parse();
+    log::debug!("CLI parsed");
 
     let (config_handler, config) = match cosmic_config::Config::new(App::APP_ID, CONFIG_VERSION) {
         Ok(config_handler) => {
@@ -135,6 +141,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config,
         mode: Mode::Normal,
     };
+
+    log::debug!("config loaded, launching app");
 
     if let Some(codec) = flags
         .subcommand_opt
@@ -180,6 +188,7 @@ pub struct AppEntry {
 }
 
 pub type Apps = HashMap<AppId, Vec<AppEntry>>;
+pub type CategoryIndex = HashMap<String, Vec<AppId>>;
 
 enum SourceKind {
     Recommended { data: &'static [u8], enabled: bool },
@@ -265,6 +274,7 @@ pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
     CategoryResults(&'static [Category], Vec<SearchResult>),
+    CategoryIconsLoaded(&'static [Category], Vec<(usize, widget::icon::Handle)>),
     CheckUpdates,
     Config(Config),
     DialogCancel,
@@ -272,11 +282,17 @@ pub enum Message {
     DialogPage(DialogPage),
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
+    ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
+    ExploreCacheSaved(Result<(), String>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
+    HomebrewReady(Option<Arc<dyn backend::Backend>>),
+    HomebrewInstalled(Vec<Package>),
+    HomebrewUpdates(Vec<Package>),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
+    InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
     MaybeExit,
@@ -296,6 +312,7 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>, bool),
+    SearchIconsLoaded(String, Vec<(usize, widget::icon::Handle)>),
     SearchSubmit(String),
     Select(
         &'static str,
@@ -463,7 +480,7 @@ impl NavPage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum ExplorePage {
     EditorsChoice,
     PopularApps,
@@ -649,6 +666,162 @@ pub struct SearchResult {
     weight: i64,
 }
 
+/// Cached version of SearchResult for disk storage (with resolved icon paths)
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedSearchResult {
+    backend_name: String,
+    id: AppId,
+    info: AppInfo,
+    icon_path: Option<String>,
+    weight: i64,
+}
+
+/// Cached explore page results
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedExploreResults {
+    results: Vec<(ExplorePage, Vec<CachedSearchResult>)>,
+}
+
+impl CachedExploreResults {
+    fn cache_path() -> Option<std::path::PathBuf> {
+        dirs::cache_dir().map(|p| p.join("cosmic-store").join("explore_cache.bin.zst"))
+    }
+
+    fn load() -> Option<Self> {
+        let path = Self::cache_path()?;
+        let compressed = std::fs::read(&path).ok()?;
+        let data = zstd::decode_all(compressed.as_slice()).ok()?;
+        bitcode::decode(&data).ok()
+    }
+
+    fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Self::cache_path().ok_or("no cache dir")?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let data = bitcode::encode(self);
+        let compressed = zstd::encode_all(data.as_slice(), 3)?;
+        std::fs::write(path, compressed)?;
+        Ok(())
+    }
+
+    fn from_results(
+        results: &HashMap<ExplorePage, Vec<SearchResult>>,
+        backends: &Backends,
+    ) -> Self {
+        let cached: Vec<_> = results
+            .iter()
+            .map(|(page, search_results)| {
+                let cached_results: Vec<_> = search_results
+                    .iter()
+                    .take(MAX_RESULTS)
+                    .map(|r| {
+                        // Resolve icon path using backend
+                        let icon_path = backends
+                            .get(r.backend_name)
+                            .and_then(|backend| {
+                                backend
+                                    .info_caches()
+                                    .iter()
+                                    .find(|c| c.source_id == r.info.source_id)
+                            })
+                            .and_then(|cache| cache.icon_path_for_info(&r.info))
+                            .map(|p| p.to_string_lossy().into_owned());
+
+                        CachedSearchResult {
+                            backend_name: r.backend_name.to_string(),
+                            id: r.id.clone(),
+                            info: (*r.info).clone(),
+                            icon_path,
+                            weight: r.weight,
+                        }
+                    })
+                    .collect();
+                (*page, cached_results)
+            })
+            .collect();
+        Self { results: cached }
+    }
+
+    fn to_results(&self) -> HashMap<ExplorePage, Vec<SearchResult>> {
+        self.results
+            .iter()
+            .map(|(page, cached_results)| {
+                let results: Vec<_> = cached_results
+                    .iter()
+                    .map(|c| {
+                        // Create icon from cached path, or use default icon
+                        let icon_opt = Some(match &c.icon_path {
+                            Some(path) => widget::icon::from_path(std::path::PathBuf::from(path)),
+                            None => widget::icon::from_name("package-x-generic")
+                                .size(128)
+                                .handle(),
+                        });
+                        SearchResult {
+                            backend_name: backend_name_from_string(&c.backend_name),
+                            id: c.id.clone(),
+                            icon_opt,
+                            info: Arc::new(c.info.clone()),
+                            weight: c.weight,
+                        }
+                    })
+                    .collect();
+                (*page, results)
+            })
+            .collect()
+    }
+}
+
+/// Convert backend name string back to static str
+fn backend_name_from_string(name: &str) -> &'static str {
+    match name {
+        "flatpak-user" => "flatpak-user",
+        "flatpak-system" => "flatpak-system",
+        "packagekit" => "packagekit",
+        "homebrew" => "homebrew",
+        "pkgar" => "pkgar",
+        _ => "unknown",
+    }
+}
+
+/// Preserve icons from old results when new results arrive (avoids flicker)
+fn preserve_icons_from(old_results: &[SearchResult], new_results: &mut [SearchResult]) {
+    if old_results.is_empty() || new_results.is_empty() {
+        return;
+    }
+
+    let old_icons: HashMap<&AppId, &widget::icon::Handle> = old_results
+        .iter()
+        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+        .collect();
+
+    for result in new_results {
+        if result.icon_opt.is_none() {
+            if let Some(icon) = old_icons.get(&result.id) {
+                result.icon_opt = Some((*icon).clone());
+            }
+        }
+    }
+}
+
+/// Sort packages with system packages first, then alphabetically by name
+fn sort_packages_system_first(packages: &mut [(&'static str, Package)]) {
+    packages.sort_unstable_by(|a, b| match (a.1.id.is_system(), b.1.id.is_system()) {
+        (true, false) => cmp::Ordering::Less,
+        (false, true) => cmp::Ordering::Greater,
+        _ => LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name),
+    });
+}
+
+/// Apply loaded icons to search results
+fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widget::icon::Handle)>) {
+    for (i, icon) in icons {
+        if let Some(result) = results.get_mut(i) {
+            result.icon_opt = Some(icon);
+        }
+    }
+}
+
 impl SearchResult {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
@@ -791,6 +964,7 @@ pub struct App {
     locale: String,
     app_themes: Vec<String>,
     apps: Arc<Apps>,
+    category_index: Arc<CategoryIndex>,
     backends: Backends,
     context_page: ContextPage,
     dialog_pages: VecDeque<DialogPage>,
@@ -956,21 +1130,58 @@ impl App {
             },
             ordering => ordering,
         });
-        // Load only enough icons to show one page of results
-        //TODO: load in background
-        for result in results.iter_mut().take(MAX_RESULTS) {
-            let Some(backend) = backends.get(result.backend_name) else {
-                continue;
-            };
-            let appstream_caches = backend.info_caches();
-            let Some(appstream_cache) = appstream_caches
-                .iter()
-                .find(|x| x.source_id == result.info.source_id)
-            else {
-                continue;
-            };
-            result.icon_opt = Some(appstream_cache.icon(&result.info));
+        // Skip icon loading in search to return results faster
+        // Icons will be loaded on-demand in the view or by a background task
+        results
+    }
+
+    /// Fast category search using pre-built index - O(results) instead of O(all_apps)
+    fn category_search_indexed(
+        apps: &Apps,
+        backends: &Backends,
+        category_index: &CategoryIndex,
+        categories: &[Category],
+    ) -> Vec<SearchResult> {
+        // Collect all app IDs matching any of the categories
+        let mut matching_ids: HashSet<&AppId> = HashSet::new();
+        for category in categories {
+            if let Some(ids) = category_index.get(category.id()) {
+                matching_ids.extend(ids.iter());
+            }
         }
+
+        // Process only matching apps (all indexed apps are already DesktopApplications)
+        let mut results: Vec<SearchResult> = matching_ids
+            .par_iter()
+            .filter_map(|id| {
+                let entries = apps.get(*id)?;
+                let AppEntry {
+                    backend_name,
+                    info,
+                    installed: _,
+                } = entries.first()?;
+
+                Some(SearchResult {
+                    backend_name,
+                    id: (*id).clone(),
+                    icon_opt: None,
+                    info: info.clone(),
+                    weight: -(info.monthly_downloads as i64),
+                })
+            })
+            .collect();
+
+        // Sort by weight (monthly downloads), then by name
+        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
+            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
+                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
+                ordering => ordering,
+            },
+            ordering => ordering,
+        });
+
+        // Skip icon loading in search to return results faster
+        // Icons will be loaded on-demand in the view or by a background task
         results
     }
 
@@ -1018,96 +1229,188 @@ impl App {
         )
     }
 
-    fn explore_results(&self, explore_page: ExplorePage) -> Task<Message> {
-        let apps = self.apps.clone();
+    /// Run a single explore page search synchronously (for immediate results)
+    fn explore_search_sync(
+        apps: &Apps,
+        backends: &Backends,
+        category_index: &CategoryIndex,
+        explore_page: ExplorePage,
+    ) -> Vec<SearchResult> {
+        log::info!("start search for {:?}", explore_page);
+        let start = Instant::now();
+        let now = chrono::Utc::now().timestamp();
+        let results = match explore_page {
+            ExplorePage::EditorsChoice => {
+                Self::generic_search(apps, backends, |id, _info, _installed| {
+                    EDITORS_CHOICE
+                        .iter()
+                        .position(|choice_id| choice_id == &id.normalized())
+                        .map(|x| x as i64)
+                })
+            }
+            ExplorePage::PopularApps => {
+                Self::generic_search(apps, backends, |_id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    Some(-(info.monthly_downloads as i64))
+                })
+            }
+            ExplorePage::MadeForCosmic => {
+                let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
+                Self::generic_search(apps, backends, |_id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    if info.provides.contains(&provide) {
+                        Some(-(info.monthly_downloads as i64))
+                    } else {
+                        None
+                    }
+                })
+            }
+            ExplorePage::NewApps => {
+                Self::generic_search(apps, backends, |_id, _info, _installed| {
+                    //TODO
+                    None
+                })
+            }
+            ExplorePage::RecentlyUpdated => {
+                Self::generic_search(apps, backends, |id, info, _installed| {
+                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                        return None;
+                    }
+                    let mut min_weight = 0;
+                    for release in info.releases.iter() {
+                        if let Some(timestamp) = release.timestamp {
+                            if timestamp < now {
+                                let weight = -timestamp;
+                                if weight < min_weight {
+                                    min_weight = weight;
+                                }
+                            } else {
+                                log::info!(
+                                    "{:?} has release timestamp {} which is past the present {}",
+                                    id,
+                                    timestamp,
+                                    now
+                                );
+                            }
+                        }
+                    }
+                    Some(min_weight)
+                })
+            }
+            _ => {
+                let categories = explore_page.categories();
+                Self::category_search_indexed(apps, backends, category_index, categories)
+            }
+        };
+        let duration = start.elapsed();
+        log::info!(
+            "searched for {:?} in {:?}, found {} results",
+            explore_page,
+            duration,
+            results.len()
+        );
+        results
+    }
+
+    fn load_explore_icons(&self, explore_page: ExplorePage) -> Task<Message> {
+        let results = match self.explore_results.get(&explore_page) {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
         let backends = self.backends.clone();
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    log::info!("start search for {:?}", explore_page);
-                    let start = Instant::now();
-                    let now = chrono::Utc::now().timestamp();
-                    let results = match explore_page {
-                        ExplorePage::EditorsChoice => Self::generic_search(&apps, &backends, |id, _info, _installed | {
-                            EDITORS_CHOICE
-                            .iter()
-                            .position(|choice_id| choice_id == &id.normalized())
-                            .map(|x| x as i64)
-                        }),
-                        ExplorePage::PopularApps => Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            Some(-(info.monthly_downloads as i64))
-                        }),
-                        ExplorePage::MadeForCosmic => {
-                            let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                                if !matches!(info.kind, AppKind::DesktopApplication) {
-                                    return None;
-                                }
-                                if info.provides.contains(&provide) {
-                                    Some(-(info.monthly_downloads as i64))
-                                } else {
-                                    None
-                                }
-                            })
-                        },
-                        ExplorePage::NewApps => Self::generic_search(&apps, &backends, |_id, _info, _installed| {
-                            //TODO
-                            None
-                        }),
-                        ExplorePage::RecentlyUpdated => Self::generic_search(&apps, &backends, |id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            // Finds the newest release and sorts from newest to oldest
-                            //TODO: appstream release info is often incomplete
-                            let mut min_weight = 0;
-                            for release in info.releases.iter() {
-                                if let Some(timestamp) = release.timestamp {
-                                    if timestamp < now {
-                                        let weight = -timestamp;
-                                        if weight < min_weight {
-                                            min_weight = weight;
-                                        }
-                                    } else {
-                                        log::info!("{:?} has release timestamp {} which is past the present {}", id, timestamp, now);
-                                    }
-                                }
-                            }
-                            Some(min_weight)
-                        }),
-                        _ => {
-                            let categories = explore_page.categories();
-                            Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                                if !matches!(info.kind, AppKind::DesktopApplication) {
-                                    return None;
-                                }
-                                for category in categories {
-                                    //TODO: contains doesn't work due to type mismatch
-                                    if info.categories.iter().any(|x| x == category.id()) {
-                                        return Some(-(info.monthly_downloads as i64));
-                                    }
-                                }
-                                None
-                            })
-                        }
-                    };
-                    let duration = start.elapsed();
-                    log::info!(
-                        "searched for {:?} in {:?}, found {} results",
-                        explore_page,
-                        duration,
-                        results.len()
-                    );
-                    action::app(Message::ExploreResults(explore_page, results))
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::ExploreIconsLoaded(explore_page, icons))
                 })
                 .await
                 .unwrap_or(action::none())
             },
             |x| x,
         )
+    }
+
+    fn load_category_icons(&self, categories: &'static [Category]) -> Task<Message> {
+        let results = match &self.category_results {
+            Some((cats, results)) if *cats == categories => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::CategoryIconsLoaded(categories, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_installed_icons(&self) -> Task<Message> {
+        let results = match &self.installed_results {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::InstalledIconsLoaded(icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_search_icons(&self, input: String) -> Task<Message> {
+        let results = match &self.search_results {
+            Some((query, results)) if *query == input => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::SearchIconsLoaded(input, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_icons_for_results(
+        results: &[SearchResult],
+        backends: &Backends,
+    ) -> Vec<(usize, widget::icon::Handle)> {
+        let mut icons = Vec::new();
+        for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            icons.push((i, appstream_cache.icon(&result.info)));
+        }
+        icons
     }
 
     fn installed_results(&self) -> Task<Message> {
@@ -1546,7 +1849,6 @@ impl App {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
-    //TODO: run in background
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
@@ -1574,35 +1876,76 @@ impl App {
             }
         };
 
-        //TODO: par_iter?
-        for (backend_name, backend) in self.backends.iter() {
-            for appstream_cache in backend.info_caches() {
-                for (id, info) in appstream_cache.infos.iter() {
-                    let entry = apps.entry(id.clone()).or_default();
-                    entry.push(AppEntry {
-                        backend_name,
-                        info: info.clone(),
-                        installed: self.is_installed(backend_name, id, info),
-                    });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
-                }
-            }
+        // Collect all entries from backends in parallel
+        let installed_ref = &self.installed;
+        let all_entries: Vec<(AppId, AppEntry)> = self
+            .backends
+            .par_iter()
+            .flat_map(|(backend_name, backend)| {
+                backend
+                    .info_caches()
+                    .iter()
+                    .flat_map(|appstream_cache| {
+                        appstream_cache.infos.iter().map(|(id, info)| {
+                            (
+                                id.clone(),
+                                AppEntry {
+                                    backend_name,
+                                    info: info.clone(),
+                                    installed: Self::is_installed_inner(
+                                        installed_ref,
+                                        backend_name,
+                                        id,
+                                        info,
+                                    ),
+                                },
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        // Merge entries into HashMap
+        for (id, entry) in all_entries {
+            apps.entry(id).or_default().push(entry);
         }
 
         // Manually insert system apps
         if let Some(installed) = &self.installed {
             for (backend_name, package) in installed {
                 if package.id.is_system() {
-                    let entry = apps.entry(package.id.clone()).or_default();
-                    entry.push(AppEntry {
+                    apps.entry(package.id.clone()).or_default().push(AppEntry {
                         backend_name,
                         info: package.info.clone(),
                         installed: true,
                     });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, &package.id));
                 }
             }
         }
+
+        // Sort all entries once at the end (in parallel)
+        apps.par_iter_mut().for_each(|(id, entries)| {
+            entries.sort_unstable_by(|a, b| entry_sort(a, b, id));
+        });
+
+        // Build category index for fast category lookups (only desktop apps)
+        let mut category_index = CategoryIndex::new();
+        for (id, entries) in apps.iter() {
+            // Use the first entry (highest priority) for category indexing
+            if let Some(entry) = entries.first() {
+                // Only index desktop applications
+                if matches!(entry.info.kind, AppKind::DesktopApplication) {
+                    for category in &entry.info.categories {
+                        category_index
+                            .entry(category.clone())
+                            .or_default()
+                            .push(id.clone());
+                    }
+                }
+            }
+        }
+        self.category_index = Arc::new(category_index);
 
         self.apps = Arc::new(apps);
 
@@ -1631,34 +1974,28 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let mut installed = Vec::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.installed() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    installed.push((*backend_name, package));
+                    // Skip homebrew here - it loads in background via update_homebrew()
+                    let mut installed: Vec<_> = backends
+                        .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != "homebrew")
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.installed() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list installed: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list installed: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded installed from {} in {:?}", backend_name, duration);
-                    }
-                    installed.par_sort_unstable_by(|a, b| {
-                        let a_is_system = a.1.id.is_system();
-                        let b_is_system = b.1.id.is_system();
-                        if a_is_system && !b_is_system {
-                            cmp::Ordering::Less
-                        } else if b_is_system && !a_is_system {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded installed from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
+                    sort_packages_system_first(&mut installed);
                     action::app(Message::Installed(installed))
                 })
                 .await
@@ -1673,33 +2010,109 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let mut updates = Vec::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.updates() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    updates.push((*backend_name, package));
+                    // Skip homebrew here - it loads in background via update_homebrew()
+                    let mut updates: Vec<_> = backends
+                        .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != "homebrew")
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.updates() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list updates: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list updates: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
-                    }
-                    updates.par_sort_unstable_by(|a, b| {
-                        if a.1.id.is_system() {
-                            cmp::Ordering::Less
-                        } else if b.1.id.is_system() {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
+                    sort_packages_system_first(&mut updates);
                     action::app(Message::Updates(updates))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Initialize homebrew backend in background (deferred to not delay explore page)
+    fn init_homebrew_task(&self) -> Task<Message> {
+        let locale = self.locale.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let backend = backend::init_homebrew(&locale);
+                    action::app(Message::HomebrewReady(backend))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Load homebrew installed in background
+    fn update_homebrew_installed(&self) -> Task<Message> {
+        let homebrew = match self.backends.get("homebrew") {
+            Some(backend) => backend.clone(),
+            None => return Task::none(),
+        };
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let installed = match homebrew.installed() {
+                        Ok(packages) => packages,
+                        Err(err) => {
+                            log::error!("failed to list homebrew installed: {}", err);
+                            Vec::new()
+                        }
+                    };
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded homebrew installed in background: {} packages in {:?}",
+                        installed.len(),
+                        duration
+                    );
+                    action::app(Message::HomebrewInstalled(installed))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    /// Load homebrew updates in background
+    fn update_homebrew_updates(&self) -> Task<Message> {
+        let homebrew = match self.backends.get("homebrew") {
+            Some(backend) => backend.clone(),
+            None => return Task::none(),
+        };
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let start = Instant::now();
+                    let updates = match homebrew.updates() {
+                        Ok(packages) => packages,
+                        Err(err) => {
+                            log::error!("failed to list homebrew updates: {}", err);
+                            Vec::new()
+                        }
+                    };
+                    let duration = start.elapsed();
+                    log::info!(
+                        "loaded homebrew updates in background: {} packages in {:?}",
+                        updates.len(),
+                        duration
+                    );
+                    action::app(Message::HomebrewUpdates(updates))
                 })
                 .await
                 .unwrap_or(action::none())
@@ -1995,12 +2408,75 @@ impl App {
     }
 
     fn release_notes(&self, index: usize) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_s, space_xxs, ..
+        } = theme::active().cosmic().spacing;
+
+        // Check if this is a system package update
+        if let Some(package) = self
+            .updates
+            .as_deref()
+            .and_then(|updates| updates.get(index).map(|(_, package)| package))
+        {
+            if package.id.is_system() {
+                // Use pkgnames for most backends, flatpak_refs for flatpak
+                let refs: Vec<&str> = if !package.info.pkgnames.is_empty() {
+                    package.info.pkgnames.iter().map(|s| s.as_str()).collect()
+                } else {
+                    package
+                        .info
+                        .flatpak_refs
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect()
+                };
+
+                // Display list of system packages with version info
+                let mut package_list = widget::column::with_capacity(refs.len()).spacing(space_xxs);
+
+                for ref_name in refs {
+                    let installed_version = package
+                        .extra
+                        .get(&format!("{}_installed", ref_name))
+                        .map(|s| s.as_str());
+                    let update_version = package
+                        .extra
+                        .get(&format!("{}_update", ref_name))
+                        .map(|s| s.as_str());
+
+                    let version_text = match (installed_version, update_version) {
+                        (Some(installed), Some(update)) => {
+                            format!("{}: {} → {}", ref_name, installed, update)
+                        }
+                        (Some(installed), None) => {
+                            format!("{}: {}", ref_name, installed)
+                        }
+                        (None, Some(update)) => {
+                            format!("{}: → {}", ref_name, update)
+                        }
+                        (None, None) => ref_name.to_string(),
+                    };
+
+                    package_list = package_list.push(widget::text(version_text));
+                }
+
+                return widget::column::with_capacity(2)
+                    .push(widget::text::title4(fl!("system-package-updates")))
+                    .push(widget::scrollable(package_list))
+                    .width(Length::Fill)
+                    .spacing(space_s)
+                    .into();
+            }
+        }
+
+        // Regular package release notes
+        // Note: appstream releases are ordered from newest to oldest, so first() is the latest
         let (version, date, summary, url) = {
             self.updates
                 .as_deref()
                 .and_then(|updates| updates.get(index).map(|(_, package)| package))
                 .and_then(|selected| {
-                    selected.info.releases.last().map(|latest| {
+                    selected.info.releases.first().map(|latest| {
                         (
                             &*latest.version,
                             latest.timestamp,
@@ -2011,7 +2487,6 @@ impl App {
                 })
                 .unwrap_or(("", None, None, None))
         };
-        let cosmic_theme::Spacing { space_s, .. } = theme::active().cosmic().spacing;
         widget::column::with_capacity(3)
             .push(
                 widget::column::with_capacity(2)
@@ -2438,7 +2913,8 @@ impl App {
                     column = column.push(addon_col);
                 }
 
-                for release in selected.info.releases.iter() {
+                // Show the first (latest) release only
+                if let Some(release) = selected.info.releases.first() {
                     let mut release_col = widget::column::with_capacity(2).spacing(space_xxxs);
                     release_col = release_col.push(widget::text::title4(fl!(
                         "version",
@@ -2459,8 +2935,6 @@ impl App {
                         release_col = release_col.push(widget::text::body(description));
                     }
                     column = column.push(release_col);
-                    //TODO: show more releases, or make sure this is the latest?
-                    break;
                 }
 
                 if let Some(license) = &selected.info.license_opt {
@@ -2958,6 +3432,7 @@ impl Application for App {
 
     /// Creates the application, and optionally emits command on initialize.
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
+        log::info!("App::init started");
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
@@ -2995,6 +3470,7 @@ impl Application for App {
             locale,
             app_themes,
             apps: Arc::new(Apps::new()),
+            category_index: Arc::new(CategoryIndex::new()),
             backends: Backends::new(),
             context_page: ContextPage::Settings,
             dialog_pages: VecDeque::new(),
@@ -3028,6 +3504,15 @@ impl Application for App {
             uninstall_purge_data: false,
         };
 
+        // Load cached explore results for instant display
+        if let Some(cached) = CachedExploreResults::load() {
+            app.explore_results = cached.to_results();
+            log::info!(
+                "loaded {} cached explore categories",
+                app.explore_results.len()
+            );
+        }
+
         if let Some(subcommand) = flags.subcommand_opt {
             // Search for term
             app.search_active = true;
@@ -3041,6 +3526,8 @@ impl Application for App {
             }
         }
 
+        // Note: Icon loading for cached results happens in Message::Backends
+        // after backends are initialized (icons need backend info_caches)
         let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
@@ -3094,7 +3581,7 @@ impl Application for App {
     }
 
     fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Task<Message> {
-        self.category_results = None;
+        // Note: Don't clear category_results here to avoid flicker - new results will replace
         self.explore_page_opt = None;
         self.search_active = false;
         self.search_results = None;
@@ -3110,10 +3597,8 @@ impl Application for App {
         {
             commands.push(self.categories(categories));
         }
-        if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
-            // Refresh when going to updates page
-            commands.push(self.update(Message::CheckUpdates));
-        }
+        // Note: Don't auto-refresh updates when navigating - updates are loaded at startup
+        // User can click "Check for updates" button to refresh manually
         Task::batch(commands)
     }
 
@@ -3154,19 +3639,91 @@ impl Application for App {
             Message::Backends(backends) => {
                 self.backends = backends;
                 self.repos_changing.clear();
-                let mut tasks = Vec::with_capacity(2);
-                tasks.push(self.update_installed());
+                // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
+                self.category_results = None;
+                self.installed_results = None;
+
+                // Build app cache immediately so explore page can render
+                self.update_apps();
+
+                let mut tasks = Vec::new();
+
+                // Run all explore searches IN PARALLEL, wait for completion
+                // This ensures explore page is fully populated before installed/updates start
                 match self.mode {
                     Mode::Normal => {
-                        tasks.push(self.update_updates());
+                        let apps = &self.apps;
+                        let backends_ref = &self.backends;
+                        let category_index = &self.category_index;
+
+                        // Run all searches in parallel using rayon
+                        let results: Vec<_> = ExplorePage::all()
+                            .par_iter()
+                            .map(|explore_page| {
+                                let search_results = Self::explore_search_sync(
+                                    apps,
+                                    backends_ref,
+                                    category_index,
+                                    *explore_page,
+                                );
+                                (*explore_page, search_results)
+                            })
+                            .collect();
+
+                        // Store results and queue icon loading
+                        for (explore_page, mut search_results) in results {
+                            if let Some(old_results) = self.explore_results.get(&explore_page) {
+                                preserve_icons_from(old_results, &mut search_results);
+                            }
+                            self.explore_results.insert(explore_page, search_results);
+                            tasks.push(self.load_explore_icons(explore_page));
+                        }
+                        log::info!(
+                            "explore page ready with {} categories",
+                            self.explore_results.len()
+                        );
+
+                        // Save to cache asynchronously for instant loading on next launch
+                        let cached = CachedExploreResults::from_results(
+                            &self.explore_results,
+                            &self.backends,
+                        );
+                        tasks.push(Task::perform(
+                            async move {
+                                tokio::task::spawn_blocking(move || {
+                                    cached.save().map_err(|e| e.to_string())
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(e.to_string()))
+                            },
+                            |result| action::app(Message::ExploreCacheSaved(result)),
+                        ));
                     }
                     Mode::GStreamer { .. } => {}
                 }
+
+                // Load installed/updates in background AFTER explore searches complete
+                tasks.push(self.update_installed());
+                tasks.push(self.update_updates());
+                // Initialize homebrew in background (deferred to not delay explore page)
+                tasks.push(self.init_homebrew_task());
+
                 return Task::batch(tasks);
             }
-            Message::CategoryResults(categories, results) => {
+            Message::CategoryResults(categories, mut results) => {
+                if let Some((_, old_results)) = &self.category_results {
+                    preserve_icons_from(old_results, &mut results);
+                }
                 self.category_results = Some((categories, results));
-                return self.update_scroll();
+                // Load icons in background
+                return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
+            }
+            Message::CategoryIconsLoaded(categories, icons) => {
+                if let Some((cats, results)) = &mut self.category_results {
+                    if *cats == categories {
+                        apply_icons_to_results(results, icons);
+                    }
+                }
             }
             Message::CheckUpdates => {
                 //TODO: this only checks updates if they have already been checked
@@ -3222,7 +3779,19 @@ impl Application for App {
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
+                // Load icons in background
+                return self.load_explore_icons(explore_page);
             }
+            Message::ExploreIconsLoaded(explore_page, icons) => {
+                if let Some(results) = self.explore_results.get_mut(&explore_page) {
+                    log::debug!("loaded {} icons for {:?}", icons.len(), explore_page);
+                    apply_icons_to_results(results, icons);
+                }
+            }
+            Message::ExploreCacheSaved(result) => match result {
+                Ok(()) => log::info!("saved explore cache"),
+                Err(err) => log::warn!("failed to save explore cache: {}", err),
+            },
             Message::GStreamerExit(code) => match self.mode {
                 Mode::Normal => {}
                 Mode::GStreamer { .. } => {
@@ -3280,11 +3849,40 @@ impl Application for App {
                     }
                 }
             },
+            Message::HomebrewReady(homebrew_opt) => {
+                // Add homebrew backend and start loading its installed/updates
+                if let Some(homebrew) = homebrew_opt {
+                    self.backends.insert("homebrew", homebrew);
+                    return self.update_homebrew_installed();
+                }
+            }
+            Message::HomebrewInstalled(homebrew_packages) => {
+                // Merge homebrew packages into installed list
+                if let Some(installed) = &mut self.installed {
+                    for package in homebrew_packages {
+                        installed.push(("homebrew", package));
+                    }
+                    sort_packages_system_first(installed);
+                    // Refresh installed results if on that page
+                    return Task::batch([self.installed_results(), self.update_homebrew_updates()]);
+                }
+            }
+            Message::HomebrewUpdates(homebrew_packages) => {
+                // Merge homebrew updates into updates list
+                if let Some(updates) = &mut self.updates {
+                    for package in homebrew_packages {
+                        updates.push(("homebrew", package));
+                    }
+                    sort_packages_system_first(updates);
+                }
+            }
             Message::Installed(installed) => {
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
 
+                // Refresh app cache with installed status
                 self.update_apps();
+
                 let mut commands = Vec::new();
                 //TODO: search not done if item is selected because that would clear selection
                 if self.search_active && self.selected_opt.is_none() {
@@ -3300,10 +3898,9 @@ impl Application for App {
                         {
                             commands.push(self.categories(categories));
                         }
+                        // Refresh installed results
                         commands.push(self.installed_results());
-                        for explore_page in ExplorePage::all() {
-                            commands.push(self.explore_results(*explore_page));
-                        }
+                        // Explore searches already triggered from Message::Backends
                     }
                     Mode::GStreamer { .. } => {}
                 }
@@ -3311,6 +3908,13 @@ impl Application for App {
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
+                // Load icons in background
+                return self.load_installed_icons();
+            }
+            Message::InstalledIconsLoaded(icons) => {
+                if let Some(results) = &mut self.installed_results {
+                    apply_icons_to_results(results, icons);
+                }
             }
             Message::Key(modifiers, key, text) => {
                 // Handle ESC key to close dialogs
@@ -3595,8 +4199,10 @@ impl Application for App {
                             }
                         }
                     }
-                    self.search_results = Some((input, results));
+                    self.search_results = Some((input.clone(), results));
                     tasks.push(self.update_scroll());
+                    // Load icons in background
+                    tasks.push(self.load_search_icons(input));
                     return Task::batch(tasks);
                 } else {
                     log::warn!(
@@ -3605,6 +4211,13 @@ impl Application for App {
                         input,
                         self.search_input
                     );
+                }
+            }
+            Message::SearchIconsLoaded(input, icons) => {
+                if let Some((query, results)) = &mut self.search_results {
+                    if *query == input {
+                        apply_icons_to_results(results, icons);
+                    }
                 }
             }
             Message::SearchSubmit(_search_input) => {

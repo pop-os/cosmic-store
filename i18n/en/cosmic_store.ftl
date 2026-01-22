@@ -128,6 +128,16 @@ settings = Settings
 ## Release notes
 latest-version = Latest version
 no-description = No description available.
+system-package-updates = Package updates
+
+## System package names
+system-packages = System Packages
+flatpak-runtimes = Flatpak Runtimes
+homebrew-packages = Homebrew Packages
+system-packages-summary = { $count ->
+    [one] { $count } package
+   *[other] { $count } packages
+}
 
 ## Repositories
 recommended-flatpak-sources = Recommended Flatpak sources

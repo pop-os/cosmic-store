@@ -19,6 +19,9 @@ mod packagekit;
 #[cfg(feature = "pkgar")]
 mod pkgar;
 
+#[cfg(feature = "homebrew")]
+mod homebrew;
+
 #[derive(Clone, Debug)]
 pub struct Package {
     pub id: AppId,
@@ -100,6 +103,9 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         }
     }
 
+    // Note: Homebrew is initialized separately via init_homebrew() to avoid
+    // delaying the explore page load (homebrew has no appstream data)
+
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
         match Arc::get_mut(backend).unwrap().load_caches(refresh) {
@@ -125,4 +131,26 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     }
 
     backends
+}
+
+/// Initialize homebrew backend separately (deferred to avoid delaying explore page)
+#[cfg(feature = "homebrew")]
+pub fn init_homebrew(locale: &str) -> Option<Arc<dyn Backend>> {
+    let start = Instant::now();
+    match homebrew::Homebrew::new(locale) {
+        Ok(backend) => {
+            let duration = start.elapsed();
+            log::info!("initialized homebrew backend in {:?}", duration);
+            Some(Arc::new(backend))
+        }
+        Err(err) => {
+            log::debug!("homebrew backend not available: {}", err);
+            None
+        }
+    }
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn init_homebrew(_locale: &str) -> Option<Arc<dyn Backend>> {
+    None
 }
