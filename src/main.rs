@@ -267,6 +267,7 @@ pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
     CategoryResults(&'static [Category], Vec<SearchResult>),
+    CategoryIconsLoaded(&'static [Category], Vec<(usize, widget::icon::Handle)>),
     CheckUpdates,
     Config(Config),
     DialogCancel,
@@ -274,11 +275,13 @@ pub enum Message {
     DialogPage(DialogPage),
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
+    ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
+    InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
     MaybeExit,
@@ -298,6 +301,7 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>, bool),
+    SearchIconsLoaded(String, Vec<(usize, widget::icon::Handle)>),
     SearchSubmit(String),
     Select(
         &'static str,
@@ -958,21 +962,8 @@ impl App {
             },
             ordering => ordering,
         });
-        // Load only enough icons to show one page of results
-        //TODO: load in background
-        for result in results.iter_mut().take(MAX_RESULTS) {
-            let Some(backend) = backends.get(result.backend_name) else {
-                continue;
-            };
-            let appstream_caches = backend.info_caches();
-            let Some(appstream_cache) = appstream_caches
-                .iter()
-                .find(|x| x.source_id == result.info.source_id)
-            else {
-                continue;
-            };
-            result.icon_opt = Some(appstream_cache.icon(&result.info));
-        }
+        // Skip icon loading in search to return results faster
+        // Icons will be loaded on-demand in the view or by a background task
         results
     }
 
@@ -1110,6 +1101,113 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn load_explore_icons(&self, explore_page: ExplorePage) -> Task<Message> {
+        let results = match self.explore_results.get(&explore_page) {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::ExploreIconsLoaded(explore_page, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_category_icons(&self, categories: &'static [Category]) -> Task<Message> {
+        let results = match &self.category_results {
+            Some((cats, results)) if *cats == categories => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::CategoryIconsLoaded(categories, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_installed_icons(&self) -> Task<Message> {
+        let results = match &self.installed_results {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::InstalledIconsLoaded(icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_search_icons(&self, input: String) -> Task<Message> {
+        let results = match &self.search_results {
+            Some((query, results)) if *query == input => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::SearchIconsLoaded(input, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_icons_for_results(
+        results: &[SearchResult],
+        backends: &Backends,
+    ) -> Vec<(usize, widget::icon::Handle)> {
+        let icon_start = Instant::now();
+        let mut icons = Vec::new();
+        for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+            // Skip results that already have icons (e.g., preserved from previous results)
+            if result.icon_opt.is_some() {
+                continue;
+            }
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            icons.push((i, appstream_cache.icon(&result.info)));
+        }
+        log::debug!(
+            "icon loading: loaded {} icons in {:?} (background)",
+            icons.len(),
+            icon_start.elapsed()
+        );
+        icons
     }
 
     fn installed_results(&self) -> Task<Message> {
@@ -3230,7 +3328,19 @@ impl Application for App {
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
-                return self.update_scroll();
+                // Load icons in background
+                return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
+            }
+            Message::CategoryIconsLoaded(categories, icons) => {
+                if let Some((cats, results)) = &mut self.category_results {
+                    if *cats == categories {
+                        for (i, icon) in icons {
+                            if let Some(result) = results.get_mut(i) {
+                                result.icon_opt = Some(icon);
+                            }
+                        }
+                    }
+                }
             }
             Message::CheckUpdates => {
                 //TODO: this only checks updates if they have already been checked
@@ -3286,6 +3396,17 @@ impl Application for App {
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
+                // Load icons in background
+                return self.load_explore_icons(explore_page);
+            }
+            Message::ExploreIconsLoaded(explore_page, icons) => {
+                if let Some(results) = self.explore_results.get_mut(&explore_page) {
+                    for (i, icon) in icons {
+                        if let Some(result) = results.get_mut(i) {
+                            result.icon_opt = Some(icon);
+                        }
+                    }
+                }
             }
             Message::GStreamerExit(code) => match self.mode {
                 Mode::Normal => {}
@@ -3375,6 +3496,17 @@ impl Application for App {
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
+                // Load icons in background
+                return self.load_installed_icons();
+            }
+            Message::InstalledIconsLoaded(icons) => {
+                if let Some(results) = &mut self.installed_results {
+                    for (i, icon) in icons {
+                        if let Some(result) = results.get_mut(i) {
+                            result.icon_opt = Some(icon);
+                        }
+                    }
+                }
             }
             Message::Key(modifiers, key, text) => {
                 // Handle ESC key to close dialogs
@@ -3598,8 +3730,22 @@ impl Application for App {
                     }
                 }
             }
-            Message::SearchResults(input, results, auto_select) => {
+            Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
+                    // Preserve icons from previous results to avoid flicker
+                    if let Some((_, old_results)) = &self.search_results {
+                        let old_icons: HashMap<_, _> = old_results
+                            .iter()
+                            .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+                            .collect();
+                        for result in &mut results {
+                            if result.icon_opt.is_none() {
+                                if let Some(icon) = old_icons.get(&result.id) {
+                                    result.icon_opt = Some((*icon).clone());
+                                }
+                            }
+                        }
+                    }
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
                     if auto_select && results.len() == 1 {
@@ -3659,8 +3805,10 @@ impl Application for App {
                             }
                         }
                     }
-                    self.search_results = Some((input, results));
+                    self.search_results = Some((input.clone(), results));
                     tasks.push(self.update_scroll());
+                    // Load icons in background
+                    tasks.push(self.load_search_icons(input));
                     return Task::batch(tasks);
                 } else {
                     log::warn!(
@@ -3669,6 +3817,17 @@ impl Application for App {
                         input,
                         self.search_input
                     );
+                }
+            }
+            Message::SearchIconsLoaded(input, icons) => {
+                if let Some((query, results)) = &mut self.search_results {
+                    if *query == input {
+                        for (i, icon) in icons {
+                            if let Some(result) = results.get_mut(i) {
+                                result.icon_opt = Some(icon);
+                            }
+                        }
+                    }
                 }
             }
             Message::SearchSubmit(_search_input) => {
