@@ -60,7 +60,7 @@ develop = Fejlesztés
 learn = Tanulás
 game = Játék
 relax = Pihenés
-socialize = Kapcsolattartás
+socialize = Internet
 utilities = Segédprogramok
 applets = Kisalkalmazások
 installed-apps = Telepített alkalmazások
@@ -87,7 +87,7 @@ apps-for-learning = Alkalmazások tanuláshoz
 # Details Page
 source-installed = { $source } (telepítve)
 developer = Fejlesztő
-app-developers = { $app } fejlesztők
+app-developers = { $app } fejlesztői
 monthly-downloads = Havi letöltések a Flathubon
 licenses = Licencek
 proprietary = Zárt forráskódú
