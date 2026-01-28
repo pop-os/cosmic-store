@@ -165,12 +165,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     SearchActivate,
+    WindowClose,
 }
 
 impl Action {
     pub fn message(&self) -> Message {
         match self {
             Self::SearchActivate => Message::SearchActivate,
+            Self::WindowClose      => Message::WindowClose,
         }
     }
 }
