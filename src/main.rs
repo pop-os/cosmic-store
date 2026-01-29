@@ -101,7 +101,9 @@ struct Cli {
 
 /// Runs application with these settings
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .format_timestamp_millis()
+        .init();
 
     localize::localize();
 
@@ -163,12 +165,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     SearchActivate,
+    WindowClose,
 }
 
 impl Action {
     pub fn message(&self) -> Message {
         match self {
             Self::SearchActivate => Message::SearchActivate,
+            Self::WindowClose      => Message::WindowClose,
         }
     }
 }
@@ -265,6 +269,7 @@ pub enum Message {
     AppTheme(AppTheme),
     Backends(Backends),
     CategoryResults(&'static [Category], Vec<SearchResult>),
+    CategoryIconsLoaded(&'static [Category], Vec<(usize, widget::icon::Handle)>),
     CheckUpdates,
     Config(Config),
     DialogCancel,
@@ -272,11 +277,13 @@ pub enum Message {
     DialogPage(DialogPage),
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
+    ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
     Installed(Vec<(&'static str, Package)>),
     InstalledResults(Vec<SearchResult>),
+    InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
     MaybeExit,
@@ -296,6 +303,7 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchResults(String, Vec<SearchResult>, bool),
+    SearchIconsLoaded(String, Vec<(usize, widget::icon::Handle)>),
     SearchSubmit(String),
     Select(
         &'static str,
@@ -956,21 +964,8 @@ impl App {
             },
             ordering => ordering,
         });
-        // Load only enough icons to show one page of results
-        //TODO: load in background
-        for result in results.iter_mut().take(MAX_RESULTS) {
-            let Some(backend) = backends.get(result.backend_name) else {
-                continue;
-            };
-            let appstream_caches = backend.info_caches();
-            let Some(appstream_cache) = appstream_caches
-                .iter()
-                .find(|x| x.source_id == result.info.source_id)
-            else {
-                continue;
-            };
-            result.icon_opt = Some(appstream_cache.icon(&result.info));
-        }
+        // Skip icon loading in search to return results faster
+        // Icons will be loaded on-demand in the view or by a background task
         results
     }
 
@@ -1108,6 +1103,113 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    fn load_explore_icons(&self, explore_page: ExplorePage) -> Task<Message> {
+        let results = match self.explore_results.get(&explore_page) {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::ExploreIconsLoaded(explore_page, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_category_icons(&self, categories: &'static [Category]) -> Task<Message> {
+        let results = match &self.category_results {
+            Some((cats, results)) if *cats == categories => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::CategoryIconsLoaded(categories, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_installed_icons(&self) -> Task<Message> {
+        let results = match &self.installed_results {
+            Some(results) => results.clone(),
+            None => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::InstalledIconsLoaded(icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_search_icons(&self, input: String) -> Task<Message> {
+        let results = match &self.search_results {
+            Some((query, results)) if *query == input => results.clone(),
+            _ => return Task::none(),
+        };
+        let backends = self.backends.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let icons = Self::load_icons_for_results(&results, &backends);
+                    action::app(Message::SearchIconsLoaded(input, icons))
+                })
+                .await
+                .unwrap_or(action::none())
+            },
+            |x| x,
+        )
+    }
+
+    fn load_icons_for_results(
+        results: &[SearchResult],
+        backends: &Backends,
+    ) -> Vec<(usize, widget::icon::Handle)> {
+        let icon_start = Instant::now();
+        let mut icons = Vec::new();
+        for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+            // Skip results that already have icons (e.g., preserved from previous results)
+            if result.icon_opt.is_some() {
+                continue;
+            }
+            let Some(backend) = backends.get(result.backend_name) else {
+                continue;
+            };
+            let appstream_caches = backend.info_caches();
+            let Some(appstream_cache) = appstream_caches
+                .iter()
+                .find(|x| x.source_id == result.info.source_id)
+            else {
+                continue;
+            };
+            icons.push((i, appstream_cache.icon(&result.info)));
+        }
+        log::debug!(
+            "icon loading: loaded {} icons in {:?} (background)",
+            icons.len(),
+            icon_start.elapsed()
+        );
+        icons
     }
 
     fn installed_results(&self) -> Task<Message> {
@@ -1546,7 +1648,6 @@ impl App {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
-    //TODO: run in background
     fn update_apps(&mut self) {
         let start = Instant::now();
         let mut apps = Apps::new();
@@ -1574,35 +1675,68 @@ impl App {
             }
         };
 
-        //TODO: par_iter?
-        for (backend_name, backend) in self.backends.iter() {
-            for appstream_cache in backend.info_caches() {
-                for (id, info) in appstream_cache.infos.iter() {
-                    let entry = apps.entry(id.clone()).or_default();
-                    entry.push(AppEntry {
-                        backend_name,
-                        info: info.clone(),
-                        installed: self.is_installed(backend_name, id, info),
-                    });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, id));
-                }
-            }
+        // Collect all entries from backends in parallel
+        let collect_start = Instant::now();
+        let installed_ref = &self.installed;
+        let all_entries: Vec<(AppId, AppEntry)> = self
+            .backends
+            .par_iter()
+            .flat_map(|(backend_name, backend)| {
+                backend
+                    .info_caches()
+                    .iter()
+                    .flat_map(|appstream_cache| {
+                        appstream_cache.infos.iter().map(|(id, info)| {
+                            (
+                                id.clone(),
+                                AppEntry {
+                                    backend_name,
+                                    info: info.clone(),
+                                    installed: Self::is_installed_inner(
+                                        installed_ref,
+                                        backend_name,
+                                        id,
+                                        info,
+                                    ),
+                                },
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let entry_count = all_entries.len();
+
+        // Merge entries into HashMap
+        for (id, entry) in all_entries {
+            apps.entry(id).or_default().push(entry);
         }
+        log::debug!(
+            "update_apps: collected {} entries in {:?}",
+            entry_count,
+            collect_start.elapsed()
+        );
 
         // Manually insert system apps
         if let Some(installed) = &self.installed {
             for (backend_name, package) in installed {
                 if package.id.is_system() {
-                    let entry = apps.entry(package.id.clone()).or_default();
-                    entry.push(AppEntry {
+                    apps.entry(package.id.clone()).or_default().push(AppEntry {
                         backend_name,
                         info: package.info.clone(),
                         installed: true,
                     });
-                    entry.par_sort_unstable_by(|a, b| entry_sort(a, b, &package.id));
                 }
             }
         }
+
+        // Sort all entries once at the end (in parallel)
+        let sort_start = Instant::now();
+        apps.par_iter_mut().for_each(|(id, entries)| {
+            entries.sort_unstable_by(|a, b| entry_sort(a, b, id));
+        });
+        log::debug!("update_apps: sorted entries in {:?}", sort_start.elapsed());
 
         self.apps = Arc::new(apps);
 
@@ -1631,23 +1765,33 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let mut installed = Vec::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.installed() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    installed.push((*backend_name, package));
+                    let total_start = Instant::now();
+                    let collect_start = Instant::now();
+                    let mut installed: Vec<_> = backends
+                        .par_iter()
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.installed() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list installed: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list installed: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded installed from {} in {:?}", backend_name, duration);
-                    }
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded installed from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
+                    log::debug!(
+                        "update_installed: collected {} packages in {:?}",
+                        installed.len(),
+                        collect_start.elapsed()
+                    );
+                    let sort_start = Instant::now();
                     installed.par_sort_unstable_by(|a, b| {
                         let a_is_system = a.1.id.is_system();
                         let b_is_system = b.1.id.is_system();
@@ -1659,6 +1803,11 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
+                    log::debug!(
+                        "update_installed: sorted in {:?}, total {:?}",
+                        sort_start.elapsed(),
+                        total_start.elapsed()
+                    );
                     action::app(Message::Installed(installed))
                 })
                 .await
@@ -1673,23 +1822,33 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let mut updates = Vec::new();
-                    //TODO: par_iter?
-                    for (backend_name, backend) in backends.iter() {
-                        let start = Instant::now();
-                        match backend.updates() {
-                            Ok(packages) => {
-                                for package in packages {
-                                    updates.push((*backend_name, package));
+                    let total_start = Instant::now();
+                    let collect_start = Instant::now();
+                    let mut updates: Vec<_> = backends
+                        .par_iter()
+                        .flat_map(|(backend_name, backend)| {
+                            let start = Instant::now();
+                            let result: Vec<_> = match backend.updates() {
+                                Ok(packages) => packages
+                                    .into_iter()
+                                    .map(|package| (*backend_name, package))
+                                    .collect(),
+                                Err(err) => {
+                                    log::error!("failed to list updates: {}", err);
+                                    Vec::new()
                                 }
-                            }
-                            Err(err) => {
-                                log::error!("failed to list updates: {}", err);
-                            }
-                        }
-                        let duration = start.elapsed();
-                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
-                    }
+                            };
+                            let duration = start.elapsed();
+                            log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                            result
+                        })
+                        .collect();
+                    log::debug!(
+                        "update_updates: collected {} packages in {:?}",
+                        updates.len(),
+                        collect_start.elapsed()
+                    );
+                    let sort_start = Instant::now();
                     updates.par_sort_unstable_by(|a, b| {
                         if a.1.id.is_system() {
                             cmp::Ordering::Less
@@ -1699,6 +1858,11 @@ impl App {
                             LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
                         }
                     });
+                    log::debug!(
+                        "update_updates: sorted in {:?}, total {:?}",
+                        sort_start.elapsed(),
+                        total_start.elapsed()
+                    );
                     action::app(Message::Updates(updates))
                 })
                 .await
@@ -3227,7 +3391,19 @@ impl Application for App {
             }
             Message::CategoryResults(categories, results) => {
                 self.category_results = Some((categories, results));
-                return self.update_scroll();
+                // Load icons in background
+                return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
+            }
+            Message::CategoryIconsLoaded(categories, icons) => {
+                if let Some((cats, results)) = &mut self.category_results {
+                    if *cats == categories {
+                        for (i, icon) in icons {
+                            if let Some(result) = results.get_mut(i) {
+                                result.icon_opt = Some(icon);
+                            }
+                        }
+                    }
+                }
             }
             Message::CheckUpdates => {
                 //TODO: this only checks updates if they have already been checked
@@ -3283,6 +3459,17 @@ impl Application for App {
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
+                // Load icons in background
+                return self.load_explore_icons(explore_page);
+            }
+            Message::ExploreIconsLoaded(explore_page, icons) => {
+                if let Some(results) = self.explore_results.get_mut(&explore_page) {
+                    for (i, icon) in icons {
+                        if let Some(result) = results.get_mut(i) {
+                            result.icon_opt = Some(icon);
+                        }
+                    }
+                }
             }
             Message::GStreamerExit(code) => match self.mode {
                 Mode::Normal => {}
@@ -3372,6 +3559,17 @@ impl Application for App {
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
+                // Load icons in background
+                return self.load_installed_icons();
+            }
+            Message::InstalledIconsLoaded(icons) => {
+                if let Some(results) = &mut self.installed_results {
+                    for (i, icon) in icons {
+                        if let Some(result) = results.get_mut(i) {
+                            result.icon_opt = Some(icon);
+                        }
+                    }
+                }
             }
             Message::Key(modifiers, key, text) => {
                 // Handle ESC key to close dialogs
@@ -3595,8 +3793,22 @@ impl Application for App {
                     }
                 }
             }
-            Message::SearchResults(input, results, auto_select) => {
+            Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
+                    // Preserve icons from previous results to avoid flicker
+                    if let Some((_, old_results)) = &self.search_results {
+                        let old_icons: HashMap<_, _> = old_results
+                            .iter()
+                            .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+                            .collect();
+                        for result in &mut results {
+                            if result.icon_opt.is_none() {
+                                if let Some(icon) = old_icons.get(&result.id) {
+                                    result.icon_opt = Some((*icon).clone());
+                                }
+                            }
+                        }
+                    }
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
                     if auto_select && results.len() == 1 {
@@ -3656,8 +3868,10 @@ impl Application for App {
                             }
                         }
                     }
-                    self.search_results = Some((input, results));
+                    self.search_results = Some((input.clone(), results));
                     tasks.push(self.update_scroll());
+                    // Load icons in background
+                    tasks.push(self.load_search_icons(input));
                     return Task::batch(tasks);
                 } else {
                     log::warn!(
@@ -3666,6 +3880,17 @@ impl Application for App {
                         input,
                         self.search_input
                     );
+                }
+            }
+            Message::SearchIconsLoaded(input, icons) => {
+                if let Some((query, results)) = &mut self.search_results {
+                    if *query == input {
+                        for (i, icon) in icons {
+                            if let Some(result) = results.get_mut(i) {
+                                result.icon_opt = Some(icon);
+                            }
+                        }
+                    }
                 }
             }
             Message::SearchSubmit(_search_input) => {
