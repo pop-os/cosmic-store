@@ -279,6 +279,7 @@ pub enum Message {
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
+    ExploreCacheSaved(Result<(), String>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
@@ -472,7 +473,7 @@ impl NavPage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum ExplorePage {
     EditorsChoice,
     PopularApps,
@@ -658,6 +659,135 @@ pub struct SearchResult {
     weight: i64,
 }
 
+/// Cached version of SearchResult for disk storage (without icons)
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedSearchResult {
+    backend_name: String,
+    id: AppId,
+    info: AppInfo,
+    weight: i64,
+}
+
+/// Cached explore page results
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedExploreResults {
+    results: Vec<(ExplorePage, Vec<CachedSearchResult>)>,
+}
+
+impl CachedExploreResults {
+    fn cache_path() -> Option<std::path::PathBuf> {
+        dirs::cache_dir().map(|p| p.join("cosmic-store").join("explore_cache.bin.zst"))
+    }
+
+    fn load() -> Option<Self> {
+        let total_start = Instant::now();
+        let path = Self::cache_path()?;
+
+        let disk_start = Instant::now();
+        let compressed = std::fs::read(&path).ok()?;
+        let disk_time = disk_start.elapsed();
+
+        let decompress_start = Instant::now();
+        let data = zstd::decode_all(compressed.as_slice()).ok()?;
+        let decompress_time = decompress_start.elapsed();
+
+        let decode_start = Instant::now();
+        let result: Self = bitcode::decode(&data).ok()?;
+        let decode_time = decode_start.elapsed();
+
+        log::info!(
+            "cache load: {} KB compressed -> {} KB uncompressed, disk={:?}, decompress={:?}, decode={:?}, total={:?}",
+            compressed.len() / 1024,
+            data.len() / 1024,
+            disk_time,
+            decompress_time,
+            decode_time,
+            total_start.elapsed()
+        );
+        Some(result)
+    }
+
+    fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let total_start = Instant::now();
+        let path = Self::cache_path().ok_or("no cache dir")?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let encode_start = Instant::now();
+        let data = bitcode::encode(self);
+        let encode_time = encode_start.elapsed();
+
+        let compress_start = Instant::now();
+        let compressed = zstd::encode_all(data.as_slice(), 3)?;
+        let compress_time = compress_start.elapsed();
+
+        let disk_start = Instant::now();
+        std::fs::write(&path, &compressed)?;
+        let disk_time = disk_start.elapsed();
+
+        log::info!(
+            "cache save: {} KB uncompressed -> {} KB compressed, encode={:?}, compress={:?}, disk={:?}, total={:?}",
+            data.len() / 1024,
+            compressed.len() / 1024,
+            encode_time,
+            compress_time,
+            disk_time,
+            total_start.elapsed()
+        );
+        Ok(())
+    }
+
+    fn from_results(results: &HashMap<ExplorePage, Vec<SearchResult>>) -> Self {
+        let cached: Vec<_> = results
+            .iter()
+            .map(|(page, search_results)| {
+                let cached_results: Vec<_> = search_results
+                    .iter()
+                    .map(|r| CachedSearchResult {
+                        backend_name: r.backend_name.to_string(),
+                        id: r.id.clone(),
+                        info: (*r.info).clone(),
+                        weight: r.weight,
+                    })
+                    .collect();
+                (*page, cached_results)
+            })
+            .collect();
+        Self { results: cached }
+    }
+
+    fn to_results(&self) -> HashMap<ExplorePage, Vec<SearchResult>> {
+        self.results
+            .iter()
+            .map(|(page, cached_results)| {
+                let results: Vec<_> = cached_results
+                    .iter()
+                    .map(|c| SearchResult {
+                        backend_name: backend_name_from_string(&c.backend_name),
+                        id: c.id.clone(),
+                        icon_opt: None,
+                        info: Arc::new(c.info.clone()),
+                        weight: c.weight,
+                    })
+                    .collect();
+                (*page, results)
+            })
+            .collect()
+    }
+}
+
+/// Convert backend name string back to static str
+fn backend_name_from_string(name: &str) -> &'static str {
+    match name {
+        "flatpak-user" => "flatpak-user",
+        "flatpak-system" => "flatpak-system",
+        "packagekit" => "packagekit",
+        "pkgar" => "pkgar",
+        _ => "unknown",
+    }
+}
+
 impl SearchResult {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
@@ -833,6 +963,7 @@ pub struct App {
     category_load_start: Option<Instant>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     explore_load_start: Option<Instant>,
+    explore_pages_received: usize,
     installed_results: Option<Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -3352,12 +3483,24 @@ impl Application for App {
             category_load_start: None,
             explore_results: HashMap::new(),
             explore_load_start: None,
+            explore_pages_received: 0,
             installed_results: None,
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
             uninstall_purge_data: false,
         };
+
+        // Load cached explore results for instant display
+        let cache_start = Instant::now();
+        if let Some(cached) = CachedExploreResults::load() {
+            app.explore_results = cached.to_results();
+            log::info!(
+                "explore page loaded from cache: {} categories in {:?}",
+                app.explore_results.len(),
+                cache_start.elapsed()
+            );
+        }
 
         if let Some(subcommand) = flags.subcommand_opt {
             // Search for term
@@ -3574,22 +3717,39 @@ impl Application for App {
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
+                self.explore_pages_received += 1;
 
-                // Log when all explore pages are loaded
+                let mut tasks = vec![self.load_explore_icons(explore_page)];
+
+                // Log and save to cache when all explore pages have been received
                 let all_pages = ExplorePage::all();
-                if self.explore_results.len() >= all_pages.len() {
+                if self.explore_pages_received == all_pages.len() {
                     if let Some(start) = self.explore_load_start.take() {
                         log::info!(
-                            "explore page fully loaded: {} categories in {:?}",
+                            "explore page reloaded after data fetch: {} categories in {:?}",
                             self.explore_results.len(),
                             start.elapsed()
                         );
                     }
+                    let cached = CachedExploreResults::from_results(&self.explore_results);
+                    tasks.push(Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                cached.save().map_err(|e| e.to_string())
+                            })
+                            .await
+                            .unwrap_or_else(|e| Err(e.to_string()))
+                        },
+                        |result| action::app(Message::ExploreCacheSaved(result)),
+                    ));
                 }
 
-                // Load icons in background
-                return self.load_explore_icons(explore_page);
+                return Task::batch(tasks);
             }
+            Message::ExploreCacheSaved(result) => match result {
+                Ok(()) => log::info!("explore cache saved"),
+                Err(err) => log::warn!("failed to save explore cache: {}", err),
+            },
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
                     for (i, icon) in icons {
@@ -3680,7 +3840,7 @@ impl Application for App {
                         commands.push(self.installed_results());
                         // Start timing explore page loading
                         self.explore_load_start = Some(Instant::now());
-                        self.explore_results.clear();
+                        self.explore_pages_received = 0;
                         for explore_page in ExplorePage::all() {
                             commands.push(self.explore_results(*explore_page));
                         }
