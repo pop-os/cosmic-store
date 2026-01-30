@@ -659,12 +659,13 @@ pub struct SearchResult {
     weight: i64,
 }
 
-/// Cached version of SearchResult for disk storage (without icons)
+/// Cached version of SearchResult for disk storage (with resolved icon paths)
 #[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
 struct CachedSearchResult {
     backend_name: String,
     id: AppId,
     info: AppInfo,
+    icon_path: Option<String>,
     weight: i64,
 }
 
@@ -738,17 +739,36 @@ impl CachedExploreResults {
         Ok(())
     }
 
-    fn from_results(results: &HashMap<ExplorePage, Vec<SearchResult>>) -> Self {
+    fn from_results(
+        results: &HashMap<ExplorePage, Vec<SearchResult>>,
+        backends: &Backends,
+    ) -> Self {
         let cached: Vec<_> = results
             .iter()
             .map(|(page, search_results)| {
                 let cached_results: Vec<_> = search_results
                     .iter()
-                    .map(|r| CachedSearchResult {
-                        backend_name: r.backend_name.to_string(),
-                        id: r.id.clone(),
-                        info: (*r.info).clone(),
-                        weight: r.weight,
+                    .take(MAX_RESULTS)
+                    .map(|r| {
+                        // Resolve icon path using backend
+                        let icon_path = backends
+                            .get(r.backend_name)
+                            .and_then(|backend| {
+                                backend
+                                    .info_caches()
+                                    .iter()
+                                    .find(|c| c.source_id == r.info.source_id)
+                            })
+                            .and_then(|cache| cache.icon_path_for_info(&r.info))
+                            .map(|p| p.to_string_lossy().into_owned());
+
+                        CachedSearchResult {
+                            backend_name: r.backend_name.to_string(),
+                            id: r.id.clone(),
+                            info: (*r.info).clone(),
+                            icon_path,
+                            weight: r.weight,
+                        }
                     })
                     .collect();
                 (*page, cached_results)
@@ -763,12 +783,19 @@ impl CachedExploreResults {
             .map(|(page, cached_results)| {
                 let results: Vec<_> = cached_results
                     .iter()
-                    .map(|c| SearchResult {
-                        backend_name: backend_name_from_string(&c.backend_name),
-                        id: c.id.clone(),
-                        icon_opt: None,
-                        info: Arc::new(c.info.clone()),
-                        weight: c.weight,
+                    .map(|c| {
+                        // Create icon from cached path if available
+                        let icon_opt = c
+                            .icon_path
+                            .as_ref()
+                            .map(|path| widget::icon::from_path(std::path::PathBuf::from(path)));
+                        SearchResult {
+                            backend_name: backend_name_from_string(&c.backend_name),
+                            id: c.id.clone(),
+                            icon_opt,
+                            info: Arc::new(c.info.clone()),
+                            weight: c.weight,
+                        }
                     })
                     .collect();
                 (*page, results)
@@ -3731,7 +3758,10 @@ impl Application for App {
                             start.elapsed()
                         );
                     }
-                    let cached = CachedExploreResults::from_results(&self.explore_results);
+                    let cached = CachedExploreResults::from_results(
+                        &self.explore_results,
+                        &self.backends,
+                    );
                     tasks.push(Task::perform(
                         async move {
                             tokio::task::spawn_blocking(move || {
