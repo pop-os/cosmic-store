@@ -830,7 +830,9 @@ pub struct App {
     //TODO: use hashset?
     waiting_updates: Vec<(&'static str, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
+    category_load_start: Option<Instant>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
+    explore_load_start: Option<Instant>,
     installed_results: Option<Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -3347,7 +3349,9 @@ impl Application for App {
             waiting_installed: Vec::new(),
             waiting_updates: Vec::new(),
             category_results: None,
+            category_load_start: None,
             explore_results: HashMap::new(),
+            explore_load_start: None,
             installed_results: None,
             search_results: None,
             selected_opt: None,
@@ -3435,6 +3439,8 @@ impl Application for App {
             .active_data::<NavPage>()
             .and_then(|nav_page| nav_page.categories())
         {
+            // Start timing category page load
+            self.category_load_start = Some(Instant::now());
             commands.push(self.categories(categories));
         }
         if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
@@ -3492,6 +3498,13 @@ impl Application for App {
                 return Task::batch(tasks);
             }
             Message::CategoryResults(categories, results) => {
+                if let Some(start) = self.category_load_start.take() {
+                    log::info!(
+                        "category page loaded: {} results in {:?}",
+                        results.len(),
+                        start.elapsed()
+                    );
+                }
                 self.category_results = Some((categories, results));
                 // Load icons in background
                 return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
@@ -3561,6 +3574,19 @@ impl Application for App {
             }
             Message::ExploreResults(explore_page, results) => {
                 self.explore_results.insert(explore_page, results);
+
+                // Log when all explore pages are loaded
+                let all_pages = ExplorePage::all();
+                if self.explore_results.len() >= all_pages.len() {
+                    if let Some(start) = self.explore_load_start.take() {
+                        log::info!(
+                            "explore page fully loaded: {} categories in {:?}",
+                            self.explore_results.len(),
+                            start.elapsed()
+                        );
+                    }
+                }
+
                 // Load icons in background
                 return self.load_explore_icons(explore_page);
             }
@@ -3648,9 +3674,13 @@ impl Application for App {
                             .active_data::<NavPage>()
                             .and_then(|nav_page| nav_page.categories())
                         {
+                            self.category_load_start = Some(Instant::now());
                             commands.push(self.categories(categories));
                         }
                         commands.push(self.installed_results());
+                        // Start timing explore page loading
+                        self.explore_load_start = Some(Instant::now());
+                        self.explore_results.clear();
                         for explore_page in ExplorePage::all() {
                             commands.push(self.explore_results(*explore_page));
                         }
