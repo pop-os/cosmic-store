@@ -172,7 +172,7 @@ impl Action {
     pub fn message(&self) -> Message {
         match self {
             Self::SearchActivate => Message::SearchActivate,
-            Self::WindowClose      => Message::WindowClose,
+            Self::WindowClose => Message::WindowClose,
         }
     }
 }
@@ -814,6 +814,30 @@ fn backend_name_from_string(name: &str) -> &'static str {
         "packagekit" => "packagekit",
         "pkgar" => "pkgar",
         _ => "unknown",
+    }
+}
+
+/// Preserve icons from old results when new results arrive (avoids flicker)
+fn preserve_icons_from(old_results: &[SearchResult], new_results: &mut [SearchResult]) {
+    let old_icons: HashMap<&AppId, &widget::icon::Handle> = old_results
+        .iter()
+        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+        .collect();
+    for result in new_results {
+        if result.icon_opt.is_none() {
+            if let Some(icon) = old_icons.get(&result.id) {
+                result.icon_opt = Some((*icon).clone());
+            }
+        }
+    }
+}
+
+/// Apply loaded icons to search results
+fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widget::icon::Handle)>) {
+    for (i, icon) in icons {
+        if let Some(result) = results.get_mut(i) {
+            result.icon_opt = Some(icon);
+        }
     }
 }
 
@@ -3678,19 +3702,8 @@ impl Application for App {
                         start.elapsed()
                     );
                 }
-                // Preserve icons from old results to avoid flicker
                 if let Some((_, old_results)) = &self.category_results {
-                    let old_icons: std::collections::HashMap<_, _> = old_results
-                        .iter()
-                        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                        .collect();
-                    for result in &mut results {
-                        if result.icon_opt.is_none() {
-                            if let Some(icon) = old_icons.get(&result.id) {
-                                result.icon_opt = Some((*icon).clone());
-                            }
-                        }
-                    }
+                    preserve_icons_from(old_results, &mut results);
                 }
                 self.category_results = Some((categories, results));
                 // Load icons in background
@@ -3699,11 +3712,7 @@ impl Application for App {
             Message::CategoryIconsLoaded(categories, icons) => {
                 if let Some((cats, results)) = &mut self.category_results {
                     if *cats == categories {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }
@@ -3760,19 +3769,8 @@ impl Application for App {
                 return self.update_scroll();
             }
             Message::ExploreResults(explore_page, mut results) => {
-                // Preserve icons from cached results to avoid flicker
                 if let Some(old_results) = self.explore_results.get(&explore_page) {
-                    let old_icons: std::collections::HashMap<_, _> = old_results
-                        .iter()
-                        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                        .collect();
-                    for result in &mut results {
-                        if result.icon_opt.is_none() {
-                            if let Some(icon) = old_icons.get(&result.id) {
-                                result.icon_opt = Some((*icon).clone());
-                            }
-                        }
-                    }
+                    preserve_icons_from(old_results, &mut results);
                 }
                 self.explore_results.insert(explore_page, results);
                 self.explore_pages_received += 1;
@@ -3789,10 +3787,8 @@ impl Application for App {
                             start.elapsed()
                         );
                     }
-                    let cached = CachedExploreResults::from_results(
-                        &self.explore_results,
-                        &self.backends,
-                    );
+                    let cached =
+                        CachedExploreResults::from_results(&self.explore_results, &self.backends);
                     tasks.push(Task::perform(
                         async move {
                             tokio::task::spawn_blocking(move || {
@@ -3813,11 +3809,7 @@ impl Application for App {
             },
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
-                        }
-                    }
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::GStreamerExit(code) => match self.mode {
@@ -3917,11 +3909,7 @@ impl Application for App {
             }
             Message::InstalledIconsLoaded(icons) => {
                 if let Some(results) = &mut self.installed_results {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
-                        }
-                    }
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::Key(modifiers, key, text) => {
@@ -4148,19 +4136,8 @@ impl Application for App {
             }
             Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
-                    // Preserve icons from previous results to avoid flicker
                     if let Some((_, old_results)) = &self.search_results {
-                        let old_icons: HashMap<_, _> = old_results
-                            .iter()
-                            .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                            .collect();
-                        for result in &mut results {
-                            if result.icon_opt.is_none() {
-                                if let Some(icon) = old_icons.get(&result.id) {
-                                    result.icon_opt = Some((*icon).clone());
-                                }
-                            }
-                        }
+                        preserve_icons_from(old_results, &mut results);
                     }
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
@@ -4238,11 +4215,7 @@ impl Application for App {
             Message::SearchIconsLoaded(input, icons) => {
                 if let Some((query, results)) = &mut self.search_results {
                     if *query == input {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }
