@@ -75,7 +75,7 @@ codec-title = Встановити додаткові пакети?
 close = Закрити
 details = Деталі
 dismiss = Закрити повідомлення
-repository-add-error-title = "Не вдалося додати репозиторій"
+repository-add-error-title = «Не вдалося додати сховище»
 repository-remove-title = Вилучити сховище «{ $name }»?
 repository-remove-body =
     Вилучення цього сховища { $dependency ->
