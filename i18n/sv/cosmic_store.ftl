@@ -135,3 +135,5 @@ system-packages-summary =
        *[other] { $count } paket
     }
 system-packages = Systempaket
+system-package-updates = Paketuppdateringar
+flatpak-runtimes = Körtidsfiler för Flatpak
