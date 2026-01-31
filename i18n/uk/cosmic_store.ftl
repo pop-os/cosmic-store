@@ -17,8 +17,8 @@ uninstall-app = Видалити { $name }?
 uninstall-app-warning = Видалення { $name } очистить його дані.
 # Nav Pages
 explore = Дослідити
-create = Створити
-work = Продуктивність
+create = Творчість
+work = Робота
 develop = Розробка
 learn = Навчання
 game = Гра
@@ -28,7 +28,7 @@ utilities = Утиліти
 installed-apps = Встановлені застосунки
 updates = Оновлення
 # Explore Pages
-editors-choice = Обране
+editors-choice = Відібране редактором
 popular-apps = Популярні застосунки
 new-apps = Нові застосунки
 recently-updated = Нещодавно оновлені
@@ -76,19 +76,19 @@ close = Закрити
 details = Деталі
 dismiss = Закрити повідомлення
 repository-add-error-title = "Не вдалося додати репозиторій"
-repository-remove-title = Видалити репозиторій "{ $name }"?
+repository-remove-title = Вилучити сховище «{ $name }»?
 repository-remove-body =
-    Видалення цього репозиторію також { $dependency ->
+    Видалення цього репозиторію { $dependency ->
         [none] видалить
-       *[other] видалить репозиторій "{ $dependency }", а також видалить
-    } наступні застосунки. Навіть якщо репозиторій буде знову додано, їх потрібно буде перевстановити.
+       *[other] вилучить сховище "{ $dependency }", і видалить
+    } такі застосунки та елементи. Навіть якщо репозиторій буде знову додано, їх потрібно буде перевстановити.
 add = Додати
 adding = Додавання...
 remove = Вилучити
 removing = Видалення...
 applets = Аплети
 enable-flathub-cosmic = Будь ласка, увімкніть Flathub та COSMIC Flatpak, щоб переглянути доступні аплети.
-manage-repositories = Керувати репозиторіями
+manage-repositories = Керувати сховищами
 made-for-cosmic = Зроблено для COSMIC
 monthly-downloads = завантажень за місяць з Flathub
 licenses = Ліцензії
@@ -100,7 +100,7 @@ faq = Часті питання
 help = Допомога
 homepage = Домашня сторінка
 translate = Перекласти
-cancelled = Скасовані
+cancelled = Скасовано
 operations = Операції
 no-operations = Історія операцій порожня.
 pending = В очікуванні
@@ -113,10 +113,10 @@ operations-running-finished = { $running } опреацій запущено ({ 
 recommended-flatpak-sources = Рекомендовані джерела Flatpak
 custom-flatpak-sources = Власні джерела Flatpak
 import-flatpakrepo = Імпортуйте файл формату .flatpakrepo для того, щоб додати власне джерело
-no-custom-flatpak-sources = Немає власних репозиторіїв Flatpak
+no-custom-flatpak-sources = Немає власних джерел Flatpak
 import = Імпортувати
 no-flatpak = Flatpak не підтримується
-software-repositories = Репозиторії застосунків
+software-repositories = Сховища застосунків
 codec-header = "{ $application }" потребує додаткових пакетів, які надають "{ $description }".
 codec-footer =
     Використання цих додаткових пакетів може бути обмежено у деяких країнах.
