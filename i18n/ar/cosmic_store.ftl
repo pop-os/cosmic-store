@@ -21,16 +21,16 @@ panel = اللوحة
 dock = المرسى
 place-and-refine = ضع وحسِّن
 # Codec dialog
-codec-title = نصِّب الحزم الإضافية؟
-codec-header = ”{ $application }“ يتطلب حزمًا إضافية توفر ”{ $description }“.
+codec-title = نصِّب حِزم الإضافية؟
+codec-header = يتطلب «{ $application }» حِزمًا إضافية توفّر «{ $description }».
 codec-footer =
-    قد يكون استخدام هذه الحزم الإضافية مقيدًا في بعض البلدان.
+    قد يكون استخدام هذه الحِزم الإضافية مقيدًا في بعض البلدان.
     يجب عليك التحقق من صحة أحد الأمور التالية:
      • لا تنطبق هذه القيود في بلد إقامتك القانونية
      • لديك إذن باستخدام هذا البرنامج (على سبيل المثال، ترخيص براءة اختراع)
      • أنت تستخدم هذا البرنامج لأغراض البحث فقط
-codec-error = حدثت أخطاء أثناء تنصيب الحزمة.
-codec-installed = نُصِّبت الحزم.
+codec-error = حدثت أخطاء أثناء تنصيب الحِزمة.
+codec-installed = نُصِّبت الحِزم.
 # Progress footer
 details = التفاصيل
 dismiss = أهمِل الرسالة
@@ -145,3 +145,11 @@ view-more = اعرض المزيد
 delete-app-data = احذف بيانات التطبيق نهائيًا
 uninstall-app-flatpak-warning = إلغاء تنصيب { $name } سيحتفظ بمستنداته وبياناته.
 version = الإصدار { $version }
+system-package-updates = تحديثات الحِزم
+system-packages = حِزم النظام
+flatpak-runtimes = أزمنة فلاتباك
+system-packages-summary =
+    { $count ->
+        [one] { $count } حِزمة
+       *[other] { $count } حِزمات
+    }

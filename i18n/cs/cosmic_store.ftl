@@ -127,3 +127,12 @@ view-more = Zobrazit více
 version = Verze { $version }
 delete-app-data = Trvale smazat data aplikace
 uninstall-app-flatpak-warning = Odinstalace { $name } zachová její dokumenty a data.
+system-package-updates = Aktualizace balíčků
+system-packages-summary =
+    { $count } { $count ->
+        [one] balíček
+        [few] balíčky
+       *[other] balíčků
+    }
+flatpak-runtimes = Běhová prostředí Flatpak
+system-packages = Systémové balíčky
