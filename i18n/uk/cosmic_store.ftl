@@ -129,3 +129,6 @@ addons = Додатки
 uninstall-app-flatpak-warning = При видаленні { $name } документи та дані будуть збережені.
 delete-app-data = Назавжди видалити дані програми
 view-more = Переглянути всі
+system-package-updates = Оновлення пакетів
+system-packages = Системні пакети
+flatpak-runtimes = Середовища виконання Flatpak
