@@ -148,3 +148,8 @@ version = { $version } 版本
 system-package-updates = 软件包更新
 system-packages = 系统软件包
 flatpak-runtimes = Flatpak 运行时
+system-packages-summary =
+    { $count ->
+        [one] { $count } 个软件包
+       *[other] { $count } 个软件包
+    }
