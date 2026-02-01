@@ -80,7 +80,7 @@ repository-remove-title = Вилучити сховище «{ $name }»?
 repository-remove-body =
     Вилучення цього сховища { $dependency ->
         [none] видалить
-       *[other] вилучить сховище "{ $dependency }", і видалить
+       *[other] вилучить сховище «{ $dependency }», і видалить
     } такі застосунки та елементи. Навіть якщо сховище буде знову додано, їх потрібно буде перевстановити.
 add = Додати
 adding = Додавання...
@@ -131,4 +131,4 @@ delete-app-data = Назавжди видалити дані програми
 view-more = Переглянути всі
 system-package-updates = Оновлення пакетів
 system-packages = Системні пакети
-flatpak-runtimes = Середовища виконання Flatpak
+flatpak-runtimes = Середовища виконання для Flatpak
