@@ -57,6 +57,7 @@ pub fn key_binds() -> HashMap<KeyBind, Action> {
     }
 
     bind!([Ctrl], Key::Character("f".into()), SearchActivate);
+    bind!([Ctrl], Key::Character("q".into()), WindowClose);
 
     key_binds
 }

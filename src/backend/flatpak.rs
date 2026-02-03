@@ -62,8 +62,24 @@ impl Flatpak {
                 }
             };
 
-            //TODO: also update if out of date?
-            if !appstream_dir.is_dir() {
+            // Update appstream if not found
+            let mut update_appstream = !appstream_dir.is_dir();
+            if !update_appstream {
+                if let Some(age) = remote
+                    .appstream_timestamp(None)
+                    .and_then(|x| x.path())
+                    .and_then(|x| fs::metadata(x).ok())
+                    .and_then(|x| x.modified().ok())
+                    .and_then(|x| x.elapsed().ok())
+                {
+                    if age.as_secs() > 3600 {
+                        // Update appstream if more than one hour old
+                        update_appstream = true;
+                    }
+                }
+            }
+
+            if update_appstream {
                 log::info!("updating appstream data for remote {:?}", remote);
                 match inst.update_appstream_sync(&source_id, None, Cancellable::NONE) {
                     Ok(()) => {}
@@ -176,16 +192,15 @@ impl Flatpak {
         if !system_packages.is_empty() {
             //TODO: use correct appstream cache, or do not bother to specify it
             let appstream_cache = &self.appstream_caches[0];
-            let name = "System Packages".to_string();
-            let summary = format!(
-                "{} package{}",
-                system_packages.len(),
-                if system_packages.len() == 1 { "" } else { "s" }
-            );
+            let name = crate::fl!("flatpak-runtimes");
+            let summary = crate::fl!("system-packages-summary", count = system_packages.len());
             let mut description = String::new();
             let mut flatpak_refs = Vec::with_capacity(system_packages.len());
+            let mut extra = HashMap::new();
             for (flatpak_ref, version) in system_packages {
                 let _ = writeln!(description, " * {}: {}", flatpak_ref, version);
+                // Store version info for the release notes display
+                extra.insert(format!("{}_installed", flatpak_ref), version);
                 flatpak_refs.push(flatpak_ref);
             }
             //TODO: translate
@@ -205,7 +220,7 @@ impl Flatpak {
                     ..Default::default()
                 }),
                 version: String::new(),
-                extra: HashMap::new(),
+                extra,
             });
         }
 
