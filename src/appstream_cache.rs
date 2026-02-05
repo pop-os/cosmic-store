@@ -585,7 +585,14 @@ impl AppstreamCache {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
+        let xml_start = Instant::now();
         let e = xmltree::Element::parse(reader)?;
+        let xml_duration = xml_start.elapsed();
+        log::debug!(
+            "parsed XML document from {:?} in {:?}",
+            path,
+            xml_duration
+        );
         let _version = e
             .attributes
             .get("version")
