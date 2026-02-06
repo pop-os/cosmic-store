@@ -798,11 +798,8 @@ pub struct Selected {
 /// Represents a page state for navigation history
 #[derive(Clone, Debug, PartialEq)]
 pub enum PageState {
-    /// A nav page (with optional explore sub-page for Explore nav page)
     NavPage(NavPage, Option<ExplorePage>),
-    /// Search results for a query
     Search(String),
-    /// App details view
     AppDetails(AppId, &'static str),
 }
 
@@ -851,7 +848,6 @@ pub struct App {
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
     uninstall_purge_data: bool,
-    // Navigation history
     nav_history: Vec<PageState>,
     nav_history_index: usize,
 }
@@ -932,24 +928,19 @@ impl App {
         // Get current state before we change anything
         let current = self.current_page_state();
 
-        // Don't push duplicate consecutive states
         if self.nav_history.get(self.nav_history_index) == Some(&current)
             && current == page_state
         {
             return;
         }
 
-        // Don't push if the new state matches what's already at the current index
-        // This happens when navigating from history asynchronously
         if self.nav_history.get(self.nav_history_index) == Some(&page_state) {
             return;
         }
 
-        // Move to next position and truncate forward history
         self.nav_history_index += 1;
         self.nav_history.truncate(self.nav_history_index);
 
-        // Add new state
         self.nav_history.push(page_state);
     }
 
@@ -957,29 +948,23 @@ impl App {
     fn navigate_to_state(&mut self, page_state: PageState) -> Task<Message> {
         match page_state {
             PageState::NavPage(_nav_page, explore_page_opt) => {
-                // Set the explore page
                 self.explore_page_opt = explore_page_opt;
 
-                // Clear selected and search
                 self.selected_opt = None;
                 self.search_results = None;
 
                 self.update_scroll()
             }
             PageState::Search(query) => {
-                // Clear selected and explore page
                 self.selected_opt = None;
                 self.explore_page_opt = None;
 
-                // Trigger new search
                 self.search_input = query.clone();
                 Task::perform(async move { action::app(Message::SearchSubmit(query)) }, |x| x)
             }
             PageState::AppDetails(app_id, backend_name) => {
-                // Check if we need to load the app details
                 if let Some(ref selected) = self.selected_opt {
                     if selected.id == app_id && selected.backend_name == backend_name {
-                        // Already showing this app
                         return Task::none();
                     }
                 }
@@ -988,7 +973,6 @@ impl App {
                 self.search_results = None;
                 self.explore_page_opt = None;
 
-                // Load the app details
                 if let Some(entries) = self.apps.get(&app_id) {
                     if let Some(entry) = entries.iter().find(|e| e.backend_name == backend_name) {
                         let info = entry.info.clone();
@@ -3476,7 +3460,7 @@ impl Application for App {
             selected_opt: None,
             applet_placement_buttons,
             uninstall_purge_data: false,
-            // Navigation history - start with default nav page
+            // Navigation history
             nav_history: vec![PageState::NavPage(NavPage::default(), None)],
             nav_history_index: 0,
         };
