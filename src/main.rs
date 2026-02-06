@@ -79,6 +79,8 @@ mod priority;
 
 mod stats;
 
+mod mouse_area;
+
 const ICON_SIZE_SEARCH: u16 = 48;
 const ICON_SIZE_PACKAGE: u16 = 64;
 const ICON_SIZE_DETAILS: u16 = 128;
@@ -288,6 +290,8 @@ pub enum Message {
     Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
     MaybeExit,
+    NavigateBack,
+    NavigateForward,
     #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
@@ -791,6 +795,17 @@ pub struct Selected {
     addons_view_more: bool,
 }
 
+/// Represents a page state for navigation history
+#[derive(Clone, Debug, PartialEq)]
+pub enum PageState {
+    /// A nav page (with optional explore sub-page for Explore nav page)
+    NavPage(NavPage, Option<ExplorePage>),
+    /// Search results for a query
+    Search(String),
+    /// App details view
+    AppDetails(AppId, &'static str),
+}
+
 /// The [`App`] stores application-specific state.
 pub struct App {
     core: Core,
@@ -836,6 +851,9 @@ pub struct App {
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
     uninstall_purge_data: bool,
+    // Navigation history
+    nav_history: Vec<PageState>,
+    nav_history_index: usize,
 }
 
 impl App {
@@ -891,6 +909,106 @@ impl App {
                 action::none()
             },
         )
+    }
+
+    /// Get the current page state based on app state
+    fn current_page_state(&self) -> PageState {
+        if let Some(ref selected) = self.selected_opt {
+            PageState::AppDetails(selected.id.clone(), selected.backend_name)
+        } else if let Some((ref query, _)) = self.search_results {
+            PageState::Search(query.clone())
+        } else {
+            let nav_page = self
+                .nav_model
+                .active_data::<NavPage>()
+                .copied()
+                .unwrap_or_default();
+            PageState::NavPage(nav_page, self.explore_page_opt)
+        }
+    }
+
+    /// Push a new page state to history (used when navigating to a new page)
+    fn push_history(&mut self, page_state: PageState) {
+        // Get current state before we change anything
+        let current = self.current_page_state();
+
+        // Don't push duplicate consecutive states
+        if self.nav_history.get(self.nav_history_index) == Some(&current)
+            && current == page_state
+        {
+            return;
+        }
+
+        // Don't push if the new state matches what's already at the current index
+        // This happens when navigating from history asynchronously
+        if self.nav_history.get(self.nav_history_index) == Some(&page_state) {
+            return;
+        }
+
+        // Move to next position and truncate forward history
+        self.nav_history_index += 1;
+        self.nav_history.truncate(self.nav_history_index);
+
+        // Add new state
+        self.nav_history.push(page_state);
+    }
+
+    /// Navigate to a specific page state (used for back/forward navigation)
+    fn navigate_to_state(&mut self, page_state: PageState) -> Task<Message> {
+        match page_state {
+            PageState::NavPage(_nav_page, explore_page_opt) => {
+                // Set the explore page
+                self.explore_page_opt = explore_page_opt;
+
+                // Clear selected and search
+                self.selected_opt = None;
+                self.search_results = None;
+
+                self.update_scroll()
+            }
+            PageState::Search(query) => {
+                // Clear selected and explore page
+                self.selected_opt = None;
+                self.explore_page_opt = None;
+
+                // Trigger new search
+                self.search_input = query.clone();
+                Task::perform(async move { action::app(Message::SearchSubmit(query)) }, |x| x)
+            }
+            PageState::AppDetails(app_id, backend_name) => {
+                // Check if we need to load the app details
+                if let Some(ref selected) = self.selected_opt {
+                    if selected.id == app_id && selected.backend_name == backend_name {
+                        // Already showing this app
+                        return Task::none();
+                    }
+                }
+
+                // Clear search and explore page
+                self.search_results = None;
+                self.explore_page_opt = None;
+
+                // Load the app details
+                if let Some(entries) = self.apps.get(&app_id) {
+                    if let Some(entry) = entries.iter().find(|e| e.backend_name == backend_name) {
+                        let info = entry.info.clone();
+                        return Task::perform(
+                            async move {
+                                action::app(Message::Select(
+                                    backend_name,
+                                    app_id,
+                                    None,
+                                    info,
+                                ))
+                            },
+                            |x| x,
+                        );
+                    }
+                }
+
+                Task::none()
+            }
+        }
     }
 
     fn operation(&mut self, operation: Operation) {
@@ -1618,6 +1736,11 @@ impl App {
             backend_name,
             info.source_id
         );
+
+        // Track history when selecting an app
+        let new_state = PageState::AppDetails(id.clone(), backend_name);
+        self.push_history(new_state);
+
         let sources = self.selected_sources(backend_name, &id, &info);
         let addons = self.selected_addons(backend_name, &id, &info);
         self.selected_opt = Some(Selected {
@@ -3353,6 +3476,9 @@ impl Application for App {
             selected_opt: None,
             applet_placement_buttons,
             uninstall_purge_data: false,
+            // Navigation history - start with default nav page
+            nav_history: vec![PageState::NavPage(NavPage::default(), None)],
+            nav_history_index: 0,
         };
 
         if let Some(subcommand) = flags.subcommand_opt {
@@ -3427,6 +3553,13 @@ impl Application for App {
         self.search_results = None;
         self.selected_opt = None;
         self.nav_model.activate(id);
+
+        // Track history when changing nav pages
+        if let Some(nav_page) = self.nav_model.active_data::<NavPage>() {
+            let new_state = PageState::NavPage(*nav_page, None);
+            self.push_history(new_state);
+        }
+
         let mut commands = Vec::with_capacity(2);
         self.scroll_views.clear();
         commands.push(self.update_scroll());
@@ -3556,6 +3689,16 @@ impl Application for App {
                 self.dialog_pages.push_back(dialog_page);
             }
             Message::ExplorePage(explore_page_opt) => {
+                // Track history when navigating
+                let new_state = PageState::NavPage(
+                    self.nav_model
+                        .active_data::<NavPage>()
+                        .copied()
+                        .unwrap_or_default(),
+                    explore_page_opt,
+                );
+                self.push_history(new_state);
+
                 self.explore_page_opt = explore_page_opt;
                 return self.update_scroll();
             }
@@ -3717,6 +3860,22 @@ impl Application for App {
                 if self.core.main_window_id().is_none() && self.pending_operations.is_empty() {
                     // Exit if window is closed and there are no pending operations
                     process::exit(0);
+                }
+            }
+            Message::NavigateBack => {
+                if let Some(new_index) = self.nav_history_index.checked_sub(1) {
+                    if let Some(page_state) = self.nav_history.get(new_index) {
+                        self.nav_history_index = new_index;
+                        return self.navigate_to_state(page_state.clone());
+                    }
+                }
+            }
+            Message::NavigateForward => {
+                if let Some(new_index) = self.nav_history_index.checked_add(1) {
+                    if let Some(page_state) = self.nav_history.get(new_index) {
+                        self.nav_history_index = new_index;
+                        return self.navigate_to_state(page_state.clone());
+                    }
                 }
             }
             #[cfg(feature = "notify")]
@@ -3897,6 +4056,10 @@ impl Application for App {
             }
             Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
+                    // Track history for search
+                    let new_state = PageState::Search(input.clone());
+                    self.push_history(new_state);
+
                     // Preserve icons from previous results to avoid flicker
                     if let Some((_, old_results)) = &self.search_results {
                         let old_icons: HashMap<_, _> = old_results
@@ -4042,6 +4205,20 @@ impl Application for App {
             }
             Message::SelectNone => {
                 self.selected_opt = None;
+
+                // Track history when going back from app details
+                let new_state = if let Some((ref query, _)) = self.search_results {
+                    PageState::Search(query.clone())
+                } else {
+                    let nav_page = self
+                        .nav_model
+                        .active_data::<NavPage>()
+                        .copied()
+                        .unwrap_or_default();
+                    PageState::NavPage(nav_page, self.explore_page_opt)
+                };
+                self.push_history(new_state);
+
                 return self.update_scroll();
             }
             Message::SelectCategoryResult(result_i) => {
@@ -4611,15 +4788,20 @@ impl Application for App {
         let content: Element<_> = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
-                widget::scrollable(
+                let scrollable_content = widget::scrollable(
                     widget::container(
                         widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
                     )
                     .align_x(Alignment::Center),
                 )
                 .id(self.scrollable_id.clone())
-                .on_scroll(Message::ScrollView)
-                .into()
+                .on_scroll(Message::ScrollView);
+
+                // Wrap with MouseArea to capture back/forward mouse buttons
+                mouse_area::MouseArea::new(scrollable_content)
+                    .on_back_press(|_| Message::NavigateBack)
+                    .on_forward_press(|_| Message::NavigateForward)
+                    .into()
             })
             .into(),
             Mode::GStreamer {
