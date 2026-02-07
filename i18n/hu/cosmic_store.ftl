@@ -145,3 +145,11 @@ view-more = Több megjelenítése
 version = Verzió { $version }
 delete-app-data = Alkalmazásadatok végleges törlése
 uninstall-app-flatpak-warning = A(z) { $name } eltávolítása után az alkalmazás adatai megmaradnak.
+system-package-updates = Csomagfrissítések
+system-packages-summary =
+    { $count ->
+        [one] { $count } csomag
+       *[other] { $count } csomag
+    }
+system-packages = Rendszercsomagok
+flatpak-runtimes = Flatpak futtatókörnyezetek

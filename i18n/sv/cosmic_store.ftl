@@ -129,3 +129,11 @@ view-more = Visa mer
 version = Version { $version }
 delete-app-data = Radera program-data permanent
 uninstall-app-flatpak-warning = Om du avinstallerar { $name } kommer du att behålla dess dokument och data.
+system-package-updates = Paketuppdateringar
+flatpak-runtimes = Körtidsfiler för Flatpak
+system-packages-summary =
+    { $count ->
+        [one] { $count } paket
+       *[other] { $count } paket
+    }
+system-packages = Systempaket
