@@ -145,3 +145,12 @@ view-more = Zobacz więcej
 version = Wersja { $version }
 delete-app-data = Definitywnie usuń dane aplikacji
 uninstall-app-flatpak-warning = Odinstalowanie { $name } nie usunie danych i dokumentów.
+system-package-updates = Aktualizacje pakietów
+system-packages-summary =
+    { $count ->
+        [one] { $count } pakiet
+        [few] { $count } pakiety
+       *[other] { $count } pakietów
+    }
+system-packages = Pakiety Systemowe
+flatpak-runtimes = Środowiska Uruchomieniowe Flatpak

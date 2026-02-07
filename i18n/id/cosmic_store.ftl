@@ -113,3 +113,11 @@ theme = Tema
 match-desktop = Cocokkan desktop
 dark = Gelap
 light = Terang
+system-package-updates = Pembaruan paket
+system-packages-summary =
+    { $count ->
+        [one] { $count } paket
+       *[other] { $count } paket
+    }
+system-packages = Paket Sistem
+flatpak-runtimes = Waktu Proses Flatpak

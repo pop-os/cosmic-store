@@ -145,3 +145,11 @@ view-more = 查看更多
 delete-app-data = 永久移除应用数据
 uninstall-app-flatpak-warning = 卸载 { $name } 会保留所有文件和数据。
 version = { $version } 版本
+system-package-updates = 软件包更新
+system-packages-summary =
+    { $count ->
+        [one] { $count } 个软件包
+       *[other] { $count } 个软件包
+    }
+system-packages = 系统软件包
+flatpak-runtimes = Flatpak 运行时

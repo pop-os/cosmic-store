@@ -61,33 +61,33 @@ no-description = Без опису.
 
 appearance = Зовнішній вигляд
 theme = Тема
-match-desktop = Відповідно системі
+match-desktop = Системна
 dark = Темна
 light = Світла
 notification-in-progress = Триває встановлення та оновлення.
 place-on-desktop = Розмістити на стільниці
-place-applet = Розмістити аплет
-place-applet-desc = Оберіть, куди буде додано аплет. Після цього ви зможете відредагувати позицію аплета всередині контейнеру.
+place-applet = Розмістити віджет
+place-applet-desc = Оберіть, куди додати віджет, перш ніж розміщувати його.
 panel = Панель
-dock = Док
+dock = Область завдань
 place-and-refine = Розмістити та редагувати
 codec-title = Встановити додаткові пакети?
 close = Закрити
 details = Деталі
 dismiss = Закрити повідомлення
-repository-add-error-title = "Не вдалося додати репозиторій"
+repository-add-error-title = «Не вдалося додати сховище»
 repository-remove-title = Вилучити сховище «{ $name }»?
 repository-remove-body =
-    Видалення цього репозиторію { $dependency ->
+    Вилучення цього сховища { $dependency ->
         [none] видалить
-       *[other] вилучить сховище "{ $dependency }", і видалить
-    } такі застосунки та елементи. Навіть якщо репозиторій буде знову додано, їх потрібно буде перевстановити.
+       *[other] вилучить сховище «{ $dependency }», і видалить
+    } такі застосунки та елементи. Навіть якщо сховище буде знову додано, їх потрібно буде перевстановити.
 add = Додати
 adding = Додавання...
 remove = Вилучити
-removing = Видалення...
-applets = Аплети
-enable-flathub-cosmic = Будь ласка, увімкніть Flathub та COSMIC Flatpak, щоб переглянути доступні аплети.
+removing = Вилучення...
+applets = Віджети
+enable-flathub-cosmic = Будь ласка, увімкніть Flathub та COSMIC Flatpak, щоб переглянути доступні віджети.
 manage-repositories = Керувати сховищами
 made-for-cosmic = Зроблено для COSMIC
 monthly-downloads = завантажень за місяць з Flathub
@@ -126,6 +126,14 @@ codec-footer =
      • Ви використовуєте це програмне забезпечення суто в дослідницьких цілях
 version = Версія { $version }
 addons = Додатки
-uninstall-app-flatpak-warning = При видаленні { $name } документи та дані будуть збережені.
+uninstall-app-flatpak-warning = Документи й дані { $name } буде збережено.
 delete-app-data = Назавжди видалити дані програми
 view-more = Переглянути всі
+system-package-updates = Оновлення пакетів
+system-packages-summary =
+    { $count ->
+        [one] { $count } пакет
+       *[other] { $count } пакетів
+    }
+system-packages = Системні пакети
+flatpak-runtimes = Середовища виконання для Flatpak

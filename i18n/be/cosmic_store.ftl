@@ -1,4 +1,4 @@
-app-name = COSMIC Store
+app-name = Крама COSMIC
 back = Назад
 cancel = Скасаваць
 check-for-updates = Праверыць абнаўленні
@@ -12,21 +12,21 @@ open = Адкрыць
 see-all = Гл. усе
 uninstall = Выдаліць
 update = Абнавіць
-update-all = Абнавіць ўсё
+update-all = Абнавіць усё
 # Progress footer
 details = Дэталі
 dismiss = Адхіліць паведамленне
 operations-running = { $running } аперацый запушчана ({ $percent }%)...
 operations-running-finished = { $running } аперацый запушчана ({ $percent }%), { $finished } скончана...
 # Uninstall Dialog
-uninstall-app = Выдалісь { $name }
-uninstall-app-warning = Вы сапраўды хочаце выдаліць { $name }?
+uninstall-app = Выдаліць { $name }?
+uninstall-app-warning = Выдаленне { $name } выдаліць яго даныя.
 # Nav Pages
 explore = Агляд
 create = Творчасць
 work = Праца
 develop = Распрацоўка
-learn = Навучэнне
+learn = Навучанне
 game = Гульні
 relax = Адпачынак
 socialize = Сацыяльныя
@@ -39,14 +39,14 @@ popular-apps = Папулярныя
 made-for-cosmic = Зроблена для COSMIC
 new-apps = Новыя
 recently-updated = Апошнія абноўленыя
-development-tools = Распрацоўка
-scientific-tools = Навука
-productivity-apps = Прадукцыйнасць
-graphics-and-photography-tools = Графіка і фота
-social-networking-apps = Сацыяльныя
+development-tools = Інструменты распрацоўкі
+scientific-tools = Навуковыя інструменты
+productivity-apps = Праграмы для павышэння прадукцыйнасці
+graphics-and-photography-tools = Інструменты для графікі і фатаграфіі
+social-networking-apps = Праграмы для сацыяльных сетак
 games = Гульні
-music-and-video-apps = Музыка і відая
-apps-for-learning = Адукацыя
+music-and-video-apps = Музычныя і відэапраграмы
+apps-for-learning = Праграмы для навучання
 # Details Page
 source-installed = { $source } (усталявана)
 developer = Распрацоўшчык
@@ -98,7 +98,7 @@ place-on-desktop = Размясціць на працоўным стале
 place-applet = Размясціць аплет
 panel = Панэль
 dock = Док
-repository-remove-title = Выдаліць рэпазіторый "{ $name }"?
+repository-remove-title = Выдаліць рэпазіторый «{ $name }»?
 add = Дадаць
 adding = Дадаецца...
 remove = Выдаліць
@@ -109,3 +109,28 @@ software-repositories = Рэпазіторыі праграм
 codec-title = Усталяваць дадатковыя пакеты?
 manage-repositories = Кіраванне рэпазіторыямі
 addons = Дадатковыя кампаненты
+codec-header = «{ $application }» патрабуе дадатковыя пакеты, якія забяспечваюць «{ $description }».
+custom-flatpak-sources = Карыстальніцкія крыніцы Flatpak
+view-more = Паглядзець больш
+codec-footer =
+    Выкарыстанне гэтых дадатковых пакетаў можа быць абмежавана ў некаторых краінах.
+    Вы павінны пацвердзіць адно з наступных умоў:
+    • Гэтыя абмежаванні не распаўсюджваюцца на вашу краіну законнага пражывання
+    • У вас ёсць дазвол на выкарыстанне гэтага праграмнага забеспячэння (напрыклад, патэнтная ліцэнзія)
+    • Вы выкарыстоўваеце гэта праграмнае забеспячэнне толькі ў даследчых мэтах
+place-and-refine = Размясціць і ўдасканаліць
+version = Версія { $version }
+import-flatpakrepo = Імпартуйце файл .flatpakrepo, каб дадаць уласную крыніцу
+repository-remove-body =
+    Выдаленне гэтага рэпазіторыя прывядзе да { $dependency ->
+        [none] выдалення
+       *[other] выдалення "{ $dependency }" і
+    } наступных праграм і элементаў. Іх трэба будзе пераўсталяваць, калі рэпазіторый будзе дададзены зноў.
+recommended-flatpak-sources = Рэкамендаваныя крыніцы Flatpak
+codec-installed = Пакеты былі ўсталяваны.
+codec-error = Падчас усталёўкі пакета ўзніклі памылкі.
+repository-add-error-title = «Не ўдалося дадаць репазіторый»
+place-applet-desc = Выберыце месца, куды дадаць аплет, перш чым удакладняць яго пазіцыю.
+no-custom-flatpak-sources = Няма карыстальніцкіх крыніц Flatpak
+enable-flathub-cosmic = Каб убачыць даступныя аплеты, уключыце Flathub і COSMIC Flatpak.
+no-flatpak = Flatpak не падтрымліваецца

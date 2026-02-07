@@ -1,7 +1,7 @@
 app-name = متجر COSMIC
-back = رجوع
-cancel = إلغاء
-check-for-updates = التحقق من وجود تحديثات
+back = ارجع
+cancel = ألغِ
+check-for-updates = تحقق من وجود تحديثات
 checking-for-updates = يتحقق مِن تحديثات...
 close = أغلِق
 install = نصِّب
@@ -21,16 +21,16 @@ panel = اللوحة
 dock = المرسى
 place-and-refine = ضع وحسِّن
 # Codec dialog
-codec-title = نصِّب الحزم الإضافية؟
-codec-header = ”{ $application }“ يتطلب حزمًا إضافية توفر ”{ $description }“.
+codec-title = نصِّب حِزم الإضافية؟
+codec-header = يتطلب «{ $application }» حِزمًا إضافية توفّر «{ $description }».
 codec-footer =
-    قد يكون استخدام هذه الحزم الإضافية مقيدًا في بعض البلدان.
+    قد يكون استخدام هذه الحِزم الإضافية مقيدًا في بعض البلدان.
     يجب عليك التحقق من صحة أحد الأمور التالية:
      • لا تنطبق هذه القيود في بلد إقامتك القانونية
      • لديك إذن باستخدام هذا البرنامج (على سبيل المثال، ترخيص براءة اختراع)
      • أنت تستخدم هذا البرنامج لأغراض البحث فقط
-codec-error = حدثت أخطاء أثناء تنصيب الحزمة.
-codec-installed = نُصِّبت الحزم.
+codec-error = حدثت أخطاء أثناء تنصيب الحِزمة.
+codec-installed = نُصِّبت الحِزم.
 # Progress footer
 details = التفاصيل
 dismiss = أهمِل الرسالة
@@ -130,7 +130,7 @@ custom-flatpak-sources = مصادر فلاتباك مخصّصة
 import-flatpakrepo = استورد ملف .flatpakrepo لإضافة مصدر مخصّص
 no-custom-flatpak-sources = لا توجد مصادر فلاتباك مخصّصة
 import = استورد
-no-flatpak = لا يوجد دعم لـ flatpak
+no-flatpak = لا دعم لِفلاتباك
 software-repositories = مستودعات البرامج
 
 ### Appearance
@@ -145,3 +145,11 @@ view-more = اعرض المزيد
 delete-app-data = احذف بيانات التطبيق نهائيًا
 uninstall-app-flatpak-warning = إلغاء تنصيب { $name } سيحتفظ بمستنداته وبياناته.
 version = الإصدار { $version }
+system-package-updates = تحديثات الحِزم
+system-packages-summary =
+    { $count ->
+        [one] { $count } حِزمة
+       *[other] { $count } حِزمات
+    }
+system-packages = حِزم النظام
+flatpak-runtimes = أزمنة تشغيل فلاتباك

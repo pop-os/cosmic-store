@@ -13,11 +13,11 @@ uninstall = Удалить
 update = Обновить
 update-all = Обновить все
 # Uninstall Dialog
-uninstall-app = Удалить { $name }
-uninstall-app-warning = Вы уверены, что хотите удалить { $name }?
+uninstall-app = Удалить { $name }?
+uninstall-app-warning = Удаление { $name } приведет к удалению его данных.
 # Nav Pages
 explore = Обзор
-create = Создать
+create = Творчество
 work = Работа
 develop = Разработка
 learn = Обучение
@@ -63,12 +63,12 @@ no-description = Описание отсутствует.
 appearance = Оформление
 theme = Тема
 match-desktop = Как в системе
-dark = Тёмное
-light = Светлое
+dark = Тёмная
+light = Светлая
 close = Закрыть
 notification-in-progress = Выполняются установка и обновление.
 applets = Апплеты
-made-for-cosmic = Сделано для COSMIC
+made-for-cosmic = Специально для COSMIC
 enable-flathub-cosmic = Включите Flathub и COSMIC Flatpak для просмотра списка апплетов.
 manage-repositories = Управление репозиториями
 licenses = Лицензии
@@ -126,3 +126,15 @@ remove = Убрать
 removing = Удаление…
 addons = Дополнения
 view-more = Показать ещё
+delete-app-data = Стереть данные приложения
+uninstall-app-flatpak-warning = При удалении «{ $name }» его документы и данные останутся на устройстве.
+version = Версия { $version }
+system-package-updates = Обновления пакетов
+system-packages = Системные пакеты
+flatpak-runtimes = Среды выполнения Flatpak
+system-packages-summary =
+    { $count ->
+        [one] { $count } пакет
+        [few] { $count } пакета
+       *[other] { $count } пакетов
+    }
