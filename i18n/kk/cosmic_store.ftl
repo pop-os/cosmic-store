@@ -113,3 +113,11 @@ theme = Тақырып
 match-desktop = Жұмыс үстеліне сәйкес келу
 dark = Қараңғы
 light = Жарық
+system-package-updates = Дестелер жаңартулары
+system-packages-summary =
+    { $count ->
+        [one] { $count } десте
+       *[other] { $count } десте
+    }
+system-packages = Жүйелік дестелер
+flatpak-runtimes = Flatpak орындалу орталары

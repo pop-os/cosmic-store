@@ -136,3 +136,11 @@ custom-flatpak-sources = Sources Flatpak personnalisées
 software-repositories = Dépôts logiciels
 delete-app-data = Supprimer définitivement les données de l'appli
 uninstall-app-flatpak-warning = Désinstaller { $name } conservera ses documents et ses données.
+system-package-updates = Mises à jour des paquets
+system-packages-summary =
+    { $count ->
+        [one] { $count } paquet
+       *[other] { $count } paquets
+    }
+system-packages = Paquets système
+flatpak-runtimes = Runtimes Flatpak

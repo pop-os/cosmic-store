@@ -1,26 +1,26 @@
-app-name = COSMIC Shop
+app-name = COSMIC Store
 back = Terug
-cancel = Annuleer
+cancel = Annuleren
 install = Installeren
-check-for-updates = Controleer op updates
+check-for-updates = Naar updates zoeken
 checking-for-updates = Zoekt naar updates…
-no-installed-applications = Er zijn geen apps geïnstalleerd.
+no-installed-applications = Geen toepassingen geïnstalleerd.
 no-updates = Alle geïnstalleerde toepassingen zijn bijgewerkt.
 no-results = Geen resultaten voor “{ $search }”.
 notification-in-progress = Installaties en updates worden uitgevoerd.
-open = Open
-see-all = Toon alles
-uninstall = Deïnstalleer
+open = Openen
+see-all = Alles bekijken
+uninstall = Verwijderen
 update = Bijwerken
-update-all = Werk alles bij
+update-all = Alles bijwerken
 # Progress footer
 details = Details
-dismiss = Negeer bericht
+dismiss = Bericht sluiten
 operations-running = { $running } bewerkingen worden uitgevoerd ({ $percent }%)...
 operations-running-finished = { $running } bewerkingen worden uitgevoerd ({ $percent }%), { $finished } voltooid...
 # Uninstall Dialog
-uninstall-app = { $name } verwijderen
-uninstall-app-warning = Weet u zeker dat u { $name } wilt verwijderen?
+uninstall-app = { $name } verwijderen?
+uninstall-app-warning = Als u { $name } verwijdert, worden de bijbehorende gegevens gewist.
 # Nav Pages
 explore = Ontdek
 create = Creëer
@@ -36,13 +36,13 @@ updates = Updates
 # Explore Pages
 editors-choice = Keuze van de Redactie
 popular-apps = Populaire apps
-made-for-cosmic = Gemaakt voor COSMIC
+made-for-cosmic = Speciaal gemaakt voor COSMIC
 new-apps = Nieuwe apps
 recently-updated = Onlangs bijgewerkt
 development-tools = Ontwikkelingstools
 scientific-tools = Wetenschappelijke tools
 productivity-apps = Productiviteitsapps
-graphics-and-photography-tools = Grafische en fotografietools
+graphics-and-photography-tools = Grafische en fotografische tools
 social-networking-apps = Apps voor sociale netwerken
 games = Spelletjes
 music-and-video-apps = Apps voor muziek en video
@@ -53,11 +53,11 @@ developer = Ontwikkelaar
 app-developers = Ontwikkelaars van { $app }
 monthly-downloads = Maandelijkse downloads van Flathub
 licenses = Licenties
-proprietary = Niet-open source software
+proprietary = Niet-opensource software
 
 ## App URLs
 
-bug-tracker = Bug tracker
+bug-tracker = Foutopsporing
 contact = Contact
 donation = Donatie
 faq = Veelgestelde vragen
@@ -83,7 +83,7 @@ settings = Instellingen
 
 ## Release notes
 
-latest-version = Nieuwste versie
+latest-version = Meest recente versie
 no-description = Geen beschrijving beschikbaar.
 
 ### Appearance
@@ -94,19 +94,25 @@ match-desktop = Systeemstandaard
 dark = Donker
 light = Licht
 add = Toevoegen
-removing = Verwijderen...
+removing = Wordt verwijderd…
 import = Importeer
 close = Sluiten
 panel = Paneel
 dock = Dock
 codec-installed = De pakketten zijn geïnstalleerd.
-adding = Toevoegen…
-remove = Verwijder
+adding = Wordt toegevoegd…
+remove = Verwijderen
 applets = Applets
 place-on-desktop = Plaats op bureaublad
 place-applet = Plaats applet
 place-applet-desc = Kies waar de applets worden toegevoegd voordat de positie wordt gewijzigd.
 place-and-refine = Plaats en verfijn
-codec-title = Extra softwarepakketten installeren?
+codec-title = Aanvullende softwarepakketten installeren?
 codec-header = "{ $application }" vereist extra softwarepakketten voor deze functies: "{ $description }".
 codec-error = Er zijn fouten opgetreden gedurende de softwarepakket installatie.
+repository-remove-title = Het archief “{ $name }” verwijderen?
+version = Versie { $version }
+uninstall-app-flatpak-warning = Als u { $name } verwijdert, worden de bijbehorende documenten en gegevens behouden.
+repository-add-error-title = “Kon archief niet toevoegen”
+addons = Add-ons
+system-packages = Systeempakketten
