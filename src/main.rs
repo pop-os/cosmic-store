@@ -172,7 +172,7 @@ impl Action {
     pub fn message(&self) -> Message {
         match self {
             Self::SearchActivate => Message::SearchActivate,
-            Self::WindowClose      => Message::WindowClose,
+            Self::WindowClose => Message::WindowClose,
         }
     }
 }
@@ -279,6 +279,7 @@ pub enum Message {
     ExplorePage(Option<ExplorePage>),
     ExploreResults(ExplorePage, Vec<SearchResult>),
     ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
+    ExploreCacheSaved(Result<(), String>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
@@ -472,7 +473,7 @@ impl NavPage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub enum ExplorePage {
     EditorsChoice,
     PopularApps,
@@ -658,6 +659,188 @@ pub struct SearchResult {
     weight: i64,
 }
 
+/// Cached version of SearchResult for disk storage (with resolved icon paths)
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedSearchResult {
+    backend_name: String,
+    id: AppId,
+    info: AppInfo,
+    icon_path: Option<String>,
+    weight: i64,
+}
+
+/// Cached explore page results
+#[derive(Clone, Debug, bitcode::Decode, bitcode::Encode)]
+struct CachedExploreResults {
+    results: Vec<(ExplorePage, Vec<CachedSearchResult>)>,
+}
+
+impl CachedExploreResults {
+    fn cache_path() -> Option<std::path::PathBuf> {
+        dirs::cache_dir().map(|p| p.join("cosmic-store").join("explore_cache.bin.zst"))
+    }
+
+    fn load() -> Option<Self> {
+        let total_start = Instant::now();
+        let path = Self::cache_path()?;
+
+        let disk_start = Instant::now();
+        let compressed = std::fs::read(&path).ok()?;
+        let disk_time = disk_start.elapsed();
+
+        let decompress_start = Instant::now();
+        let data = zstd::decode_all(compressed.as_slice()).ok()?;
+        let decompress_time = decompress_start.elapsed();
+
+        let decode_start = Instant::now();
+        let result: Self = bitcode::decode(&data).ok()?;
+        let decode_time = decode_start.elapsed();
+
+        log::info!(
+            "cache load: {} KB compressed -> {} KB uncompressed, disk={:?}, decompress={:?}, decode={:?}, total={:?}",
+            compressed.len() / 1024,
+            data.len() / 1024,
+            disk_time,
+            decompress_time,
+            decode_time,
+            total_start.elapsed()
+        );
+        Some(result)
+    }
+
+    fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let total_start = Instant::now();
+        let path = Self::cache_path().ok_or("no cache dir")?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let encode_start = Instant::now();
+        let data = bitcode::encode(self);
+        let encode_time = encode_start.elapsed();
+
+        let compress_start = Instant::now();
+        let compressed = zstd::encode_all(data.as_slice(), 3)?;
+        let compress_time = compress_start.elapsed();
+
+        let disk_start = Instant::now();
+        std::fs::write(&path, &compressed)?;
+        let disk_time = disk_start.elapsed();
+
+        log::info!(
+            "cache save: {} KB uncompressed -> {} KB compressed, encode={:?}, compress={:?}, disk={:?}, total={:?}",
+            data.len() / 1024,
+            compressed.len() / 1024,
+            encode_time,
+            compress_time,
+            disk_time,
+            total_start.elapsed()
+        );
+        Ok(())
+    }
+
+    fn from_results(
+        results: &HashMap<ExplorePage, Vec<SearchResult>>,
+        backends: &Backends,
+    ) -> Self {
+        let cached: Vec<_> = results
+            .iter()
+            .map(|(page, search_results)| {
+                let cached_results: Vec<_> = search_results
+                    .iter()
+                    .take(MAX_RESULTS)
+                    .map(|r| {
+                        // Resolve icon path using backend
+                        let icon_path = backends
+                            .get(r.backend_name)
+                            .and_then(|backend| {
+                                backend
+                                    .info_caches()
+                                    .iter()
+                                    .find(|c| c.source_id == r.info.source_id)
+                            })
+                            .and_then(|cache| cache.icon_path_for_info(&r.info))
+                            .map(|p| p.to_string_lossy().into_owned());
+
+                        CachedSearchResult {
+                            backend_name: r.backend_name.to_string(),
+                            id: r.id.clone(),
+                            info: (*r.info).clone(),
+                            icon_path,
+                            weight: r.weight,
+                        }
+                    })
+                    .collect();
+                (*page, cached_results)
+            })
+            .collect();
+        Self { results: cached }
+    }
+
+    fn to_results(&self) -> HashMap<ExplorePage, Vec<SearchResult>> {
+        self.results
+            .iter()
+            .map(|(page, cached_results)| {
+                let results: Vec<_> = cached_results
+                    .iter()
+                    .map(|c| {
+                        // Create icon from cached path, or use default icon
+                        let icon_opt = Some(match &c.icon_path {
+                            Some(path) => widget::icon::from_path(std::path::PathBuf::from(path)),
+                            None => widget::icon::from_name("package-x-generic")
+                                .size(128)
+                                .handle(),
+                        });
+                        SearchResult {
+                            backend_name: backend_name_from_string(&c.backend_name),
+                            id: c.id.clone(),
+                            icon_opt,
+                            info: Arc::new(c.info.clone()),
+                            weight: c.weight,
+                        }
+                    })
+                    .collect();
+                (*page, results)
+            })
+            .collect()
+    }
+}
+
+/// Convert backend name string back to static str
+fn backend_name_from_string(name: &str) -> &'static str {
+    match name {
+        "flatpak-user" => "flatpak-user",
+        "flatpak-system" => "flatpak-system",
+        "packagekit" => "packagekit",
+        "pkgar" => "pkgar",
+        _ => "unknown",
+    }
+}
+
+/// Preserve icons from old results when new results arrive (avoids flicker)
+fn preserve_icons_from(old_results: &[SearchResult], new_results: &mut [SearchResult]) {
+    let old_icons: HashMap<&AppId, &widget::icon::Handle> = old_results
+        .iter()
+        .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
+        .collect();
+    for result in new_results {
+        if result.icon_opt.is_none() {
+            if let Some(icon) = old_icons.get(&result.id) {
+                result.icon_opt = Some((*icon).clone());
+            }
+        }
+    }
+}
+
+/// Apply loaded icons to search results
+fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widget::icon::Handle)>) {
+    for (i, icon) in icons {
+        if let Some(result) = results.get_mut(i) {
+            result.icon_opt = Some(icon);
+        }
+    }
+}
+
 impl SearchResult {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
@@ -830,7 +1013,10 @@ pub struct App {
     //TODO: use hashset?
     waiting_updates: Vec<(&'static str, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
+    category_load_start: Option<Instant>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
+    explore_load_start: Option<Instant>,
+    explore_pages_received: usize,
     installed_results: Option<Vec<SearchResult>>,
     search_results: Option<(String, Vec<SearchResult>)>,
     selected_opt: Option<Selected>,
@@ -3347,13 +3533,27 @@ impl Application for App {
             waiting_installed: Vec::new(),
             waiting_updates: Vec::new(),
             category_results: None,
+            category_load_start: None,
             explore_results: HashMap::new(),
+            explore_load_start: None,
+            explore_pages_received: 0,
             installed_results: None,
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
             uninstall_purge_data: false,
         };
+
+        // Load cached explore results for instant display
+        let cache_start = Instant::now();
+        if let Some(cached) = CachedExploreResults::load() {
+            app.explore_results = cached.to_results();
+            log::info!(
+                "explore page loaded from cache: {} categories in {:?}",
+                app.explore_results.len(),
+                cache_start.elapsed()
+            );
+        }
 
         if let Some(subcommand) = flags.subcommand_opt {
             // Search for term
@@ -3421,7 +3621,7 @@ impl Application for App {
     }
 
     fn on_nav_select(&mut self, id: widget::nav_bar::Id) -> Task<Message> {
-        self.category_results = None;
+        // Note: Don't clear category_results here to avoid flicker - new results will replace
         self.explore_page_opt = None;
         self.search_active = false;
         self.search_results = None;
@@ -3435,6 +3635,8 @@ impl Application for App {
             .active_data::<NavPage>()
             .and_then(|nav_page| nav_page.categories())
         {
+            // Start timing category page load
+            self.category_load_start = Some(Instant::now());
             commands.push(self.categories(categories));
         }
         if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
@@ -3481,6 +3683,7 @@ impl Application for App {
             Message::Backends(backends) => {
                 self.backends = backends;
                 self.repos_changing.clear();
+                // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
                 match self.mode {
@@ -3491,7 +3694,17 @@ impl Application for App {
                 }
                 return Task::batch(tasks);
             }
-            Message::CategoryResults(categories, results) => {
+            Message::CategoryResults(categories, mut results) => {
+                if let Some(start) = self.category_load_start.take() {
+                    log::info!(
+                        "category page loaded: {} results in {:?}",
+                        results.len(),
+                        start.elapsed()
+                    );
+                }
+                if let Some((_, old_results)) = &self.category_results {
+                    preserve_icons_from(old_results, &mut results);
+                }
                 self.category_results = Some((categories, results));
                 // Load icons in background
                 return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
@@ -3499,11 +3712,7 @@ impl Application for App {
             Message::CategoryIconsLoaded(categories, icons) => {
                 if let Some((cats, results)) = &mut self.category_results {
                     if *cats == categories {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }
@@ -3559,18 +3768,48 @@ impl Application for App {
                 self.explore_page_opt = explore_page_opt;
                 return self.update_scroll();
             }
-            Message::ExploreResults(explore_page, results) => {
+            Message::ExploreResults(explore_page, mut results) => {
+                if let Some(old_results) = self.explore_results.get(&explore_page) {
+                    preserve_icons_from(old_results, &mut results);
+                }
                 self.explore_results.insert(explore_page, results);
-                // Load icons in background
-                return self.load_explore_icons(explore_page);
+                self.explore_pages_received += 1;
+
+                let mut tasks = vec![self.load_explore_icons(explore_page)];
+
+                // Log and save to cache when all explore pages have been received
+                let all_pages = ExplorePage::all();
+                if self.explore_pages_received == all_pages.len() {
+                    if let Some(start) = self.explore_load_start.take() {
+                        log::info!(
+                            "explore page reloaded after data fetch: {} categories in {:?}",
+                            self.explore_results.len(),
+                            start.elapsed()
+                        );
+                    }
+                    let cached =
+                        CachedExploreResults::from_results(&self.explore_results, &self.backends);
+                    tasks.push(Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                cached.save().map_err(|e| e.to_string())
+                            })
+                            .await
+                            .unwrap_or_else(|e| Err(e.to_string()))
+                        },
+                        |result| action::app(Message::ExploreCacheSaved(result)),
+                    ));
+                }
+
+                return Task::batch(tasks);
             }
+            Message::ExploreCacheSaved(result) => match result {
+                Ok(()) => log::info!("explore cache saved"),
+                Err(err) => log::warn!("failed to save explore cache: {}", err),
+            },
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
-                        }
-                    }
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::GStreamerExit(code) => match self.mode {
@@ -3648,9 +3887,13 @@ impl Application for App {
                             .active_data::<NavPage>()
                             .and_then(|nav_page| nav_page.categories())
                         {
+                            self.category_load_start = Some(Instant::now());
                             commands.push(self.categories(categories));
                         }
                         commands.push(self.installed_results());
+                        // Start timing explore page loading
+                        self.explore_load_start = Some(Instant::now());
+                        self.explore_pages_received = 0;
                         for explore_page in ExplorePage::all() {
                             commands.push(self.explore_results(*explore_page));
                         }
@@ -3666,11 +3909,7 @@ impl Application for App {
             }
             Message::InstalledIconsLoaded(icons) => {
                 if let Some(results) = &mut self.installed_results {
-                    for (i, icon) in icons {
-                        if let Some(result) = results.get_mut(i) {
-                            result.icon_opt = Some(icon);
-                        }
-                    }
+                    apply_icons_to_results(results, icons);
                 }
             }
             Message::Key(modifiers, key, text) => {
@@ -3897,19 +4136,8 @@ impl Application for App {
             }
             Message::SearchResults(input, mut results, auto_select) => {
                 if input == self.search_input {
-                    // Preserve icons from previous results to avoid flicker
                     if let Some((_, old_results)) = &self.search_results {
-                        let old_icons: HashMap<_, _> = old_results
-                            .iter()
-                            .filter_map(|r| r.icon_opt.as_ref().map(|icon| (&r.id, icon)))
-                            .collect();
-                        for result in &mut results {
-                            if result.icon_opt.is_none() {
-                                if let Some(icon) = old_icons.get(&result.id) {
-                                    result.icon_opt = Some((*icon).clone());
-                                }
-                            }
-                        }
+                        preserve_icons_from(old_results, &mut results);
                     }
                     // Clear selected item so search results can be shown
                     self.selected_opt = None;
@@ -3987,11 +4215,7 @@ impl Application for App {
             Message::SearchIconsLoaded(input, icons) => {
                 if let Some((query, results)) = &mut self.search_results {
                     if *query == input {
-                        for (i, icon) in icons {
-                            if let Some(result) = results.get_mut(i) {
-                                result.icon_opt = Some(icon);
-                            }
-                        }
+                        apply_icons_to_results(results, icons);
                     }
                 }
             }

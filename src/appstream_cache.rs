@@ -516,8 +516,9 @@ impl AppstreamCache {
         None
     }
 
-    pub fn icon(&self, info: &AppInfo) -> widget::icon::Handle {
-        let mut icon_opt = None;
+    /// Get the resolved icon path for an AppInfo (for caching)
+    pub fn icon_path_for_info(&self, info: &AppInfo) -> Option<PathBuf> {
+        let mut best_path = None;
         let mut cached_size = 0;
         for info_icon in info.icons.iter() {
             //TODO: support other types of icons
@@ -531,7 +532,7 @@ impl AppstreamCache {
                     if let Some(icon_path) =
                         self.icon_path(info.origin_opt.as_deref(), name, *width, *height, *scale)
                     {
-                        icon_opt = Some(widget::icon::from_path(icon_path));
+                        best_path = Some(icon_path);
                         cached_size = size;
                     }
                 }
@@ -542,7 +543,7 @@ impl AppstreamCache {
                     }
                     if let Some(icon_path) = widget::icon::from_name(stock.clone()).size(128).path()
                     {
-                        icon_opt = Some(widget::icon::from_path(icon_path));
+                        best_path = Some(icon_path);
                     }
                 }
                 AppIcon::Remote(_url, _width, _height, _scale) => {
@@ -556,18 +557,24 @@ impl AppstreamCache {
                     }
                     let icon_path = Path::new(path);
                     if icon_path.is_file() {
-                        icon_opt = Some(widget::icon::from_path(icon_path.to_path_buf()));
+                        best_path = Some(icon_path.to_path_buf());
                         cached_size = size;
                     }
                 }
             }
         }
-        icon_opt.unwrap_or_else(|| {
-            log::debug!("failed to get icon from {:?}", info.icons);
-            widget::icon::from_name("package-x-generic")
-                .size(128)
-                .handle()
-        })
+        best_path
+    }
+
+    pub fn icon(&self, info: &AppInfo) -> widget::icon::Handle {
+        self.icon_path_for_info(info)
+            .map(widget::icon::from_path)
+            .unwrap_or_else(|| {
+                log::debug!("failed to get icon from {:?}", info.icons);
+                widget::icon::from_name("package-x-generic")
+                    .size(128)
+                    .handle()
+            })
     }
 
     fn parse_xml<P: AsRef<Path>, R: Read>(
