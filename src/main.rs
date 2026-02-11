@@ -3628,10 +3628,8 @@ impl Application for App {
             self.category_load_start = Some(Instant::now());
             commands.push(self.categories(categories));
         }
-        if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
-            // Refresh when going to updates page
-            commands.push(self.update(Message::CheckUpdates));
-        }
+        // Note: Don't auto-refresh updates when navigating - updates are loaded at startup
+        // User can click "Check for updates" button to refresh manually
         Task::batch(commands)
     }
 
