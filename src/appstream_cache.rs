@@ -588,11 +588,7 @@ impl AppstreamCache {
         let xml_start = Instant::now();
         let e = xmltree::Element::parse(reader)?;
         let xml_duration = xml_start.elapsed();
-        log::debug!(
-            "parsed XML document from {:?} in {:?}",
-            path,
-            xml_duration
-        );
+        log::debug!("parsed XML document from {:?} in {:?}", path, xml_duration);
         let _version = e
             .attributes
             .get("version")
