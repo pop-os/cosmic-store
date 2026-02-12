@@ -1,4 +1,6 @@
 app-name = COSMIC Store
+comment = App Store di COSMIC
+keywords = Applicazioni;Software;Store;
 back = Indietro
 cancel = Annulla
 check-for-updates = Controlla gli aggiornamenti

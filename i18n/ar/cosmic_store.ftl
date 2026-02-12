@@ -1,4 +1,6 @@
 app-name = متجر COSMIC
+comment = متجر تطبيقات لسطح مكتب COSMIC
+keywords = متجر;تطبيق;تطبيقات;برامج;
 back = ارجع
 cancel = ألغِ
 check-for-updates = تحقق من وجود تحديثات

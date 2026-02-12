@@ -1,4 +1,6 @@
 app-name = Obchod COSMIC
+comment = Obchod s aplikáciami pre pracovné prostredie COSMIC
+keywords = Aplikácie;Softvér;Obchod;Shop;Programy;
 back = Späť
 cancel = Zrušiť
 check-for-updates = Skontrolovať aktualizácie

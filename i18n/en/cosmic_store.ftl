@@ -1,4 +1,6 @@
 app-name = COSMIC Store
+comment = Application store for the COSMIC desktop
+keywords = App;Software;Store;Shop;
 back = Back
 cancel = Cancel
 check-for-updates = Check for updates
