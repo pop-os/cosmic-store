@@ -1,4 +1,6 @@
 app-name = Sklep COSMIC
+comment = Sklep z aplikacjami pulpitu COSMIC
+keywords = Aplikacje;Soft;Oprogramowanie;Sklep;
 back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź aktualizacje

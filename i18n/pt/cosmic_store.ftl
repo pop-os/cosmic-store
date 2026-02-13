@@ -1,4 +1,6 @@
 app-name = Loja de Aplicações COSMIC
+comment = Loja de aplicativos do desktop COSMIC
+keywords = App;Aplicativos;Software;Programas;Loja;Store;
 back = Voltar
 cancel = Cancelar
 check-for-updates = Procurar atualizações

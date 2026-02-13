@@ -56,6 +56,9 @@ git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
 features = ["multi-window", "tokio", "winit"]
 
+[build-dependencies]
+xdgen = "0.1"
+
 [features]
 #todo : add a11y back to default
 default = [

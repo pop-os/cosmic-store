@@ -1,4 +1,5 @@
 app-name = Loja de Aplicativos
+comment = Loja de aplicativos do desktop COSMIC
 back = Voltar
 cancel = Cancelar
 check-for-updates = Verificar por atualizações

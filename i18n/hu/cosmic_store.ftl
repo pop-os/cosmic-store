@@ -1,4 +1,6 @@
 app-name = COSMIC Áruház
+comment = Alkalmazásáruház a COSMIC asztali környezethez
+keywords = applikációk;bolt;szoftver;csomagkezelő;alkalmazások;programok;
 back = Vissza
 cancel = Mégse
 check-for-updates = Frissítések keresése
