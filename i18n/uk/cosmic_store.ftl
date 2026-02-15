@@ -112,7 +112,7 @@ operations-running = { $running } виконуються операції ({ $pe
 operations-running-finished = { $running } опреацій запущено ({ $percent }%), з них виконано { $finished }...
 recommended-flatpak-sources = Рекомендовані джерела Flatpak
 custom-flatpak-sources = Власні джерела Flatpak
-import-flatpakrepo = Імпортуйте файл формату .flatpakrepo для того, щоб додати власне джерело
+import-flatpakrepo = Імпортувати файл .flatpakrepo, щоб додати власне джерело
 no-custom-flatpak-sources = Немає власних джерел Flatpak
 import = Імпортувати
 no-flatpak = Flatpak не підтримується
@@ -136,4 +136,4 @@ system-packages-summary =
        *[other] { $count } пакетів
     }
 system-packages = Системні пакети
-flatpak-runtimes = Середовища виконання для Flatpak
+flatpak-runtimes = Середовища Flatpak
