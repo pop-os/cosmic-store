@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use crate::{AppId, AppInfo};
+use crate::{AppId, AppInfo, backend::BackendName};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum OperationKind {
@@ -14,7 +14,7 @@ pub enum OperationKind {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Operation {
     pub kind: OperationKind,
-    pub backend_name: &'static str,
+    pub backend_name: BackendName,
     pub package_ids: Vec<AppId>,
     pub infos: Vec<Arc<AppInfo>>,
 }

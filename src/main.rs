@@ -45,7 +45,7 @@ mod app_info;
 use appstream_cache::AppstreamCache;
 mod appstream_cache;
 
-use backend::{Backends, Package};
+use backend::{BackendName, Backends, Package};
 mod backend;
 
 use config::{AppTheme, CONFIG_VERSION, Config};
@@ -178,7 +178,7 @@ impl Action {
 }
 
 pub struct AppEntry {
-    backend_name: &'static str,
+    backend_name: BackendName,
     info: Arc<AppInfo>,
     installed: bool,
 }
@@ -192,7 +192,7 @@ enum SourceKind {
 }
 
 struct Source {
-    backend_name: &'static str,
+    backend_name: BackendName,
     id: String,
     name: String,
     kind: SourceKind,
@@ -283,7 +283,7 @@ pub enum Message {
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
-    Installed(Vec<(&'static str, Package)>),
+    Installed(Vec<(BackendName, Package)>),
     InstalledResults(Vec<SearchResult>),
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
@@ -292,14 +292,14 @@ pub enum Message {
     #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
-    Operation(OperationKind, &'static str, AppId, Arc<AppInfo>),
+    Operation(OperationKind, BackendName, AppId, Arc<AppInfo>),
     PendingComplete(u64),
     PendingDismiss,
     PendingError(u64, String),
     PendingProgress(u64, f32),
-    RepositoryAdd(&'static str, Vec<RepositoryAdd>),
-    RepositoryAddDialog(&'static str),
-    RepositoryRemove(&'static str, Vec<RepositoryRemove>),
+    RepositoryAdd(BackendName, Vec<RepositoryAdd>),
+    RepositoryAddDialog(BackendName),
+    RepositoryRemove(BackendName, Vec<RepositoryRemove>),
     ScrollView(scrollable::Viewport),
     SearchActivate,
     SearchClear,
@@ -308,7 +308,7 @@ pub enum Message {
     SearchIconsLoaded(String, Vec<(usize, widget::icon::Handle)>),
     SearchSubmit(String),
     Select(
-        &'static str,
+        BackendName,
         AppId,
         Option<widget::icon::Handle>,
         Arc<AppInfo>,
@@ -327,7 +327,7 @@ pub enum Message {
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     UpdateAll,
-    Updates(Vec<(&'static str, Package)>),
+    Updates(Vec<(BackendName, Package)>),
     WindowClose,
     WindowNew,
     SelectPlacement(cosmic::widget::segmented_button::Entity),
@@ -346,8 +346,8 @@ pub enum ContextPage {
 pub enum DialogPage {
     FailedOperation(u64),
     RepositoryAddError(String),
-    RepositoryRemove(&'static str, RepositoryRemoveError),
-    Uninstall(&'static str, AppId, Arc<AppInfo>),
+    RepositoryRemove(BackendName, RepositoryRemoveError),
+    Uninstall(BackendName, AppId, Arc<AppInfo>),
     Place(AppId),
 }
 
@@ -651,7 +651,7 @@ impl Package {
 
 #[derive(Clone, Debug)]
 pub struct SearchResult {
-    backend_name: &'static str,
+    backend_name: BackendName,
     id: AppId,
     icon_opt: Option<widget::icon::Handle>,
     // Info from selected source
@@ -752,7 +752,7 @@ impl CachedExploreResults {
                     .map(|r| {
                         // Resolve icon path using backend
                         let icon_path = backends
-                            .get(r.backend_name)
+                            .get(&r.backend_name)
                             .and_then(|backend| {
                                 backend
                                     .info_caches()
@@ -783,7 +783,9 @@ impl CachedExploreResults {
             .map(|(page, cached_results)| {
                 let results: Vec<_> = cached_results
                     .iter()
-                    .map(|c| {
+                    .filter_map(|c| {
+                        // Parse backend name, skip if unknown
+                        let backend_name: BackendName = c.backend_name.parse().ok()?;
                         // Create icon from cached path, or use default icon
                         let icon_opt = Some(match &c.icon_path {
                             Some(path) => widget::icon::from_path(std::path::PathBuf::from(path)),
@@ -791,29 +793,18 @@ impl CachedExploreResults {
                                 .size(128)
                                 .handle(),
                         });
-                        SearchResult {
-                            backend_name: backend_name_from_string(&c.backend_name),
+                        Some(SearchResult {
+                            backend_name,
                             id: c.id.clone(),
                             icon_opt,
                             info: Arc::new(c.info.clone()),
                             weight: c.weight,
-                        }
+                        })
                     })
                     .collect();
                 (*page, results)
             })
             .collect()
-    }
-}
-
-/// Convert backend name string back to static str
-fn backend_name_from_string(name: &str) -> &'static str {
-    match name {
-        "flatpak-user" => "flatpak-user",
-        "flatpak-system" => "flatpak-system",
-        "packagekit" => "packagekit",
-        "pkgar" => "pkgar",
-        _ => "unknown",
     }
 }
 
@@ -935,13 +926,13 @@ impl ScrollContext {
 
 #[derive(Clone, Debug)]
 pub struct SelectedSource {
-    backend_name: &'static str,
+    backend_name: BackendName,
     source_id: String,
     source_name: String,
 }
 
 impl SelectedSource {
-    fn new(backend_name: &'static str, info: &AppInfo, installed: bool) -> Self {
+    fn new(backend_name: BackendName, info: &AppInfo, installed: bool) -> Self {
         SelectedSource {
             backend_name,
             source_id: info.source_id.clone(),
@@ -963,7 +954,7 @@ impl AsRef<str> for SelectedSource {
 
 #[derive(Clone, Debug)]
 pub struct Selected {
-    backend_name: &'static str,
+    backend_name: BackendName,
     id: AppId,
     icon_opt: Option<widget::icon::Handle>,
     info: Arc<AppInfo>,
@@ -997,7 +988,7 @@ pub struct App {
     progress_operations: BTreeSet<u64>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, f32, String)>,
-    repos_changing: Vec<(&'static str, String, bool)>,
+    repos_changing: Vec<(BackendName, String, bool)>,
     scrollable_id: widget::Id,
     scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
     search_active: bool,
@@ -1005,13 +996,13 @@ pub struct App {
     search_input: String,
     size: Cell<Option<Size>>,
     //TODO: use hashset?
-    installed: Option<Vec<(&'static str, Package)>>,
+    installed: Option<Vec<(BackendName, Package)>>,
     //TODO: use hashset?
-    updates: Option<Vec<(&'static str, Package)>>,
+    updates: Option<Vec<(BackendName, Package)>>,
     //TODO: use hashset?
-    waiting_installed: Vec<(&'static str, String, AppId)>,
+    waiting_installed: Vec<(BackendName, String, AppId)>,
     //TODO: use hashset?
-    waiting_updates: Vec<(&'static str, String, AppId)>,
+    waiting_updates: Vec<(BackendName, String, AppId)>,
     category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     category_load_start: Option<Instant>,
     explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
@@ -1139,7 +1130,7 @@ impl App {
                     installed,
                 } = infos.first()?;
                 Some(SearchResult {
-                    backend_name,
+                    backend_name: *backend_name,
                     id: id.clone(),
                     icon_opt: None,
                     info: info.clone(),
@@ -1149,7 +1140,7 @@ impl App {
             .collect();
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
+                cmp::Ordering::Equal => a.backend_name.cmp(&b.backend_name),
                 ordering => ordering,
             },
             ordering => ordering,
@@ -1162,7 +1153,7 @@ impl App {
         // Load only enough icons to show one page of results
         //TODO: load in background
         for result in results.iter_mut().take(MAX_RESULTS) {
-            let Some(backend) = backends.get(result.backend_name) else {
+            let Some(backend) = backends.get(&result.backend_name) else {
                 continue;
             };
             let appstream_caches = backend.info_caches();
@@ -1206,7 +1197,7 @@ impl App {
                 } = entries.first()?;
 
                 Some(SearchResult {
-                    backend_name,
+                    backend_name: *backend_name,
                     id: (*id).clone(),
                     icon_opt: None,
                     info: info.clone(),
@@ -1218,7 +1209,7 @@ impl App {
         // Sort by weight (monthly downloads), then by name
         results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
             cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => LANGUAGE_SORTER.compare(a.backend_name, b.backend_name),
+                cmp::Ordering::Equal => a.backend_name.cmp(&b.backend_name),
                 ordering => ordering,
             },
             ordering => ordering,
@@ -1232,7 +1223,7 @@ impl App {
 
         // Load icons for top results
         for result in results.iter_mut().take(MAX_RESULTS) {
-            let Some(backend) = backends.get(result.backend_name) else {
+            let Some(backend) = backends.get(&result.backend_name) else {
                 continue;
             };
             let appstream_caches = backend.info_caches();
@@ -1461,7 +1452,7 @@ impl App {
             if result.icon_opt.is_some() {
                 continue;
             }
-            let Some(backend) = backends.get(result.backend_name) else {
+            let Some(backend) = backends.get(&result.backend_name) else {
                 continue;
             };
             let appstream_caches = backend.info_caches();
@@ -1614,7 +1605,7 @@ impl App {
 
     fn selected_buttons(
         &self,
-        selected_backend_name: &'static str,
+        selected_backend_name: BackendName,
         selected_id: &AppId,
         selected_info: &Arc<AppInfo>,
         addon: bool,
@@ -1626,7 +1617,7 @@ impl App {
             .iter()
             .chain(self.waiting_updates.iter())
         {
-            if backend_name == &selected_backend_name
+            if *backend_name == selected_backend_name
                 && source_id == &selected_info.source_id
                 && package_id == selected_id
             {
@@ -1639,13 +1630,13 @@ impl App {
         let mut update_opt = None;
         if let Some(updates) = &self.updates {
             for (backend_name, package) in updates {
-                if backend_name == &selected_backend_name
+                if *backend_name == selected_backend_name
                     && package.info.source_id == selected_info.source_id
                     && &package.id == selected_id
                 {
                     update_opt = Some(Message::Operation(
                         OperationKind::Update,
-                        backend_name,
+                        *backend_name,
                         package.id.clone(),
                         package.info.clone(),
                     ));
@@ -1737,7 +1728,7 @@ impl App {
 
     fn selected_sources(
         &self,
-        backend_name: &'static str,
+        backend_name: BackendName,
         id: &AppId,
         info: &AppInfo,
     ) -> Vec<SelectedSource> {
@@ -1750,7 +1741,7 @@ impl App {
                     installed,
                 } in infos.iter()
                 {
-                    sources.push(SelectedSource::new(backend_name, info, *installed));
+                    sources.push(SelectedSource::new(*backend_name, info, *installed));
                 }
             }
             None => {
@@ -1764,12 +1755,12 @@ impl App {
 
     fn selected_addons(
         &self,
-        backend_name: &'static str,
+        backend_name: BackendName,
         id: &AppId,
         info: &AppInfo,
     ) -> Vec<(AppId, Arc<AppInfo>)> {
         let mut addons = Vec::new();
-        if let Some(backend) = self.backends.get(backend_name) {
+        if let Some(backend) = self.backends.get(&backend_name) {
             for appstream_cache in backend.info_caches() {
                 if appstream_cache.source_id == info.source_id {
                     if let Some(ids) = appstream_cache.addons.get(id) {
@@ -1793,7 +1784,7 @@ impl App {
 
     fn select(
         &mut self,
-        backend_name: &'static str,
+        backend_name: BackendName,
         id: AppId,
         icon_opt: Option<widget::icon::Handle>,
         info: Arc<AppInfo>,
@@ -1878,8 +1869,8 @@ impl App {
     }
 
     fn is_installed_inner(
-        installed_opt: &Option<Vec<(&'static str, Package)>>,
-        backend_name: &'static str,
+        installed_opt: &Option<Vec<(BackendName, Package)>>,
+        backend_name: BackendName,
         id: &AppId,
         info: &AppInfo,
     ) -> bool {
@@ -1913,7 +1904,7 @@ impl App {
         false
     }
 
-    fn is_installed(&self, backend_name: &'static str, id: &AppId, info: &AppInfo) -> bool {
+    fn is_installed(&self, backend_name: BackendName, id: &AppId, info: &AppInfo) -> bool {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
@@ -1931,9 +1922,7 @@ impl App {
                     match b_priority.cmp(&a_priority) {
                         cmp::Ordering::Equal => {
                             match LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id) {
-                                cmp::Ordering::Equal => {
-                                    LANGUAGE_SORTER.compare(a.backend_name, b.backend_name)
-                                }
+                                cmp::Ordering::Equal => a.backend_name.cmp(&b.backend_name),
                                 ordering => ordering,
                             }
                         }
@@ -1959,11 +1948,11 @@ impl App {
                             (
                                 id.clone(),
                                 AppEntry {
-                                    backend_name,
+                                    backend_name: *backend_name,
                                     info: info.clone(),
                                     installed: Self::is_installed_inner(
                                         installed_ref,
-                                        backend_name,
+                                        *backend_name,
                                         id,
                                         info,
                                     ),
@@ -1992,7 +1981,7 @@ impl App {
             for (backend_name, package) in installed {
                 if package.id.is_system() {
                     apps.entry(package.id.clone()).or_default().push(AppEntry {
-                        backend_name,
+                        backend_name: *backend_name,
                         info: package.info.clone(),
                         installed: true,
                     });
@@ -2252,7 +2241,7 @@ impl App {
                     let mut results = Vec::with_capacity(packages.len());
                     for (backend_name, package) in packages {
                         results.push(SearchResult {
-                            backend_name,
+                            backend_name: *backend_name,
                             id: package.id,
                             icon_opt: Some(package.icon),
                             info: package.info,
@@ -2308,7 +2297,7 @@ impl App {
                     let mut results = Vec::with_capacity(packages.len());
                     for (backend_name, package) in packages {
                         results.push(SearchResult {
-                            backend_name,
+                            backend_name: *backend_name,
                             id: package.id,
                             icon_opt: Some(package.icon),
                             info: package.info,
@@ -2555,9 +2544,9 @@ impl App {
 
     fn sources(&self) -> Vec<Source> {
         let mut sources = Vec::new();
-        if self.backends.contains_key("flatpak-user") {
+        if self.backends.contains_key(&BackendName::FlatpakUser) {
             sources.push(Source {
-                backend_name: "flatpak-user",
+                backend_name: BackendName::FlatpakUser,
                 id: "flathub".to_string(),
                 name: "Flathub".to_string(),
                 kind: SourceKind::Recommended {
@@ -2567,7 +2556,7 @@ impl App {
                 requires: Vec::new(),
             });
             sources.push(Source {
-                backend_name: "flatpak-user",
+                backend_name: BackendName::FlatpakUser,
                 id: "cosmic".to_string(),
                 name: "COSMIC Flatpak".to_string(),
                 kind: SourceKind::Recommended {
@@ -2595,9 +2584,9 @@ impl App {
                     }
                 }
                 //TODO: allow other backends to show sources?
-                if !found_source && *backend_name == "flatpak-user" {
+                if !found_source && *backend_name == BackendName::FlatpakUser {
                     sources.push(Source {
-                        backend_name,
+                        backend_name: *backend_name,
                         id: cache.source_id.clone(),
                         name: cache.source_name.clone(),
                         kind: SourceKind::Custom,
@@ -2706,7 +2695,7 @@ impl App {
             custom.into(),
             widget::container(widget::button::standard(fl!("import")).on_press_maybe(
                 if self.repos_changing.is_empty() {
-                    Some(Message::RepositoryAddDialog("flatpak-user"))
+                    Some(Message::RepositoryAddDialog(BackendName::FlatpakUser))
                 } else {
                     None
                 },
@@ -3324,7 +3313,7 @@ impl App {
                                             widget::button::standard(fl!("update"))
                                                 .on_press(Message::Operation(
                                                     OperationKind::Update,
-                                                    backend_name,
+                                                    *backend_name,
                                                     package.id.clone(),
                                                     package.info.clone(),
                                                 ))
@@ -4046,7 +4035,7 @@ impl Application for App {
             }
             Message::RepositoryAddDialog(backend_name) => {
                 //TODO: support other backends?
-                if backend_name == "flatpak-user" {
+                if backend_name == BackendName::FlatpakUser {
                     #[cfg(feature = "xdg-portal")]
                     return Task::perform(
                         async move {
@@ -4248,7 +4237,7 @@ impl Application for App {
                 if let Some(updates) = &self.updates {
                     match updates
                         .get(updates_i)
-                        .map(|(backend_name, package)| (backend_name, package.clone()))
+                        .map(|(backend_name, package)| (*backend_name, package.clone()))
                     {
                         Some((backend_name, package)) => {
                             return self.select(
@@ -4362,7 +4351,7 @@ impl Application for App {
 
                 //TODO: can this be simplified?
                 if let Some((backend_name, source_id, id)) = next_ids {
-                    if let Some(backend) = self.backends.get(backend_name) {
+                    if let Some(backend) = self.backends.get(&backend_name) {
                         for appstream_cache in backend.info_caches() {
                             if appstream_cache.source_id == source_id {
                                 if let Some(info) = appstream_cache.infos.get(&id) {
@@ -4413,7 +4402,7 @@ impl Application for App {
                     for (backend_name, package) in updates.iter() {
                         let op = ops.entry(*backend_name).or_insert_with(|| Operation {
                             kind: OperationKind::Update,
-                            backend_name,
+                            backend_name: *backend_name,
                             package_ids: Vec::new(),
                             infos: Vec::new(),
                         });
@@ -4656,7 +4645,7 @@ impl Application for App {
                     )
             }
             DialogPage::Uninstall(backend_name, _id, info) => {
-                let is_flatpak = backend_name.starts_with("flatpak");
+                let is_flatpak = backend_name.is_flatpak();
                 let mut dialog = widget::dialog()
                     .title(fl!("uninstall-app", name = info.name.as_str()))
                     .body(if is_flatpak {
@@ -5069,7 +5058,7 @@ impl Application for App {
         for (id, (op, _)) in self.pending_operations.iter() {
             //TODO: use recipe?
             let id = *id;
-            let backend_opt = self.backends.get(op.backend_name).cloned();
+            let backend_opt = self.backends.get(&op.backend_name).cloned();
             let op = op.clone();
             subscriptions.push(Subscription::run_with_id(
                 id,

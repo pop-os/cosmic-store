@@ -10,6 +10,52 @@ use std::{
 
 use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 
+/// Enum representing the available backend types
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum BackendName {
+    FlatpakUser,
+    FlatpakSystem,
+    Packagekit,
+    Pkgar,
+}
+
+impl BackendName {
+    /// Returns the string representation of the backend name
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            BackendName::FlatpakUser => "flatpak-user",
+            BackendName::FlatpakSystem => "flatpak-system",
+            BackendName::Packagekit => "packagekit",
+            BackendName::Pkgar => "pkgar",
+        }
+    }
+
+    /// Check if this is a flatpak backend
+    pub fn is_flatpak(&self) -> bool {
+        matches!(self, BackendName::FlatpakUser | BackendName::FlatpakSystem)
+    }
+}
+
+impl fmt::Display for BackendName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for BackendName {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "flatpak-user" => Ok(BackendName::FlatpakUser),
+            "flatpak-system" => Ok(BackendName::FlatpakSystem),
+            "packagekit" => Ok(BackendName::Packagekit),
+            "pkgar" => Ok(BackendName::Pkgar),
+            _ => Err(format!("unknown backend name: {}", s)),
+        }
+    }
+}
+
 #[cfg(feature = "flatpak")]
 mod flatpak;
 
@@ -48,23 +94,26 @@ pub trait Backend: fmt::Debug + Send + Sync {
 }
 
 // BTreeMap for stable sort order
-pub type Backends = BTreeMap<&'static str, Arc<dyn Backend>>;
+pub type Backends = BTreeMap<BackendName, Arc<dyn Backend>>;
 
 pub fn backends(locale: &str, refresh: bool) -> Backends {
     let mut backends = Backends::new();
 
     #[cfg(feature = "flatpak")]
     {
-        for (backend_name, user) in [("flatpak-user", true), ("flatpak-system", false)] {
+        for (backend_name, user) in [
+            (BackendName::FlatpakUser, true),
+            (BackendName::FlatpakSystem, false),
+        ] {
             let start = Instant::now();
             match flatpak::Flatpak::new(user, locale) {
                 Ok(backend) => {
                     backends.insert(backend_name, Arc::new(backend));
                     let duration = start.elapsed();
-                    log::info!("initialized {backend_name} backend in {:?}", duration);
+                    log::info!("initialized {} backend in {:?}", backend_name, duration);
                 }
                 Err(err) => {
-                    log::error!("failed to load {backend_name} backend: {}", err);
+                    log::error!("failed to load {} backend: {}", backend_name, err);
                 }
             }
         }
@@ -75,12 +124,20 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         let start = Instant::now();
         match packagekit::Packagekit::new(locale) {
             Ok(backend) => {
-                backends.insert("packagekit", Arc::new(backend));
+                backends.insert(BackendName::Packagekit, Arc::new(backend));
                 let duration = start.elapsed();
-                log::info!("initialized packagekit backend in {:?}", duration);
+                log::info!(
+                    "initialized {} backend in {:?}",
+                    BackendName::Packagekit,
+                    duration
+                );
             }
             Err(err) => {
-                log::error!("failed to load packagekit backend: {}", err);
+                log::error!(
+                    "failed to load {} backend: {}",
+                    BackendName::Packagekit,
+                    err
+                );
             }
         }
     }
@@ -90,12 +147,16 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         let start = Instant::now();
         match pkgar::Pkgar::new(locale) {
             Ok(backend) => {
-                backends.insert("pkgar", Arc::new(backend));
+                backends.insert(BackendName::Pkgar, Arc::new(backend));
                 let duration = start.elapsed();
-                log::info!("initialized pkgar backend in {:?}", duration);
+                log::info!(
+                    "initialized {} backend in {:?}",
+                    BackendName::Pkgar,
+                    duration
+                );
             }
             Err(err) => {
-                log::error!("failed to load pkgar backend: {}", err);
+                log::error!("failed to load {} backend: {}", BackendName::Pkgar, err);
             }
         }
     }
