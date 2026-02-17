@@ -1,5 +1,5 @@
 app-name = Loja de Aplicativos
-comment = Loja de aplicativos do desktop COSMIC
+comment = Loja de aplicativos do ambiente COSMIC
 back = Voltar
 cancel = Cancelar
 check-for-updates = Verificar por atualizações
@@ -126,13 +126,13 @@ no-description = Nenhuma descrição disponível.
 
 ## Repositories
 
-recommended-flatpak-sources = Fontes Recomendadas de Flatpak
-custom-flatpak-sources = Fontes Flatpak Customizadas
+recommended-flatpak-sources = Fontes recomendadas de Flatpak
+custom-flatpak-sources = Fontes customizadas de Flatpak
 import-flatpakrepo = Importar um arquivo .flatpakrepo para adicionar uma fonte customizada
 no-custom-flatpak-sources = Nenhuma fonte customizada de Flatpak
 import = Importar
 no-flatpak = Sem suporte flatpak
-software-repositories = Repositórios de Software
+software-repositories = Repositórios de software
 
 ### Appearance
 
@@ -154,3 +154,4 @@ system-packages-summary =
     }
 system-packages = Pacotes do Sistema
 flatpak-runtimes = Runtimes Flatpak
+keywords = Aplicativo;Software;Loja;App;

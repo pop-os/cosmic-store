@@ -144,3 +144,5 @@ system-packages-summary =
     }
 system-packages = Paquets système
 flatpak-runtimes = Runtimes Flatpak
+comment = Store d'applications pour le bureau COSMIC
+keywords = Appli;Logiciel;Store;Magasin;
