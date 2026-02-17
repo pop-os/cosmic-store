@@ -1,4 +1,4 @@
-app-name = Магазин приложений COSMIC
+app-name = Магазин приложений
 keywords = Приложения;Приложений;ПО;Программы;Маркет;Магазин;
 back = Назад
 cancel = Отмена
@@ -139,3 +139,4 @@ system-packages-summary =
         [few] { $count } пакета
        *[other] { $count } пакетов
     }
+comment = Магазин приложений для среды COSMIC

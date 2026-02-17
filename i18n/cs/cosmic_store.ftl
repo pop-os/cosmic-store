@@ -1,5 +1,5 @@
 app-name = Obchod COSMIC
-comment = Obchod s aplikacemi pro pracovní prostředí COSMIC
+comment = Obchod s aplikacemi pro prostředí COSMIC
 keywords = Aplikace;Software;Obchod;Shop;Programy;
 back = Zpět
 cancel = Zrušit

@@ -121,3 +121,5 @@ system-packages-summary =
     }
 system-packages = Paket Sistem
 flatpak-runtimes = Waktu Proses Flatpak
+keywords = Aplikasi;Perangkat Lunak;Toko;Belanja;
+comment = Toko aplikasi untuk desktop COSMIC
