@@ -3557,7 +3557,7 @@ impl Application for App {
             }
         }
 
-        let command = Task::batch([app.update_title(), app.update_backends(false)]);
+        let command = Task::batch([app.update_title(), app.update_backends(true)]);
         (app, command)
     }
 
@@ -3628,8 +3628,11 @@ impl Application for App {
             self.category_load_start = Some(Instant::now());
             commands.push(self.categories(categories));
         }
-        // Note: Don't auto-refresh updates when navigating - updates are loaded at startup
-        // User can click "Check for updates" button to refresh manually
+        if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
+            if self.updates.is_some() {
+                commands.push(self.update_updates());
+            }
+        }
         Task::batch(commands)
     }
 
