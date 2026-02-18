@@ -6,7 +6,7 @@ use cosmic::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const CONFIG_VERSION: u64 = 2;
+pub const CONFIG_VERSION: u64 = 1;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AppTheme {
