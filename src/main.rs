@@ -293,6 +293,7 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
     Operation(OperationKind, BackendName, AppId, Arc<AppInfo>),
+    PeriodicUpdateCheck,
     PendingComplete(u64),
     PendingDismiss,
     PendingError(u64, String),
@@ -3706,7 +3707,10 @@ impl Application for App {
                     }
                 }
             }
-            Message::CheckUpdates => {
+            Message::CheckUpdates | Message::PeriodicUpdateCheck => {
+                if matches!(message, Message::PeriodicUpdateCheck) {
+                    log::info!("periodic background update check triggered");
+                }
                 //TODO: this only checks updates if they have already been checked
                 if self.updates.take().is_some() {
                     if self.pending_operations.is_empty() {
@@ -5006,6 +5010,13 @@ impl Application for App {
                 Message::SystemThemeModeChange(update.config)
             }),
         ];
+
+        if self.config.update_check_interval_minutes > 0 {
+            let duration =
+                std::time::Duration::from_secs(self.config.update_check_interval_minutes * 60);
+            subscriptions
+                .push(cosmic::iced::time::every(duration).map(|_| Message::PeriodicUpdateCheck));
+        }
 
         if !self.pending_operations.is_empty() {
             #[cfg(feature = "logind")]

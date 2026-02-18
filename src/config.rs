@@ -6,7 +6,7 @@ use cosmic::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const CONFIG_VERSION: u64 = 1;
+pub const CONFIG_VERSION: u64 = 2;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AppTheme {
@@ -28,12 +28,14 @@ impl AppTheme {
 #[derive(Clone, CosmicConfigEntry, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Config {
     pub app_theme: AppTheme,
+    pub update_check_interval_minutes: u64,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             app_theme: AppTheme::System,
+            update_check_interval_minutes: 60,
         }
     }
 }
