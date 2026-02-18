@@ -298,7 +298,6 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     OpenDesktopId(String),
     Operation(OperationKind, BackendName, AppId, Arc<AppInfo>),
-    PeriodicUpdateCheck,
     PendingComplete(u64),
     PendingDismiss,
     PendingError(u64, String),
@@ -333,6 +332,7 @@ pub enum Message {
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     UpdateAll,
+    StatsUpdated,
     Updates(Vec<(BackendName, Package)>),
     WindowClose,
     WindowNew,
@@ -1206,7 +1206,7 @@ impl App {
                     id: (*id).clone(),
                     icon_opt: None,
                     info: info.clone(),
-                    weight: -(info.monthly_downloads as i64),
+                    weight: stats::download_sort_key(id),
                 })
             })
             .collect();
@@ -1251,26 +1251,25 @@ impl App {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
                     let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            if !matches!(info.kind, AppKind::DesktopApplication) {
-                                return None;
-                            }
-                            for category in categories {
-                                //TODO: this hack makes it easier to add applets to the nav bar
-                                if matches!(category, Category::CosmicApplet) {
-                                    if info.provides.contains(&applet_provide) {
-                                        return Some(-(info.monthly_downloads as i64));
-                                    }
-                                } else {
-                                    //TODO: contains doesn't work due to type mismatch
-                                    if info.categories.iter().any(|x| x == category.id()) {
-                                        return Some(-(info.monthly_downloads as i64));
-                                    }
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        if !matches!(info.kind, AppKind::DesktopApplication) {
+                            return None;
+                        }
+                        for category in categories {
+                            //TODO: this hack makes it easier to add applets to the nav bar
+                            if matches!(category, Category::CosmicApplet) {
+                                if info.provides.contains(&applet_provide) {
+                                    return Some(stats::download_sort_key(id));
+                                }
+                            } else {
+                                //TODO: contains doesn't work due to type mismatch
+                                if info.categories.iter().any(|x| x == category.id()) {
+                                    return Some(stats::download_sort_key(id));
                                 }
                             }
-                            None
-                        });
+                        }
+                        None
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for categories {:?} in {:?}, found {} results",
@@ -1304,21 +1303,21 @@ impl App {
                 })
             }
             ExplorePage::PopularApps => {
-                Self::generic_search(apps, backends, |_id, info, _installed| {
+                Self::generic_search(apps, backends, |id, info, _installed| {
                     if !matches!(info.kind, AppKind::DesktopApplication) {
                         return None;
                     }
-                    Some(-(info.monthly_downloads as i64))
+                    Some(stats::download_sort_key(id))
                 })
             }
             ExplorePage::MadeForCosmic => {
                 let provide = AppProvide::Id("com.system76.CosmicApplication".to_string());
-                Self::generic_search(apps, backends, |_id, info, _installed| {
+                Self::generic_search(apps, backends, |id, info, _installed| {
                     if !matches!(info.kind, AppKind::DesktopApplication) {
                         return None;
                     }
                     if info.provides.contains(&provide) {
-                        Some(-(info.monthly_downloads as i64))
+                        Some(stats::download_sort_key(id))
                     } else {
                         None
                     }
@@ -1597,7 +1596,7 @@ impl App {
                         //TODO: improve performance
                         let stats_weight = |weight: i64| -> i64 {
                             //TODO: make sure no overflows
-                            (weight << 56) - (info.monthly_downloads as i64)
+                            (weight << 56) - (stats::monthly_downloads(id).unwrap_or(0) as i64)
                         };
 
                         //TODO: fuzzy match (nucleus-matcher?)
@@ -1814,7 +1813,10 @@ impl App {
             }
         }
         addons.par_sort_unstable_by(|a, b| {
-            match b.1.monthly_downloads.cmp(&a.1.monthly_downloads) {
+            match stats::monthly_downloads(&b.0)
+                .unwrap_or(0)
+                .cmp(&stats::monthly_downloads(&a.0).unwrap_or(0))
+            {
                 cmp::Ordering::Equal => LANGUAGE_SORTER.compare(&a.1.name, &b.1.name),
                 ordering => ordering,
             }
@@ -2078,6 +2080,24 @@ impl App {
             },
             |x| x,
         )
+    }
+
+    /// Start fetching missing daily stats in the background.
+    fn fetch_stats_task() -> Option<Task<Message>> {
+        if !stats::needs_refresh() {
+            return None;
+        }
+        tokio::task::spawn_blocking(stats::cleanup_old_daily_caches);
+        let missing = stats::missing_days();
+        let client = reqwest::Client::new();
+        Some(Task::perform(
+            async move {
+                stats::fetch_days(&client, missing).await;
+                stats::rebuild_merged_from_daily_caches();
+                action::app(Message::StatsUpdated)
+            },
+            |x| x,
+        ))
     }
 
     fn update_installed(&self) -> Task<Message> {
@@ -2366,15 +2386,13 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let results =
-                        Self::generic_search(&apps, &backends, |_id, info, _installed| {
-                            //TODO: monthly downloads as weight?
-                            if info.provides.contains(&provide) {
-                                Some(-(info.monthly_downloads as i64))
-                            } else {
-                                None
-                            }
-                        });
+                    let results = Self::generic_search(&apps, &backends, |id, info, _installed| {
+                        if info.provides.contains(&provide) {
+                            Some(stats::download_sort_key(id))
+                        } else {
+                            None
+                        }
+                    });
                     let duration = start.elapsed();
                     log::info!(
                         "searched for mime {:?} in {:?}, found {} results",
@@ -2842,9 +2860,10 @@ impl App {
                 ])
                 .align_x(Alignment::Center)
                 .width(Length::Fill);
-                let downloads_widget = (selected.info.monthly_downloads > 0).then(|| {
+                let dl = stats::monthly_downloads(&selected.id).unwrap_or(0);
+                let downloads_widget = (dl > 0).then(|| {
                     widget::column::with_children(vec![
-                        widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
+                        widget::text::heading(dl.to_string()).into(),
                         //TODO: description of what this means?
                         widget::text::body(fl!("monthly-downloads")).into(),
                     ])
@@ -3717,13 +3736,16 @@ impl Application for App {
                 self.backends = backends;
                 self.repos_changing.clear();
                 // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
-                let mut tasks = Vec::with_capacity(2);
+                let mut tasks = Vec::with_capacity(3);
                 tasks.push(self.update_installed());
                 match self.mode {
                     Mode::Normal => {
                         tasks.push(self.update_updates());
                     }
                     Mode::GStreamer { .. } => {}
+                }
+                if let Some(task) = Self::fetch_stats_task() {
+                    tasks.push(task);
                 }
                 return Task::batch(tasks);
             }
@@ -3749,10 +3771,7 @@ impl Application for App {
                     }
                 }
             }
-            Message::CheckUpdates | Message::PeriodicUpdateCheck => {
-                if matches!(message, Message::PeriodicUpdateCheck) {
-                    log::info!("periodic background update check triggered");
-                }
+            Message::CheckUpdates => {
                 //TODO: this only checks updates if they have already been checked
                 if self.updates.take().is_some() {
                     if self.pending_operations.is_empty() {
@@ -3936,18 +3955,24 @@ impl Application for App {
                 }
                 match self.mode {
                     Mode::Normal => {
-                        if let Some(categories) = self
-                            .nav_model
-                            .active_data::<NavPage>()
-                            .and_then(|nav_page| nav_page.categories())
-                        {
-                            self.category_load_start = Some(Instant::now());
-                            commands.push(self.categories(categories));
-                        }
                         commands.push(self.installed_results());
-                        // Start timing explore page loading
-                        self.explore_load_start = Some(Instant::now());
-                        commands.push(self.explore_results_all());
+                        // Defer explore/category pages until stats are loaded,
+                        // just like with the explore disk cache
+                        if stats::is_loaded() {
+                            if let Some(categories) = self
+                                .nav_model
+                                .active_data::<NavPage>()
+                                .and_then(|nav_page| nav_page.categories())
+                            {
+                                self.category_load_start = Some(Instant::now());
+                                commands.push(self.categories(categories));
+                            }
+                            // Start timing explore page loading
+                            self.explore_load_start = Some(Instant::now());
+                            commands.push(self.explore_results_all());
+                        } else {
+                            log::info!("deferring explore/category pages until stats are loaded");
+                        }
                     }
                     Mode::GStreamer { .. } => {}
                 }
@@ -4475,6 +4500,10 @@ impl Application for App {
                         self.operation(op);
                     }
                 }
+            }
+            Message::StatsUpdated => {
+                // All missing days fetched — update app ordering once.
+                return self.update_apps();
             }
             Message::Updates(updates) => {
                 self.updates = Some(updates);
@@ -5072,7 +5101,7 @@ impl Application for App {
             let duration =
                 std::time::Duration::from_secs(self.config.update_check_interval_minutes * 60);
             subscriptions
-                .push(cosmic::iced::time::every(duration).map(|_| Message::PeriodicUpdateCheck));
+                .push(cosmic::iced::time::every(duration).map(|_| Message::CheckUpdates));
         }
 
         if !self.pending_operations.is_empty() {

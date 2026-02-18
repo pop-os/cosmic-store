@@ -16,8 +16,9 @@ rayon = "1"
 regex = "1"
 reqwest = "0.12"
 serde = { version = "1", features = ["rc", "serde_derive"] }
+serde_json = "1"
 spdx = { git = "https://github.com/jackpot51/spdx.git" }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "rt"] }
 xdg = "3"
 # Internationalization
 i18n-embed = { version = "0.16", features = [
@@ -92,7 +93,6 @@ inherits = "release"
 debug = true
 
 [workspace]
-members = ["flathub-stats"]
 
 # [patch.'https://github.com/pop-os/cosmic-text.git']
 # cosmic-text = { path = "../cosmic-text" }

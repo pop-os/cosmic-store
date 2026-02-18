@@ -165,7 +165,6 @@ pub struct AppInfo {
     pub releases: Vec<AppRelease>,
     pub screenshots: Vec<AppScreenshot>,
     pub urls: Vec<AppUrl>,
-    pub monthly_downloads: u64,
 }
 
 impl AppInfo {
@@ -175,7 +174,6 @@ impl AppInfo {
         origin_opt: Option<&str>,
         component: Component,
         locale: &str,
-        monthly_downloads: u64,
     ) -> Self {
         let name = get_translatable(&component.name, locale);
         let summary = component
@@ -358,7 +356,6 @@ impl AppInfo {
             releases,
             screenshots,
             urls,
-            monthly_downloads,
             ..Default::default()
         }
     }

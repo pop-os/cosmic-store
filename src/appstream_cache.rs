@@ -22,7 +22,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{AppIcon, AppId, AppInfo, stats};
+use crate::{AppIcon, AppId, AppInfo};
 
 const PREFIXES: &[&str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &[&str] = &["swcatalog", "app-info"];
@@ -455,7 +455,6 @@ impl AppstreamCache {
                     origin_opt.as_deref(),
                     addon,
                     &self.locale,
-                    stats::monthly_downloads(&id).unwrap_or(0),
                 ));
                 if let Some(_old) = self.infos.insert(id.clone(), addon_info) {
                     //TODO: merge based on priority
@@ -618,7 +617,6 @@ impl AppstreamCache {
                                 }
 
                                 let id = AppId::new(&component.id.0);
-                                let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                                 return Some((
                                     id,
                                     Arc::new(AppInfo::new(
@@ -627,7 +625,6 @@ impl AppstreamCache {
                                         origin_opt.map(|x| x.as_str()),
                                         component,
                                         &self.locale,
-                                        monthly_downloads,
                                     )),
                                 ));
                             }
@@ -1070,7 +1067,6 @@ impl AppstreamCache {
                         }
 
                         let id = AppId::new(&component.id.0);
-                        let monthly_downloads = stats::monthly_downloads(&id).unwrap_or(0);
                         Some((
                             id,
                             Arc::new(AppInfo::new(
@@ -1079,7 +1075,6 @@ impl AppstreamCache {
                                 origin_opt.as_deref(),
                                 component,
                                 &self.locale,
-                                monthly_downloads,
                             )),
                         ))
                     }
