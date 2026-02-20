@@ -215,7 +215,10 @@ pub fn preserve_icons_from(old_results: &[SearchResult], new_results: &mut [Sear
 }
 
 /// Apply loaded icons to search results
-pub fn apply_icons_to_results(results: &mut [SearchResult], icons: Vec<(usize, widget::icon::Handle)>) {
+pub fn apply_icons_to_results(
+    results: &mut [SearchResult],
+    icons: Vec<(usize, widget::icon::Handle)>,
+) {
     for (i, icon) in icons {
         if let Some(result) = results.get_mut(i) {
             result.icon_opt = Some(icon);
