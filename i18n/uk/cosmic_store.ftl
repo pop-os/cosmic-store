@@ -59,7 +59,7 @@ no-description = Без опису.
 
 ### Appearance
 
-appearance = Зовнішній вигляд
+appearance = Вигляд
 theme = Тема
 match-desktop = Системна
 dark = Темна
@@ -117,7 +117,7 @@ no-custom-flatpak-sources = Немає власних джерел Flatpak
 import = Імпортувати
 no-flatpak = Flatpak не підтримується
 software-repositories = Сховища програм
-codec-header = "{ $application }" потребує додаткових пакетів, які надають "{ $description }".
+codec-header = «{ $application }» потребує додаткових пакетів, які надають «{ $description }».
 codec-footer =
     Використання цих додаткових пакетів може бути обмежено у деяких країнах.
     Ви мусите переконатися, що одне з цього є правдою:
@@ -125,7 +125,7 @@ codec-footer =
      • У вас є дозвіл на використання цього програмного забезпечення (наприклад патент)
      • Ви використовуєте це програмне забезпечення суто в дослідницьких цілях
 version = Версія { $version }
-addons = Додатки
+addons = Розширення
 uninstall-app-flatpak-warning = Документи й дані { $name } буде збережено.
 delete-app-data = Назавжди видалити дані програми
 view-more = Переглянути всі
