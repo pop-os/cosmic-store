@@ -2,7 +2,7 @@
 name = "cosmic-store"
 version = "1.0.8"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.90"
 
 [dependencies]
 chrono = "0.4"
@@ -49,7 +49,7 @@ zbus = { version = "5", optional = true }
 notify-rust = { version = "4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.1", optional = true }
-cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
+cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true, branch = "iced-rebase" }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -96,10 +96,10 @@ members = ["flathub-stats"]
 # [patch.'https://github.com/pop-os/cosmic-text.git']
 # cosmic-text = { path = "../cosmic-text" }
 
-# [patch.'https://github.com/pop-os/libcosmic.git']
-# libcosmic = { path = "../libcosmic" }
-# cosmic-config = { path = "../libcosmic/cosmic-config" }
-# cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+[patch.'https://github.com/pop-os/libcosmic.git']
+libcosmic = { path = "../libcosmic" }
+cosmic-config = { path = "../libcosmic/cosmic-config" }
+cosmic-theme = { path = "../libcosmic/cosmic-theme" }
 
 # [patch.'https://github.com/jackpot51/appstream.git']
 # appstream = { path = "../../appstream" }
