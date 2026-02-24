@@ -33,7 +33,7 @@ use std::{
     path::Path,
     process,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use app_id::AppId;
@@ -293,6 +293,7 @@ pub enum Message {
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
     LaunchUrl(String),
+    LoadingTick,
     MaybeExit,
     #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
@@ -1018,6 +1019,7 @@ pub struct App {
     selected_opt: Option<Selected>,
     applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
     uninstall_purge_data: bool,
+    loading_dots: usize,
 }
 
 impl App {
@@ -1861,6 +1863,35 @@ impl App {
         } else {
             ScrollContext::NavPage
         }
+    }
+
+    fn loading_indicator(&self, text: &str) -> Element<'_, Message> {
+        let visible = self.loading_dots.max(1);
+        let hidden = 3 - visible;
+        let visible_dots = ".".repeat(visible);
+        let mut row =
+            widget::row::with_capacity(2).push(widget::text(format!("{}{}", text, visible_dots)));
+        if hidden > 0 {
+            row =
+                row.push(widget::text(".".repeat(hidden)).class(cosmic::iced::Color::TRANSPARENT));
+        }
+        widget::container(row)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    fn has_category_results_for_page(&self, nav_page: NavPage) -> bool {
+        self.category_results
+            .as_ref()
+            .is_some_and(|(cats, results)| {
+                !results.is_empty()
+                    && nav_page
+                        .categories()
+                        .is_some_and(|page_cats| std::ptr::eq(*cats, page_cats))
+            })
     }
 
     fn update_scroll(&mut self) -> Task<Message> {
@@ -3137,65 +3168,93 @@ impl App {
                                         ));
                                     }
                                     None => {
-                                        //TODO: loading message?
+                                        // Show loading indicator
+                                        return widget::column::with_capacity(3)
+                                            .padding([0, space_s, space_m, space_s])
+                                            .spacing(space_xxs)
+                                            .width(Length::Fill)
+                                            .height(Length::Fixed(size.height))
+                                            .push(
+                                                widget::button::text(NavPage::Explore.title())
+                                                    .leading_icon(icon_cache_handle(
+                                                        "go-previous-symbolic",
+                                                        16,
+                                                    ))
+                                                    .on_press(Message::ExplorePage(None)),
+                                            )
+                                            .push(widget::text::title4(explore_page.title()))
+                                            .push(self.loading_indicator(&fl!("loading")))
+                                            .into();
                                     }
                                 }
                                 column.into()
                             }
                             None => {
-                                let explore_pages = ExplorePage::all();
-                                let mut column =
-                                    widget::column::with_capacity(explore_pages.len() * 2)
-                                        .padding([0, space_s, space_m, space_s])
-                                        .spacing(space_xxs)
-                                        .width(Length::Fill);
-                                for explore_page in explore_pages.iter() {
-                                    //TODO: ensure explore_page matches
-                                    match self.explore_results.get(explore_page) {
-                                        Some(results) if !results.is_empty() => {
-                                            let GridMetrics { cols, .. } =
-                                                SearchResult::grid_metrics(&spacing, grid_width);
+                                // Show loading indicator if no results yet
+                                if self.explore_results.is_empty() {
+                                    widget::container(self.loading_indicator(&fl!("loading")))
+                                        .height(Length::Fixed(size.height))
+                                        .into()
+                                } else {
+                                    let explore_pages = ExplorePage::all();
+                                    let mut column =
+                                        widget::column::with_capacity(explore_pages.len() * 2)
+                                            .padding([0, space_s, space_m, space_s])
+                                            .spacing(space_xxs)
+                                            .width(Length::Fill);
+                                    for explore_page in explore_pages.iter() {
+                                        //TODO: ensure explore_page matches
+                                        match self.explore_results.get(explore_page) {
+                                            Some(results) if !results.is_empty() => {
+                                                let GridMetrics { cols, .. } =
+                                                    SearchResult::grid_metrics(
+                                                        &spacing, grid_width,
+                                                    );
 
-                                            let max_results = match cols {
-                                                1 => 4,
-                                                2 => 8,
-                                                3 => 9,
-                                                _ => cols * 2,
-                                            };
+                                                let max_results = match cols {
+                                                    1 => 4,
+                                                    2 => 8,
+                                                    3 => 9,
+                                                    _ => cols * 2,
+                                                };
 
-                                            //TODO: adjust results length based on app size?
-                                            let results_len = cmp::min(results.len(), max_results);
+                                                //TODO: adjust results length based on app size?
+                                                let results_len =
+                                                    cmp::min(results.len(), max_results);
 
-                                            column = column.push(widget::row::with_children(vec![
-                                                widget::text::title4(explore_page.title()).into(),
-                                                widget::horizontal_space().into(),
-                                                widget::button::text(fl!("see-all"))
-                                                    .trailing_icon(icon_cache_handle(
-                                                        "go-next-symbolic",
-                                                        16,
-                                                    ))
-                                                    .on_press(Message::ExplorePage(Some(
-                                                        *explore_page,
-                                                    )))
-                                                    .into(),
-                                            ]));
+                                                column =
+                                                    column.push(widget::row::with_children(vec![
+                                                        widget::text::title4(explore_page.title())
+                                                            .into(),
+                                                        widget::horizontal_space().into(),
+                                                        widget::button::text(fl!("see-all"))
+                                                            .trailing_icon(icon_cache_handle(
+                                                                "go-next-symbolic",
+                                                                16,
+                                                            ))
+                                                            .on_press(Message::ExplorePage(Some(
+                                                                *explore_page,
+                                                            )))
+                                                            .into(),
+                                                    ]));
 
-                                            column = column.push(SearchResult::grid_view(
-                                                &results[..results_len],
-                                                spacing,
-                                                grid_width,
-                                                |result_i| {
-                                                    Message::SelectExploreResult(
-                                                        *explore_page,
-                                                        result_i,
-                                                    )
-                                                },
-                                            ));
+                                                column = column.push(SearchResult::grid_view(
+                                                    &results[..results_len],
+                                                    spacing,
+                                                    grid_width,
+                                                    |result_i| {
+                                                        Message::SelectExploreResult(
+                                                            *explore_page,
+                                                            result_i,
+                                                        )
+                                                    },
+                                                ));
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
+                                    column.into()
                                 }
-                                column.into()
                             }
                         }
                     }
@@ -3397,27 +3456,32 @@ impl App {
                                 );
                             }
                             None => {
-                                column = column
+                                return widget::column::with_capacity(2)
+                                    .padding([0, space_s, space_m, space_s])
+                                    .spacing(space_xxs)
+                                    .width(Length::Fill)
+                                    .height(Length::Fixed(size.height))
                                     .push(widget::text::title2(NavPage::Updates.title()))
-                                    .push(
-                                        widget::column::with_capacity(2)
-                                            .spacing(space_s)
-                                            .padding([space_l, 0])
-                                            .width(Length::Fill)
-                                            .align_x(Alignment::Center)
-                                            /*.push(
-                                                widget::progress_bar(0.0..=100.0, progress)
-                                                    .height(Length::Fixed(4.0))
-                                                    .width(Length::Fixed(446.0)),
-                                            )*/
-                                            .push(widget::text(fl!("checking-for-updates"))),
-                                    );
+                                    .push(self.loading_indicator(&fl!("checking-for-updates")))
+                                    .into();
                             }
                         }
                         column.into()
                     }
                     //TODO: reduce duplication
                     nav_page => {
+                        // Show loading indicator when no results for current page
+                        if !self.has_category_results_for_page(nav_page) {
+                            return widget::column::with_capacity(2)
+                                .padding([0, space_s, space_m, space_s])
+                                .spacing(space_xxs)
+                                .width(Length::Fill)
+                                .height(Length::Fixed(size.height))
+                                .push(widget::text::title2(nav_page.title()))
+                                .push(self.loading_indicator(&fl!("loading")))
+                                .into();
+                        }
+
                         let mut column = widget::column::with_capacity(3)
                             .padding([0, space_s, space_m, space_s])
                             .spacing(space_xxs)
@@ -3451,25 +3515,20 @@ impl App {
                             }
                         }
                         //TODO: ensure category matches?
-                        match &self.category_results {
-                            Some((_, results)) => {
-                                //TODO: paging or dynamic load
-                                let results_len = cmp::min(results.len(), MAX_RESULTS);
+                        if let Some((_, results)) = &self.category_results {
+                            //TODO: paging or dynamic load
+                            let results_len = cmp::min(results.len(), MAX_RESULTS);
 
-                                if results.is_empty() {
-                                    //TODO: no results message?
-                                }
+                            if results.is_empty() {
+                                //TODO: no results message?
+                            }
 
-                                column = column.push(SearchResult::grid_view(
-                                    &results[..results_len],
-                                    spacing,
-                                    grid_width,
-                                    Message::SelectCategoryResult,
-                                ));
-                            }
-                            None => {
-                                //TODO: loading message?
-                            }
+                            column = column.push(SearchResult::grid_view(
+                                &results[..results_len],
+                                spacing,
+                                grid_width,
+                                Message::SelectCategoryResult,
+                            ));
                         }
                         column.into()
                     }
@@ -3566,7 +3625,7 @@ impl Application for App {
             waiting_installed: Vec::new(),
             waiting_updates: Vec::new(),
             category_results: None,
-            category_load_start: None,
+            category_load_start: Some(Instant::now()),
             explore_results: HashMap::new(),
             explore_load_start: None,
             installed_results: None,
@@ -3574,6 +3633,7 @@ impl Application for App {
             selected_opt: None,
             applet_placement_buttons,
             uninstall_purge_data: false,
+            loading_dots: 0,
         };
 
         // Load cached explore results for instant display
@@ -3667,7 +3727,8 @@ impl Application for App {
             .active_data::<NavPage>()
             .and_then(|nav_page| nav_page.categories())
         {
-            // Start timing category page load
+            // Clear old results and start timing category page load
+            self.category_results = None;
             self.category_load_start = Some(Instant::now());
             commands.push(self.categories(categories));
         }
@@ -4003,6 +4064,10 @@ impl Application for App {
                     log::warn!("failed to open {:?}: {}", url, err);
                 }
             },
+            Message::LoadingTick => {
+                // Cycle 1, 2, 3, 1, 2, 3... (always at least one dot to minimize text jumping)
+                self.loading_dots = (self.loading_dots % 3) + 1;
+            }
             Message::MaybeExit => {
                 if self.core.main_window_id().is_none() && self.pending_operations.is_empty() {
                     // Exit if window is closed and there are no pending operations
@@ -5229,6 +5294,45 @@ impl Application for App {
                     }),
                 ));
             }
+        }
+
+        // Loading animation subscription when category, explore, or updates data is loading
+        let is_loading = {
+            let nav_page = self
+                .nav_model
+                .active_data::<NavPage>()
+                .map_or(NavPage::Explore, |nav_page| *nav_page);
+            match nav_page {
+                NavPage::Explore => match self.explore_page_opt {
+                    Some(explore_page) => !self.explore_results.contains_key(&explore_page),
+                    None => self.explore_results.is_empty(),
+                },
+                NavPage::Create
+                | NavPage::Work
+                | NavPage::Develop
+                | NavPage::Learn
+                | NavPage::Game
+                | NavPage::Relax
+                | NavPage::Socialize
+                | NavPage::Utilities
+                | NavPage::Applets => !self.has_category_results_for_page(nav_page),
+                NavPage::Updates => self.updates.is_none(),
+                _ => false,
+            }
+        };
+
+        if is_loading {
+            struct LoadingTickSubscription;
+            subscriptions.push(Subscription::run_with_id(
+                TypeId::of::<LoadingTickSubscription>(),
+                stream::channel(1, move |mut msg_tx| async move {
+                    let mut interval = tokio::time::interval(Duration::from_millis(333));
+                    loop {
+                        interval.tick().await;
+                        let _ = msg_tx.send(Message::LoadingTick).await;
+                    }
+                }),
+            ));
         }
 
         Subscription::batch(subscriptions)
