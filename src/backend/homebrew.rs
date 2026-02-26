@@ -1,4 +1,4 @@
-use cosmic::widget;
+use cosmic::{action, app::Task, widget};
 use serde::Deserialize;
 use std::{
     collections::HashMap,
@@ -7,10 +7,11 @@ use std::{
     io::{BufRead, BufReader},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind};
+use crate::{AppId, AppInfo, AppUrl, AppstreamCache, Message, Operation, OperationKind};
 
 // Environment variables to suppress Homebrew auto-update and hints
 const BREW_ENV: [(&str, &str); 2] = [
@@ -548,4 +549,91 @@ impl Backend for Homebrew {
         f(100.0);
         Ok(())
     }
+}
+
+/// Initialize homebrew backend (deferred to avoid delaying explore page)
+pub fn init(locale: &str) -> Option<Arc<dyn Backend>> {
+    let start = Instant::now();
+    match Homebrew::new(locale) {
+        Ok(backend) => {
+            let duration = start.elapsed();
+            log::info!("initialized homebrew backend in {:?}", duration);
+            Some(Arc::new(backend))
+        }
+        Err(err) => {
+            log::debug!("homebrew backend not available: {}", err);
+            None
+        }
+    }
+}
+
+/// Initialize homebrew backend in background (deferred to not delay explore page)
+pub fn init_task(locale: String) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                let backend = init(&locale);
+                action::app(Message::HomebrewReady(backend))
+            })
+            .await
+            .unwrap_or(action::none())
+        },
+        |x| x,
+    )
+}
+
+/// Load homebrew installed packages in background
+pub fn installed_task(backend: Arc<dyn Backend>) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                let start = Instant::now();
+                let installed = match backend.installed() {
+                    Ok(packages) => packages,
+                    Err(err) => {
+                        log::error!("failed to list homebrew installed: {}", err);
+                        Vec::new()
+                    }
+                };
+                let duration = start.elapsed();
+                log::info!(
+                    "loaded homebrew installed in background: {} packages in {:?}",
+                    installed.len(),
+                    duration
+                );
+                action::app(Message::HomebrewInstalled(installed))
+            })
+            .await
+            .unwrap_or(action::none())
+        },
+        |x| x,
+    )
+}
+
+/// Load homebrew updates in background
+pub fn updates_task(backend: Arc<dyn Backend>) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                let start = Instant::now();
+                let updates = match backend.updates() {
+                    Ok(packages) => packages,
+                    Err(err) => {
+                        log::error!("failed to list homebrew updates: {}", err);
+                        Vec::new()
+                    }
+                };
+                let duration = start.elapsed();
+                log::info!(
+                    "loaded homebrew updates in background: {} packages in {:?}",
+                    updates.len(),
+                    duration
+                );
+                action::app(Message::HomebrewUpdates(updates))
+            })
+            .await
+            .unwrap_or(action::none())
+        },
+        |x| x,
+    )
 }

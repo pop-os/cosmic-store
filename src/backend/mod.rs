@@ -1,4 +1,4 @@
-use cosmic::widget;
+use cosmic::{app::Task, widget};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -197,24 +197,41 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     backends
 }
 
-/// Initialize homebrew backend separately (deferred to avoid delaying explore page)
+/// Initialize homebrew backend in background (deferred to avoid delaying explore page)
 #[cfg(feature = "homebrew")]
-pub fn init_homebrew(locale: &str) -> Option<Arc<dyn Backend>> {
-    let start = Instant::now();
-    match homebrew::Homebrew::new(locale) {
-        Ok(backend) => {
-            let duration = start.elapsed();
-            log::info!("initialized homebrew backend in {:?}", duration);
-            Some(Arc::new(backend))
-        }
-        Err(err) => {
-            log::debug!("homebrew backend not available: {}", err);
-            None
-        }
+pub fn homebrew_init_task(locale: String) -> Task<crate::Message> {
+    homebrew::init_task(locale)
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn homebrew_init_task(_locale: String) -> Task<crate::Message> {
+    Task::none()
+}
+
+/// Load homebrew installed packages in background
+#[cfg(feature = "homebrew")]
+pub fn homebrew_installed_task(backends: &Backends) -> Task<crate::Message> {
+    match backends.get(&BackendName::Homebrew) {
+        Some(backend) => homebrew::installed_task(backend.clone()),
+        None => Task::none(),
     }
 }
 
 #[cfg(not(feature = "homebrew"))]
-pub fn init_homebrew(_locale: &str) -> Option<Arc<dyn Backend>> {
-    None
+pub fn homebrew_installed_task(_backends: &Backends) -> Task<crate::Message> {
+    Task::none()
+}
+
+/// Load homebrew updates in background
+#[cfg(feature = "homebrew")]
+pub fn homebrew_updates_task(backends: &Backends) -> Task<crate::Message> {
+    match backends.get(&BackendName::Homebrew) {
+        Some(backend) => homebrew::updates_task(backend.clone()),
+        None => Task::none(),
+    }
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn homebrew_updates_task(_backends: &Backends) -> Task<crate::Message> {
+    Task::none()
 }
