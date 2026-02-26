@@ -108,7 +108,8 @@ impl App {
                     preserve_icons_from(old_results, &mut results);
                 }
                 self.category_results = Some((categories, results));
-                // Load icons in background
+                // Queue initial preview images
+                self.queue_visible_previews(None);
                 return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
             }
             Message::CategoryIconsLoaded(categories, icons) => {
@@ -171,6 +172,8 @@ impl App {
             }
             Message::ExplorePage(explore_page_opt) => {
                 self.explore_page_opt = explore_page_opt;
+                // Queue initial preview images
+                self.queue_visible_previews(None);
                 return self.update_scroll();
             }
             Message::AllExploreResults(mut all_results, cached) => {
@@ -185,6 +188,9 @@ impl App {
                         tasks.push(self.load_explore_icons(explore_page));
                     }
                 }
+
+                // Queue preview images for all explore sections
+                self.queue_explore_previews();
 
                 // Save pre-built cache in background
                 rayon::spawn(move || {
@@ -596,6 +602,10 @@ impl App {
             Message::ScrollView(viewport) => {
                 self.scroll_views.insert(self.scroll_context(), viewport);
             }
+            Message::PreviewTick => {
+                let viewport = self.scroll_views.get(&self.scroll_context()).copied();
+                self.queue_visible_previews(viewport.as_ref());
+            }
             Message::SearchActivate => {
                 self.search_active = true;
                 return widget::text_input::focus(self.search_id.clone());
@@ -682,8 +692,9 @@ impl App {
                         }
                     }
                     self.search_results = Some((input.clone(), results));
+                    // Queue initial preview images
+                    self.queue_visible_previews(None);
                     tasks.push(self.update_scroll());
-                    // Load icons in background
                     tasks.push(self.load_search_icons(input));
                     return Task::batch(tasks);
                 } else {
