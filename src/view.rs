@@ -903,16 +903,10 @@ impl App {
                                                         &spacing, grid_width,
                                                     );
 
-                                                let max_results = match cols {
-                                                    1 => 4,
-                                                    2 => 8,
-                                                    3 => 9,
-                                                    _ => cols * 2,
-                                                };
-
-                                                //TODO: adjust results length based on app size?
-                                                let results_len =
-                                                    cmp::min(results.len(), max_results);
+                                                let max_results =
+                                                    Self::explore_section_max_results(cols);
+                                            let results_len =
+                                                cmp::min(results.len(), max_results);
 
                                                 column = column.push(
                                                     widget::column::with_children(vec![

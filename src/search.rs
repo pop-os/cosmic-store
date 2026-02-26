@@ -313,4 +313,9 @@ impl SearchResult {
         .padding([spacing.space_xxs, spacing.space_s])
         .into()
     }
+
+    /// Card height including padding
+    pub fn card_height(spacing: &cosmic_theme::Spacing) -> f32 {
+        21.0 + 21.0 + (spacing.space_xxs as f32) + 17.0 + (spacing.space_xxs as f32) * 2.0
+    }
 }
