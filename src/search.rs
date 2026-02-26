@@ -231,6 +231,11 @@ impl SearchResult {
         GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
     }
 
+    /// Card height including padding
+    pub fn card_height(spacing: &cosmic_theme::Spacing) -> f32 {
+        48.0 + (spacing.space_xxs as f32) * 2.0
+    }
+
     pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
         results: &'a [Self],
         spacing: cosmic_theme::Spacing,
@@ -291,7 +296,7 @@ impl SearchResult {
         )
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .height(Length::Fixed(Self::card_height(spacing)))
         .padding([spacing.space_xxs, spacing.space_s])
         .class(theme::Container::Card)
         .into()
