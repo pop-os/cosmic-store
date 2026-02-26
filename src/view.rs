@@ -717,14 +717,8 @@ impl App {
                                             let GridMetrics { cols, .. } =
                                                 SearchResult::grid_metrics(&spacing, grid_width);
 
-                                            let max_results = match cols {
-                                                1 => 4,
-                                                2 => 8,
-                                                3 => 9,
-                                                _ => cols * 2,
-                                            };
-
-                                            //TODO: adjust results length based on app size?
+                                            let max_results =
+                                                Self::explore_section_max_results(cols);
                                             let results_len = cmp::min(results.len(), max_results);
 
                                             column = column.push(widget::row::with_children(vec![
