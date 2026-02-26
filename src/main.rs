@@ -13,7 +13,7 @@ use cosmic::{
         event::{self, Event},
         futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
-        stream,
+        mouse, stream,
         widget::scrollable,
         window::{self, Event as WindowEvent},
     },
@@ -2617,6 +2617,10 @@ impl Application for App {
                     ..
                 }) => match status {
                     event::Status::Ignored => Some(Message::Key(modifiers, key, text)),
+                    event::Status::Captured => None,
+                },
+                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Back)) => match status {
+                    event::Status::Ignored => Some(Message::SelectNone),
                     event::Status::Captured => None,
                 },
                 Event::Window(WindowEvent::CloseRequested) => Some(Message::WindowClose),
