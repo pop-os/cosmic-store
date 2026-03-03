@@ -294,6 +294,9 @@ pub enum Message {
     GStreamerInstall,
     GStreamerToggle(usize),
     AppsUpdated(Arc<Apps>, Arc<CategoryIndex>),
+    HomebrewReady(Option<Arc<dyn backend::Backend>>),
+    HomebrewInstalled(Vec<Package>),
+    HomebrewUpdates(Vec<Package>),
     Installed(Vec<(BackendName, Package)>),
     InstalledResults(Vec<SearchResult>),
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
@@ -1343,6 +1346,7 @@ impl App {
                     let collect_start = Instant::now();
                     let mut installed: Vec<_> = backends
                         .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != BackendName::Homebrew)
                         .flat_map(|(backend_name, backend)| {
                             let start = Instant::now();
                             let result: Vec<_> = match backend.installed() {
@@ -1400,6 +1404,7 @@ impl App {
                     let collect_start = Instant::now();
                     let mut updates: Vec<_> = backends
                         .par_iter()
+                        .filter(|(backend_name, _)| **backend_name != BackendName::Homebrew)
                         .flat_map(|(backend_name, backend)| {
                             let start = Instant::now();
                             let result: Vec<_> = match backend.updates() {

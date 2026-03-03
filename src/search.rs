@@ -1,6 +1,7 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
+use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -13,8 +14,9 @@ use cosmic::{
 
 use crate::app_id::AppId;
 use crate::app_info::AppInfo;
-use crate::backend::{BackendName, Backends};
+use crate::backend::{BackendName, Backends, Package};
 use crate::explore::ExplorePage;
+use crate::localize::LANGUAGE_SORTER;
 use crate::{ICON_SIZE_SEARCH, MAX_RESULTS, Message};
 
 pub struct GridMetrics {
@@ -224,6 +226,19 @@ pub fn apply_icons_to_results(
             result.icon_opt = Some(icon);
         }
     }
+}
+
+/// Sort packages with system packages first, then alphabetically by name
+pub fn sort_packages_system_first(packages: &mut Vec<(BackendName, Package)>) {
+    packages.sort_unstable_by(|a, b| {
+        if a.1.id.is_system() {
+            cmp::Ordering::Less
+        } else if b.1.id.is_system() {
+            cmp::Ordering::Greater
+        } else {
+            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
+        }
+    });
 }
 
 impl SearchResult {
