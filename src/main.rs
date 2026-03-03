@@ -73,13 +73,15 @@ mod priority;
 
 mod stats;
 
+mod preview_cache;
+
 use explore::ExplorePage;
 mod explore;
 
 use nav::{Category, CategoryIndex, NavPage, ScrollContext};
 mod nav;
 
-use search::{CachedExploreResults, SearchResult};
+use search::{CachedExploreResults, GridMetrics, SearchResult};
 mod search;
 
 mod view;
@@ -305,6 +307,7 @@ pub enum Message {
     OpenDesktopId(String),
     Operation(OperationKind, BackendName, AppId, Arc<AppInfo>),
     PeriodicUpdateCheck,
+    PreviewTick,
     PendingComplete(u64),
     PendingDismiss,
     PendingError(u64, String),
@@ -1089,6 +1092,7 @@ impl App {
             backend_name,
             info.source_id
         );
+
         let sources = self.selected_sources(backend_name, &id, &info);
         let addons = self.selected_addons(backend_name, &id, &info);
         self.selected_opt = Some(Selected {
@@ -1130,6 +1134,81 @@ impl App {
                 None => scrollable::AbsoluteOffset::default(),
             },
         )
+    }
+
+    /// Queue preview images for first N items
+    fn queue_previews(results: &[SearchResult], count: usize) {
+        for result in results.iter().take(count) {
+            if let Some(screenshot) = result.info.screenshots.first() {
+                preview_cache::queue(&screenshot.url);
+            }
+        }
+    }
+
+    /// Calculate max results per explore section based on grid columns
+    fn explore_section_max_results(cols: usize) -> usize {
+        match cols {
+            1 => 4,
+            2 => 8,
+            3 => 9,
+            _ => cols * 2,
+        }
+    }
+
+    /// Calculate grid width from window size
+    fn grid_width(&self, spacing: &cosmic_theme::Spacing) -> usize {
+        self.size
+            .get()
+            .map(|s| (s.width - 2.0 * spacing.space_s as f32).floor().max(0.0) as usize)
+            .unwrap_or(800)
+    }
+
+    /// Queue preview images for explore page sections
+    fn queue_explore_previews(&self) {
+        let spacing = theme::active().cosmic().spacing;
+        let GridMetrics { cols, .. } =
+            SearchResult::grid_metrics(&spacing, self.grid_width(&spacing));
+
+        for results in self.explore_results.values() {
+            Self::queue_previews(results, Self::explore_section_max_results(cols));
+        }
+    }
+
+    /// Queue preview images for items visible in the scroll viewport
+    fn queue_visible_previews(&self, viewport: Option<&scrollable::Viewport>) {
+        let Some(results) = self.current_results() else {
+            return;
+        };
+
+        let spacing = theme::active().cosmic().spacing;
+        let GridMetrics { cols, .. } =
+            SearchResult::grid_metrics(&spacing, self.grid_width(&spacing));
+        let row_height = SearchResult::card_height(&spacing) + spacing.space_xxs as f32;
+
+        let (first_item, count) = match viewport {
+            Some(vp) => {
+                let first_row = (vp.absolute_offset().y / row_height).floor() as usize;
+                let visible_rows = (vp.bounds().height / row_height).ceil() as usize + 2;
+                (first_row * cols, visible_rows * cols)
+            }
+            None => (0, cols * 4), // Initial load: first ~4 rows
+        };
+
+        Self::queue_previews(&results[first_item.min(results.len())..], count);
+    }
+
+    /// Get the current results being displayed based on app state
+    fn current_results(&self) -> Option<&[SearchResult]> {
+        match (
+            &self.search_results,
+            self.explore_page_opt,
+            &self.category_results,
+        ) {
+            (Some((_, r)), _, _) => Some(r),
+            (None, Some(page), _) => self.explore_results.get(&page).map(|r| r.as_slice()),
+            (None, None, Some((_, r))) => Some(r),
+            _ => None,
+        }
     }
 
     fn update_backends(&mut self, refresh: bool) -> Task<Message> {
@@ -2082,6 +2161,8 @@ impl Application for App {
         let cache_start = Instant::now();
         if let Some(cached) = CachedExploreResults::load() {
             app.explore_results = cached.to_results();
+            // Queue preview images for all explore sections
+            app.queue_explore_previews();
             log::info!(
                 "explore page loaded from cache: {} categories in {:?}",
                 app.explore_results.len(),
@@ -2102,7 +2183,19 @@ impl Application for App {
             }
         }
 
-        let command = Task::batch([app.update_title(), app.update_backends(true)]);
+        let command = Task::batch([
+            app.update_title(),
+            app.update_backends(true),
+            // Run one-time preview cache cleanup in background
+            Task::perform(
+                async {
+                    tokio::task::spawn_blocking(preview_cache::enforce_size_limit)
+                        .await
+                        .ok();
+                },
+                |()| action::none(),
+            ),
+        ]);
         (app, command)
     }
 
@@ -2657,6 +2750,12 @@ impl Application for App {
                 .push(cosmic::iced::time::every(duration).map(|_| Message::PeriodicUpdateCheck));
         }
 
+        // Periodically queue preview images for visible items (catches scrollbar drag, etc.)
+        subscriptions.push(
+            cosmic::iced::time::every(std::time::Duration::from_millis(250))
+                .map(|_| Message::PreviewTick),
+        );
+
         if !self.pending_operations.is_empty() {
             #[cfg(feature = "logind")]
             {
@@ -2782,21 +2881,26 @@ impl Application for App {
                 subscriptions.push(Subscription::run_with_id(
                     url.clone(),
                     stream::channel(16, move |mut msg_tx| async move {
-                        log::info!("fetch screenshot {}", url);
+                        // Check cache first
+                        if let Some(data) = preview_cache::get_cached(&url) {
+                            log::debug!("screenshot cache hit: {}", url);
+                            let _ = msg_tx
+                                .send(Message::SelectedScreenshot(screenshot_i, url, data))
+                                .await;
+                            return pending().await;
+                        }
+
+                        log::debug!("screenshot fetch: {}", url);
                         match reqwest::get(&url).await {
                             Ok(response) => match response.bytes().await {
                                 Ok(bytes) => {
-                                    log::info!(
-                                        "fetched screenshot from {}: {} bytes",
-                                        url,
-                                        bytes.len()
-                                    );
+                                    let data = bytes.to_vec();
+                                    // Save to cache
+                                    if let Err(e) = preview_cache::save_to_cache(&url, &data) {
+                                        log::warn!("failed to cache screenshot {}: {}", url, e);
+                                    }
                                     let _ = msg_tx
-                                        .send(Message::SelectedScreenshot(
-                                            screenshot_i,
-                                            url,
-                                            bytes.to_vec(),
-                                        ))
+                                        .send(Message::SelectedScreenshot(screenshot_i, url, data))
                                         .await;
                                 }
                                 Err(err) => {
@@ -2812,6 +2916,32 @@ impl Application for App {
                 ));
             }
         }
+
+        // Background preview cache downloader - wakes on notification, processes LIFO queue
+        subscriptions.push(Subscription::run_with_id(
+            "preview-cache-downloader",
+            stream::channel(1, |_| async {
+                const SIZE_LIMIT_INTERVAL: u64 = 10 * 1024 * 1024; // 10 MB
+                let mut bytes_since_limit_check: u64 = 0;
+                loop {
+                    preview_cache::wait_for_work().await;
+                    let urls = preview_cache::take_pending();
+                    for url in &urls {
+                        log::debug!("preview fetch: {}", url);
+                        if let Ok(resp) = reqwest::get(url).await {
+                            if let Ok(bytes) = resp.bytes().await {
+                                bytes_since_limit_check += bytes.len() as u64;
+                                let _ = preview_cache::save_to_cache(url, &bytes);
+                            }
+                        }
+                    }
+                    if bytes_since_limit_check >= SIZE_LIMIT_INTERVAL {
+                        preview_cache::enforce_size_limit();
+                        bytes_since_limit_check = 0;
+                    }
+                }
+            }),
+        ));
 
         Subscription::batch(subscriptions)
     }
