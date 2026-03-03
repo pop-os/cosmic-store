@@ -67,7 +67,6 @@ default = [
     "flatpak",
     "logind",
     "notify",
-    "packagekit",
     "single-instance",
     "wgpu",
     "wayland",
