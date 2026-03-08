@@ -113,3 +113,4 @@ place-on-desktop = 바탕화면에 배치
 custom-flatpak-sources = 사용자 지정 Flatpak 저장소
 import-flatpakrepo = 사용자 지정 저장소를 추가하려면 .flatpakrepo 파일을 가져오세요
 no-custom-flatpak-sources = 추가된 사용자 지정 Flatpak 저장소가 없습니다
+comment = COSMIC 데스크톱용 앱 스토어
