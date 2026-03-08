@@ -71,7 +71,7 @@ updates = التحديثات
 ## Applets page
 
 enable-flathub-cosmic = يرجى تفعيل Flathub و COSMIC Flatpak لرؤية البريمجات المتاحة.
-manage-repositories = أدر المستودعات
+manage-repositories = أدِر المستودعات
 # Explore Pages
 editors-choice = اختيار المحرِر
 popular-apps = التطبيقات الشائعة

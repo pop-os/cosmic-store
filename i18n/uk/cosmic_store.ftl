@@ -59,7 +59,7 @@ no-description = Без опису.
 
 ### Appearance
 
-appearance = Зовнішній вигляд
+appearance = Вигляд
 theme = Тема
 match-desktop = Системна
 dark = Темна
@@ -108,8 +108,8 @@ failed = Не вдалося
 complete = Завершено
 codec-error = Під час встановлення пакету сталися помилки.
 codec-installed = Пакети були встановлені.
-operations-running = { $running } виконуються операції ({ $percent }%)...
-operations-running-finished = { $running } опреацій запущено ({ $percent }%), з них виконано { $finished }...
+operations-running = Виконується { $running } операції ({ $percent }%)...
+operations-running-finished = Виконується { $running } операції ({ $percent }%), виконано { $finished }...
 recommended-flatpak-sources = Рекомендовані джерела Flatpak
 custom-flatpak-sources = Власні джерела Flatpak
 import-flatpakrepo = Імпортувати файл .flatpakrepo, щоб додати власне джерело
@@ -117,7 +117,7 @@ no-custom-flatpak-sources = Немає власних джерел Flatpak
 import = Імпортувати
 no-flatpak = Flatpak не підтримується
 software-repositories = Сховища програм
-codec-header = "{ $application }" потребує додаткових пакетів, які надають "{ $description }".
+codec-header = «{ $application }» потребує додаткових пакетів, які надають «{ $description }».
 codec-footer =
     Використання цих додаткових пакетів може бути обмежено у деяких країнах.
     Ви мусите переконатися, що одне з цього є правдою:
@@ -125,7 +125,7 @@ codec-footer =
      • У вас є дозвіл на використання цього програмного забезпечення (наприклад патент)
      • Ви використовуєте це програмне забезпечення суто в дослідницьких цілях
 version = Версія { $version }
-addons = Додатки
+addons = Розширення
 uninstall-app-flatpak-warning = Документи й дані { $name } буде збережено.
 delete-app-data = Назавжди видалити дані програми
 view-more = Переглянути всі

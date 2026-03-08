@@ -1,6 +1,6 @@
 app-name = Obchod COSMIC
 comment = Obchod s aplikacemi pro prostředí COSMIC
-keywords = Aplikace;Software;Obchod;Shop;Programy;
+keywords = Aplikace;Balíček;Balíčky;Programy;Software;Obchod;Repozitáře;Zdroje;Instalovat;Odinstalovat;Přidat;Odstranit;Odebrat;Aktualizace;Aktualizovat;Flatpak;
 back = Zpět
 cancel = Zrušit
 check-for-updates = Zkontrolovat aktualizace
@@ -32,7 +32,7 @@ codec-footer =
      • Software používáte pouze pro výzkumné účely
 codec-error = Při instalaci balíčku došlo k chybám.
 codec-installed = Balíčky byly nainstalovány.
-details = Detaily
+details = Podrobnosti
 dismiss = Zavřít zprávu
 operations-running =
     Běží { $running } { $running ->
@@ -96,7 +96,7 @@ app-developers = Vývojáři aplikace { $app }
 monthly-downloads = Stažení za měsíc (Flathub)
 licenses = Licence
 proprietary = Proprietární
-bug-tracker = Hlášení chyb
+bug-tracker = Nahlásit chybu
 contact = Kontakt
 donation = Přispět
 faq = Často kladené otázky

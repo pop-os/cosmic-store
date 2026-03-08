@@ -79,12 +79,12 @@ new-apps = Novos Aplicativos
 recently-updated = Atualizados Recentemente
 development-tools = Ferramentas de Desenvolvimento
 scientific-tools = Ferramentas Científicas
-productivity-apps = Aplicativos de Produtividade
-graphics-and-photography-tools = Ferramentas Gráficas e de Fotografia
-social-networking-apps = Aplicativos de Rede e Internet
+productivity-apps = Aplicativos de produtividade
+graphics-and-photography-tools = Ferramentas de gráficos e de fotografia
+social-networking-apps = Aplicativos de redes sociais
 games = Jogos
-music-and-video-apps = Aplicativos de Música e Vídeo
-apps-for-learning = Aplicativos Educacionais
+music-and-video-apps = Aplicativos de música e vídeo
+apps-for-learning = Aplicativos educacionais
 # Details Page
 source-installed = { $source } (instalado)
 developer = Desenvolvedor
