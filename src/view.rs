@@ -52,10 +52,16 @@ pub fn package_card_view<'a>(
                     .width(width as f32 - 180.0)
                     .into(),
             ]))
-            .push_maybe(top_controls.is_some().then_some(widget::horizontal_space()))
+            .push_maybe(
+                top_controls
+                    .is_some()
+                    .then_some(widget::space::horizontal()),
+            )
             .extend(top_controls.unwrap_or_default())
             .into(),
-        widget::Space::with_height(Length::Fixed(spacing.space_xxs.into())).into(),
+        widget::space::vertical()
+            .height(Length::Fixed(spacing.space_xxs.into()))
+            .into(),
         widget::row::with_children(controls)
             .height(32.0)
             .spacing(spacing.space_xs)
@@ -66,7 +72,9 @@ pub fn package_card_view<'a>(
         Some(icon) => widget::icon::icon(icon.clone())
             .size(ICON_SIZE_PACKAGE)
             .into(),
-        None => widget::Space::with_width(ICON_SIZE_PACKAGE as f32).into(),
+        None => widget::space::horizontal()
+            .width(Length::Fixed(ICON_SIZE_PACKAGE as f32))
+            .into(),
     };
 
     widget::container(
@@ -171,7 +179,7 @@ impl App {
             //TODO: get height from theme?
             buttons.push(
                 widget::progress_bar(0.0..=100.0, progress)
-                    .height(Length::Fixed(4.0))
+                    .girth(Length::Fixed(4.0))
                     .into(),
             )
         } else if waiting_refresh {
@@ -362,15 +370,16 @@ impl App {
                             Some(icon) => widget::icon::icon(icon.clone())
                                 .size(ICON_SIZE_DETAILS)
                                 .into(),
-                            None => {
-                                widget::Space::with_width(Length::Fixed(ICON_SIZE_DETAILS as f32))
-                                    .into()
-                            }
+                            None => widget::space::horizontal()
+                                .width(Length::Fixed(ICON_SIZE_DETAILS as f32))
+                                .into(),
                         },
                         widget::column::with_children(vec![
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
-                            widget::Space::with_height(Length::Fixed(space_s.into())).into(),
+                            widget::space::vertical()
+                                .height(Length::Fixed(space_s.into()))
+                                .into(),
                             widget::row::with_children(buttons).spacing(space_xs).into(),
                         ])
                         .into(),
@@ -481,7 +490,10 @@ impl App {
                             .center_y(image_height)
                             .into()
                     } else {
-                        widget::Space::new(Length::Fill, image_height).into()
+                        widget::space::horizontal()
+                            .width(Length::Fill)
+                            .height(image_height)
+                            .into()
                     };
                     row = row.push(
                         widget::column::with_children(vec![
@@ -729,7 +741,7 @@ impl App {
 
                                             column = column.push(widget::row::with_children(vec![
                                                 widget::text::title4(explore_page.title()).into(),
-                                                widget::horizontal_space().into(),
+                                                widget::space::horizontal().into(),
                                                 widget::button::text(fl!("see-all"))
                                                     .trailing_icon(icon_cache_handle(
                                                         "go-next-symbolic",
@@ -796,7 +808,7 @@ impl App {
                                         );
                                     } else {
                                         buttons.push(
-                                            widget::Space::with_height(Length::Shrink).into(),
+                                            widget::space::vertical().height(Length::Shrink).into(),
                                         );
                                     }
                                     grid = grid.push(
@@ -851,7 +863,7 @@ impl App {
                                 } else {
                                     column = column.push(widget::flex_row(vec![
                                         widget::text::title2(NavPage::Updates.title()).into(),
-                                        widget::horizontal_space().width(Length::Fill).into(),
+                                        widget::space::horizontal().width(Length::Fill).into(),
                                         widget::row::with_capacity(2)
                                             .spacing(space_xxs)
                                             .push(
@@ -908,7 +920,7 @@ impl App {
                                     let controls = if let Some(progress) = progress_opt {
                                         vec![
                                             widget::progress_bar(0.0..=100.0, progress)
-                                                .height(Length::Fixed(4.0))
+                                                .girth(Length::Fixed(4.0))
                                                 .into(),
                                         ]
                                     } else if waiting_refresh {
@@ -996,15 +1008,15 @@ impl App {
                             {
                                 column = column.push(
                                     widget::column::with_children(vec![
-                                        widget::Space::with_height(space_m).into(),
+                                        widget::space::vertical().height(space_m).into(),
                                         widget::text(fl!("enable-flathub-cosmic")).into(),
-                                        widget::Space::with_height(space_m).into(),
+                                        widget::space::vertical().height(space_m).into(),
                                         widget::button::standard(fl!("manage-repositories"))
                                             .on_press(Message::ToggleContextPage(
                                                 ContextPage::Repositories,
                                             ))
                                             .into(),
-                                        widget::Space::with_height(space_l).into(),
+                                        widget::space::vertical().height(space_l).into(),
                                     ])
                                     .align_x(Alignment::Center)
                                     .width(Length::Fill),

@@ -272,9 +272,9 @@ impl SearchResult {
                     Some(icon) => widget::icon::icon(icon.clone())
                         .size(ICON_SIZE_SEARCH)
                         .into(),
-                    None => {
-                        widget::Space::with_width(Length::Fixed(ICON_SIZE_SEARCH as f32)).into()
-                    }
+                    None => widget::space::horizontal()
+                        .width(Length::Fixed(ICON_SIZE_SEARCH as f32))
+                        .into(),
                 },
                 widget::column::with_children(vec![
                     widget::text::body(&self.info.name)

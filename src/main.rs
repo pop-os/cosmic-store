@@ -17,6 +17,7 @@ use cosmic::{
         widget::scrollable,
         window::{self, Event as WindowEvent},
     },
+    iced_widget::scrollable::AbsoluteOffset,
     theme,
     widget::{self},
 };
@@ -29,6 +30,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
     future::pending,
+    hash::Hash,
     path::Path,
     sync::{Arc, Mutex},
     time::Instant,
@@ -69,6 +71,8 @@ use operation::{Operation, OperationKind, RepositoryAdd, RepositoryRemove, Repos
 mod operation;
 
 use priority::priority;
+
+use crate::backend::Backend;
 mod priority;
 
 mod stats;
@@ -1126,7 +1130,13 @@ impl App {
         scrollable::scroll_to(
             self.scrollable_id.clone(),
             match self.scroll_views.get(&scroll_context) {
-                Some(viewport) => viewport.absolute_offset(),
+                Some(viewport) => {
+                    let offset = viewport.absolute_offset();
+                    AbsoluteOffset {
+                        x: Some(offset.x),
+                        y: Some(offset.y),
+                    }
+                }
                 None => scrollable::AbsoluteOffset::default(),
             },
         )
@@ -1668,9 +1678,9 @@ impl App {
             for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                 section = section.add(widget::column::with_children(vec![
                     widget::progress_bar(0.0..=100.0, *progress)
-                        .height(progress_bar_height)
+                        .girth(progress_bar_height)
                         .into(),
-                    widget::Space::with_height(space_xs).into(),
+                    widget::space::vertical().height(space_xs).into(),
                     widget::text(op.pending_text(*progress as i32)).into(),
                 ]));
             }
@@ -1942,7 +1952,7 @@ impl App {
                             },
                         ))
                     } else {
-                        item.control(widget::horizontal_space())
+                        item.control(widget::space::horizontal())
                     }
                 }
             };
@@ -2057,7 +2067,8 @@ impl Application for App {
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
             repos_changing: Vec::new(),
-            scrollable_id: widget::Id::unique(),
+            // XX must be a named id or responsive widget will discard the state
+            scrollable_id: widget::Id::new("store-scrollable"),
             scroll_views: HashMap::new(),
             search_active: false,
             search_id: widget::Id::unique(),
@@ -2298,7 +2309,8 @@ impl Application for App {
                 // Only show data deletion option for Flatpak apps
                 if is_flatpak {
                     dialog = dialog.control(
-                        widget::checkbox(fl!("delete-app-data"), self.uninstall_purge_data)
+                        widget::checkbox(self.uninstall_purge_data)
+                            .label(fl!("delete-app-data"))
                             .on_toggle(Message::ToggleUninstallPurgeData),
                     );
                 }
@@ -2388,20 +2400,20 @@ impl Application for App {
         //TODO: get height from theme?
         let progress_bar_height = Length::Fixed(4.0);
         let progress_bar =
-            widget::progress_bar(0.0..=100.0, total_progress).height(progress_bar_height);
+            widget::progress_bar(0.0..=100.0, total_progress).girth(progress_bar_height);
 
         let container = widget::layer_container(widget::column::with_children(vec![
             progress_bar.into(),
-            widget::Space::with_height(space_xs).into(),
+            widget::space::vertical().height(space_xs).into(),
             widget::text::body(title).into(),
-            widget::Space::with_height(space_s).into(),
+            widget::space::vertical().height(space_s).into(),
             widget::row::with_children(vec![
                 widget::button::link(fl!("details"))
                     .on_press(Message::ToggleContextPage(ContextPage::Operations))
                     .padding(0)
                     .trailing_icon(true)
                     .into(),
-                widget::horizontal_space().into(),
+                widget::space::horizontal().into(),
                 widget::button::standard(fl!("dismiss"))
                     .on_press(Message::PendingDismiss)
                     .into(),
@@ -2464,14 +2476,16 @@ impl Application for App {
         let content: Element<_> = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
-                widget::scrollable(
-                    widget::container(
-                        widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
+                widget::id_container(
+                    widget::scrollable(
+                        widget::container(
+                            widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
+                        )
+                        .align_x(Alignment::Center),
                     )
-                    .align_x(Alignment::Center),
+                    .on_scroll(Message::ScrollView),
+                    self.scrollable_id.clone(),
                 )
-                .id(self.scrollable_id.clone())
-                .on_scroll(Message::ScrollView)
                 .into()
             })
             .into(),
@@ -2495,9 +2509,9 @@ impl Application for App {
                     for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
                             widget::progress_bar(0.0..=100.0, *progress)
-                                .height(Length::Fixed(4.0))
+                                .girth(Length::Fixed(4.0))
                                 .into(),
-                            widget::Space::with_height(space_xs).into(),
+                            widget::space::vertical().height(space_xs).into(),
                             widget::text(op.pending_text(*progress as i32)).into(),
                         ]));
                     }
@@ -2542,7 +2556,7 @@ impl Application for App {
                                                         .into(),
                                                 ])
                                                 .into(),
-                                                widget::horizontal_space().into(),
+                                                widget::space::horizontal().into(),
                                                 if selected.contains(&i) {
                                                     widget::icon::from_name(
                                                         "checkbox-checked-symbolic",
@@ -2550,7 +2564,8 @@ impl Application for App {
                                                     .size(16)
                                                     .into()
                                                 } else {
-                                                    widget::Space::with_width(Length::Fixed(16.0))
+                                                    widget::space::horizontal()
+                                                        .width(Length::Fixed(16.0))
                                                         .into()
                                                 },
                                             ])
@@ -2587,7 +2602,7 @@ impl Application for App {
                     )
                 }
                 dialog
-                    .control(widget::vertical_space())
+                    .control(widget::space::vertical())
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .into()
@@ -2601,7 +2616,7 @@ impl Application for App {
 
     fn view_window(&self, _id: window::Id) -> Element<'_, Message> {
         // When closing the main window, view_window may be called after the main window is unset
-        widget::horizontal_space().into()
+        widget::space::horizontal().into()
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
@@ -2661,47 +2676,59 @@ impl Application for App {
             #[cfg(feature = "logind")]
             {
                 struct InhibitSubscription;
-                subscriptions.push(Subscription::run_with_id(
+                subscriptions.push(Subscription::run_with(
                     TypeId::of::<InhibitSubscription>(),
-                    stream::channel(1, move |_msg_tx| async move {
-                        let _inhibits = logind::inhibit().await;
-                        pending().await
-                    }),
+                    |_| {
+                        stream::channel(
+                            1,
+                            move |_msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                                let _inhibits = logind::inhibit().await;
+                                pending().await
+                            },
+                        )
+                    },
                 ));
             }
 
             #[cfg(feature = "notify")]
             if self.core.main_window_id().is_none() {
                 struct NotificationSubscription;
-                subscriptions.push(Subscription::run_with_id(
+                subscriptions.push(Subscription::run_with(
                     TypeId::of::<NotificationSubscription>(),
-                    stream::channel(1, move |msg_tx| async move {
-                        let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
-                        tokio::task::spawn_blocking(move || match notify_rust::Notification::new()
-                            .summary(&fl!("notification-in-progress"))
-                            .auto_icon()
-                            .show()
-                        {
-                            Ok(notification) => {
-                                let _ = futures::executor::block_on(async {
-                                    msg_tx
-                                        .lock()
-                                        .await
-                                        .send(Message::Notification(Arc::new(Mutex::new(
-                                            notification,
-                                        ))))
-                                        .await
-                                });
-                            }
-                            Err(err) => {
-                                log::warn!("failed to create notification: {}", err);
-                            }
-                        })
-                        .await
-                        .unwrap();
+                    |_| {
+                        stream::channel(
+                            1,
+                            move |msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                                let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
+                                tokio::task::spawn_blocking(move || {
+                                    match notify_rust::Notification::new()
+                                        .summary(&fl!("notification-in-progress"))
+                                        .auto_icon()
+                                        .show()
+                                    {
+                                        Ok(notification) => {
+                                            let _ = futures::executor::block_on(async {
+                                                msg_tx
+                                                    .lock()
+                                                    .await
+                                                    .send(Message::Notification(Arc::new(
+                                                        Mutex::new(notification),
+                                                    )))
+                                                    .await
+                                            });
+                                        }
+                                        Err(err) => {
+                                            log::warn!("failed to create notification: {}", err);
+                                        }
+                                    }
+                                })
+                                .await
+                                .unwrap();
 
-                        pending().await
-                    }),
+                                pending().await
+                            },
+                        )
+                    },
                 ));
             }
         }
@@ -2711,104 +2738,155 @@ impl Application for App {
             let id = *id;
             let backend_opt = self.backends.get(&op.backend_name).cloned();
             let op = op.clone();
-            subscriptions.push(Subscription::run_with_id(
-                id,
-                stream::channel(16, move |msg_tx| async move {
-                    let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
-                    let res = match backend_opt {
-                        Some(backend) => {
-                            let on_progress = {
-                                let msg_tx = msg_tx.clone();
-                                Box::new(move |progress| {
-                                    let _ = futures::executor::block_on(async {
-                                        msg_tx
-                                            .lock()
-                                            .await
-                                            .send(Message::PendingProgress(id, progress))
-                                            .await
-                                    });
-                                })
-                            };
-                            let msg_tx = msg_tx.clone();
-                            tokio::task::spawn_blocking(move || {
-                                match backend.operation(&op, on_progress) {
-                                    Ok(()) => Ok(()),
-                                    Err(err) => match err.downcast_ref::<RepositoryRemoveError>() {
-                                        Some(repo_rm) => {
+
+            struct Wrapper {
+                backend: Option<Arc<dyn Backend>>,
+                operation: Operation,
+                id: u64,
+            }
+
+            impl Hash for Wrapper {
+                fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                    self.id.hash(state);
+                }
+            }
+
+            subscriptions.push(Subscription::run_with(
+                Wrapper {
+                    backend: backend_opt.clone(),
+                    operation: op.clone(),
+                    id,
+                },
+                |Wrapper {
+                     backend,
+                     operation: op,
+                     id,
+                 }| {
+                    let backend_opt = backend.clone();
+                    let op = op.clone();
+                    let id = *id;
+                    stream::channel(
+                        16,
+                        move |msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                            let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
+                            let res = match backend_opt {
+                                Some(backend) => {
+                                    let on_progress = {
+                                        let msg_tx = msg_tx.clone();
+                                        Box::new(move |progress| {
                                             let _ = futures::executor::block_on(async {
                                                 msg_tx
                                                     .lock()
                                                     .await
-                                                    .send(Message::DialogPage(
-                                                        DialogPage::RepositoryRemove(
-                                                            op.backend_name,
-                                                            repo_rm.clone(),
-                                                        ),
-                                                    ))
+                                                    .send(Message::PendingProgress(id, progress))
                                                     .await
                                             });
-                                            Ok(())
+                                        })
+                                    };
+                                    let msg_tx = msg_tx.clone();
+                                    tokio::task::spawn_blocking(move || {
+                                        match backend.operation(&op, on_progress) {
+                                            Ok(()) => Ok(()),
+                                            Err(err) => {
+                                                match err.downcast_ref::<RepositoryRemoveError>() {
+                                                    Some(repo_rm) => {
+                                                        let _ =
+                                                            futures::executor::block_on(async {
+                                                                msg_tx
+                                                            .lock()
+                                                            .await
+                                                            .send(Message::DialogPage(
+                                                                DialogPage::RepositoryRemove(
+                                                                    op.backend_name,
+                                                                    repo_rm.clone(),
+                                                                ),
+                                                            ))
+                                                            .await
+                                                            });
+                                                        Ok(())
+                                                    }
+                                                    None => Err(err.to_string()),
+                                                }
+                                            }
                                         }
-                                        None => Err(err.to_string()),
-                                    },
+                                    })
+                                    .await
+                                    .unwrap()
                                 }
-                            })
-                            .await
-                            .unwrap()
-                        }
-                        None => Err(format!("backend {:?} not found", op.backend_name)),
-                    };
+                                None => Err(format!("backend {:?} not found", op.backend_name)),
+                            };
 
-                    match res {
-                        Ok(()) => {
-                            let _ = msg_tx.lock().await.send(Message::PendingComplete(id)).await;
-                        }
-                        Err(err) => {
-                            let _ = msg_tx
-                                .lock()
-                                .await
-                                .send(Message::PendingError(id, err))
-                                .await;
-                        }
-                    }
-                    pending().await
-                }),
+                            match res {
+                                Ok(()) => {
+                                    let _ = msg_tx
+                                        .lock()
+                                        .await
+                                        .send(Message::PendingComplete(id))
+                                        .await;
+                                }
+                                Err(err) => {
+                                    let _ = msg_tx
+                                        .lock()
+                                        .await
+                                        .send(Message::PendingError(id, err))
+                                        .await;
+                                }
+                            }
+                            pending().await
+                        },
+                    )
+                },
             ));
         }
 
         if let Some(selected) = &self.selected_opt {
             for (screenshot_i, screenshot) in selected.info.screenshots.iter().enumerate() {
                 let url = screenshot.url.clone();
-                subscriptions.push(Subscription::run_with_id(
-                    url.clone(),
-                    stream::channel(16, move |mut msg_tx| async move {
-                        log::info!("fetch screenshot {}", url);
-                        match reqwest::get(&url).await {
-                            Ok(response) => match response.bytes().await {
-                                Ok(bytes) => {
-                                    log::info!(
-                                        "fetched screenshot from {}: {} bytes",
-                                        url,
-                                        bytes.len()
-                                    );
-                                    let _ = msg_tx
-                                        .send(Message::SelectedScreenshot(
-                                            screenshot_i,
+                subscriptions.push(Subscription::run_with(
+                    (screenshot_i, url.clone()),
+                    |(screenshot_i, url)| {
+                        let screenshot_i = *screenshot_i;
+                        let url = url.clone();
+                        stream::channel(
+                            16,
+                            move |mut msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                                log::info!("fetch screenshot {}", url);
+                                match reqwest::get(&url).await {
+                                    Ok(response) => match response.bytes().await {
+                                        Ok(bytes) => {
+                                            log::info!(
+                                                "fetched screenshot from {}: {} bytes",
+                                                url,
+                                                bytes.len()
+                                            );
+                                            let _ = msg_tx
+                                                .send(Message::SelectedScreenshot(
+                                                    screenshot_i,
+                                                    url.clone(),
+                                                    bytes.to_vec(),
+                                                ))
+                                                .await;
+                                        }
+                                        Err(err) => {
+                                            log::warn!(
+                                                "failed to read screenshot from {}: {}",
+                                                url,
+                                                err
+                                            );
+                                        }
+                                    },
+                                    Err(err) => {
+                                        log::warn!(
+                                            "failed to request screenshot from {}: {}",
                                             url,
-                                            bytes.to_vec(),
-                                        ))
-                                        .await;
+                                            err
+                                        );
+                                    }
                                 }
-                                Err(err) => {
-                                    log::warn!("failed to read screenshot from {}: {}", url, err);
-                                }
+                                pending().await
                             },
-                            Err(err) => {
-                                log::warn!("failed to request screenshot from {}: {}", url, err);
-                            }
-                        }
-                        pending().await
-                    }),
+                        )
+                    },
                 ));
             }
         }
