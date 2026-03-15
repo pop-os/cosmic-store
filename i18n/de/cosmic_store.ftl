@@ -18,7 +18,7 @@ dismiss = Meldung verwerfen
 operations-running = { $running } laufende Vorgänge ({ $percent } %)...
 operations-running-finished = { $running } laufende Vorgänge ({ $percent } %), { $finished } abgeschlossen...
 # Deinstallationsdialog
-uninstall-app = { $name } deinstallieren
+uninstall-app = { $name } deinstallieren?
 uninstall-app-warning = Durch die Deinstallation von { $name } werden dessen Daten gelöscht.
 # Navigationsseiten
 explore = Entdecken
@@ -33,7 +33,7 @@ utilities = Dienstprogramme
 installed-apps = Installierte Apps
 updates = Aktualisierungen
 # Seiten erkunden
-editors-choice = Editor's Choice
+editors-choice = Empfehlung der Redaktion
 popular-apps = Beliebte Apps
 made-for-cosmic = Hergestellt für COSMIC
 new-apps = Neue Apps
@@ -128,3 +128,6 @@ panel = Panel
 dock = Dock
 uninstall-app-flatpak-warning = Bei der Deinstallation von { $name } bleiben dessen Dokumente und Daten erhalten.
 delete-app-data = App-Daten endgültig löschen
+repository-add-error-title = „Repositorium konnte nicht hinzugefügt werden“
+repository-remove-title = Repositorium „{ $name }“ entfernen?
+place-applet-desc = Wähle aus, wo das Applet hinzugefügt werden soll, bevor du dessen Position anpasst.
