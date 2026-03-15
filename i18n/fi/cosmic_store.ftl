@@ -13,8 +13,8 @@ uninstall = Poista
 update = Päivitä
 update-all = Päivitä kaikki
 # Uninstall Dialog
-uninstall-app = Poista { $name }
-uninstall-app-warning = Haluatko varmasti poistaa { $name }?
+uninstall-app = Poistetaanko asennus: { $name }?
+uninstall-app-warning = Ohjelman { $name } asennuksen poistaminen poistaa sen tiedot.
 # Nav Pages
 explore = Tutki
 create = Luo
@@ -43,8 +43,8 @@ apps-for-learning = Oppimiseen tarkoitetut sovellukset
 # Details Page
 source-installed = { $source } (asennettu)
 developer = Kehittäjä
-app-developers = { $app } Kehittäjät
-monthly-downloads = Lataukset Flathubissa Kuukausittain
+app-developers = { $app } – kehittäjät
+monthly-downloads = Flathubin kuukausittaiset lataukset
 
 # Context Pages
 
@@ -105,3 +105,34 @@ keywords = App;Software;Store;Shop;Sovellus;Appi;Ohjelma;Ohjelmisto;Kauppa;Sovel
 dismiss = Hylkää viesti
 place-and-refine = Sijoita ja hienosäädä
 place-applet-desc = Valitse mihin sovelma lisätään ennen sen sijainnin hienosäätöä.
+operations = Toiminnot
+delete-app-data = Poista sovelluksen tiedot pysyvästi
+removing = Poistetaan…
+no-operations = Ei toimintoja historiassa.
+operations-running = { $running } toimintoa meneillään ({ $percent } %)…
+repository-remove-title = Poistetaanko asennuslähde ”{ $name }”?
+adding = Lisätään…
+repository-remove-body =
+    Tämän asennuslähteen poistaminen { $dependency ->
+        [none] poistaa
+       *[other] poistaa riippuvuuden "{ $dependency }" sekä
+    } seuraavat sovellukset ja kohteet. Ne pitää asentaa uudelleen, jos asennuslähde lisätään uudelleen.
+software-repositories = Asennuslähteet
+operations-running-finished = { $running } toimintoa meneillään ({ $percent } %), { $finished } valmiina…
+codec-error = Paketin asennuksen aikana tapahtui virheitä.
+manage-repositories = Hallinnoi asennuslähteitä
+enable-flathub-cosmic = Näet saatavilla olevat sovelmat, kun otat Flathubin ja COSMIC Flatpakin käyttöön.
+uninstall-app-flatpak-warning = Ohjelman { $name } asennuksen poistaminen säilyttää sen tiedostot ja tiedot.
+codec-header = ”{ $application }” vaatii lisäpaketteja, jotka tarjoavat: ”{ $description }”.
+codec-footer =
+    Näiden lisäpakettien käyttöä voidaan joissakin maissa rajoittaa.
+    Varmista, että yksi seuraavista on totta:
+     • rajoitukset eivät koske lain mukaista sijaintimaatasi
+     • sinulla on käyttöoikeus tähän ohjelmistoon (esimerkiksi patenttilisenssi)
+     • käytät tätä ohjelmaa vain tutkimustarkoituksiin
+repository-add-error-title = ”Asennuslähteen lisääminen epäonnistui”
+complete = Valmiit
+pending = Jonossa
+failed = Epäonnistuneet
+system-package-updates = Paketin päivitykset
+flatpak-runtimes = Flatpak-ajonaikaistiedostot
