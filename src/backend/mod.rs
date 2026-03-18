@@ -1,4 +1,4 @@
-use cosmic::widget;
+use cosmic::{app::Task, widget};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -15,6 +15,7 @@ use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 pub enum BackendName {
     FlatpakUser,
     FlatpakSystem,
+    Homebrew,
     Packagekit,
     Pkgar,
 }
@@ -25,6 +26,7 @@ impl BackendName {
         match self {
             BackendName::FlatpakUser => "flatpak-user",
             BackendName::FlatpakSystem => "flatpak-system",
+            BackendName::Homebrew => "homebrew",
             BackendName::Packagekit => "packagekit",
             BackendName::Pkgar => "pkgar",
         }
@@ -49,6 +51,7 @@ impl std::str::FromStr for BackendName {
         match s {
             "flatpak-user" => Ok(BackendName::FlatpakUser),
             "flatpak-system" => Ok(BackendName::FlatpakSystem),
+            "homebrew" => Ok(BackendName::Homebrew),
             "packagekit" => Ok(BackendName::Packagekit),
             "pkgar" => Ok(BackendName::Pkgar),
             _ => Err(format!("unknown backend name: {}", s)),
@@ -64,6 +67,9 @@ mod packagekit;
 
 #[cfg(feature = "pkgar")]
 mod pkgar;
+
+#[cfg(feature = "homebrew")]
+mod homebrew;
 
 #[derive(Clone, Debug)]
 pub struct Package {
@@ -161,6 +167,9 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
         }
     }
 
+    // Note: Homebrew is initialized separately via init_homebrew() to avoid
+    // delaying the explore page load (homebrew has no appstream data)
+
     backends.par_iter_mut().for_each(|(backend_name, backend)| {
         let start = Instant::now();
         match Arc::get_mut(backend).unwrap().load_caches(refresh) {
@@ -186,4 +195,43 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
     }
 
     backends
+}
+
+/// Initialize homebrew backend in background (deferred to avoid delaying explore page)
+#[cfg(feature = "homebrew")]
+pub fn homebrew_init_task(locale: String) -> Task<crate::Message> {
+    homebrew::init_task(locale)
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn homebrew_init_task(_locale: String) -> Task<crate::Message> {
+    Task::none()
+}
+
+/// Load homebrew installed packages in background
+#[cfg(feature = "homebrew")]
+pub fn homebrew_installed_task(backends: &Backends) -> Task<crate::Message> {
+    match backends.get(&BackendName::Homebrew) {
+        Some(backend) => homebrew::installed_task(backend.clone()),
+        None => Task::none(),
+    }
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn homebrew_installed_task(_backends: &Backends) -> Task<crate::Message> {
+    Task::none()
+}
+
+/// Load homebrew updates in background
+#[cfg(feature = "homebrew")]
+pub fn homebrew_updates_task(backends: &Backends) -> Task<crate::Message> {
+    match backends.get(&BackendName::Homebrew) {
+        Some(backend) => homebrew::updates_task(backend.clone()),
+        None => Task::none(),
+    }
+}
+
+#[cfg(not(feature = "homebrew"))]
+pub fn homebrew_updates_task(_backends: &Backends) -> Task<crate::Message> {
+    Task::none()
 }
