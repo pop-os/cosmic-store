@@ -22,6 +22,7 @@ use cosmic::{
     widget::{self},
 };
 use freedesktop_desktop_entry as fde;
+use futures::StreamExt;
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
 use std::{
@@ -280,7 +281,8 @@ impl CosmicFlags for Flags {
 #[derive(Clone, Debug)]
 pub enum Message {
     AppTheme(AppTheme),
-    Backends(Backends),
+    BackendUpdate(BackendName, Arc<dyn Backend>),
+    BackendUpdateFinished,
     CategoryResults(&'static [Category], Vec<SearchResult>),
     CategoryIconsLoaded(&'static [Category], Vec<(usize, widget::icon::Handle)>),
     CheckUpdates,
@@ -1156,27 +1158,12 @@ impl App {
 
     fn update_backends(&mut self, refresh: bool) -> Task<Message> {
         let locale = self.locale.clone();
-        Task::perform(
-            async move {
-                tokio::task::spawn_blocking(move || {
-                    let start = Instant::now();
-                    let backends = backend::backends(&locale, refresh);
-                    let duration = start.elapsed();
-                    log::info!(
-                        "loaded backends {} in {:?}",
-                        if refresh {
-                            "with refreshing"
-                        } else {
-                            "without refreshing"
-                        },
-                        duration
-                    );
-                    action::app(Message::Backends(backends))
-                })
-                .await
-                .unwrap_or(action::none())
-            },
-            |x| x,
+        cosmic::task::stream(
+            backend::backends(&locale, refresh)
+                .map(|(name, backend)| Message::BackendUpdate(name, backend))
+                .chain(futures::stream::once(async {
+                    Message::BackendUpdateFinished
+                })),
         )
     }
 

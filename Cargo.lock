@@ -1220,6 +1220,7 @@ dependencies = [
  "flate2",
  "freedesktop-desktop-entry",
  "freedesktop_entry_parser",
+ "futures",
  "i18n-embed",
  "i18n-embed-fl",
  "icu_collator",

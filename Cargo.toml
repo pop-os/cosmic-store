@@ -9,6 +9,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 freedesktop_entry_parser = "2"
+futures = "0.3"
 log = "0.4"
 open = "5"
 paste = "1"

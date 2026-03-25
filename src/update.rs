@@ -63,9 +63,18 @@ impl App {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
             }
-            Message::Backends(backends) => {
-                self.backends = backends;
-                self.repos_changing.clear();
+
+            Message::BackendUpdate(name, backend) => {
+                self.backends.insert(name, backend);
+
+                if let Some(pos) = self
+                    .repos_changing
+                    .iter()
+                    .position(|(name_, ..)| *name_ == name)
+                {
+                    self.repos_changing.remove(pos);
+                }
+
                 // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_installed());
@@ -77,6 +86,11 @@ impl App {
                 }
                 return Task::batch(tasks);
             }
+
+            Message::BackendUpdateFinished => {
+                self.repos_changing.clear();
+            }
+
             Message::CategoryResults(categories, mut results) => {
                 if let Some(start) = self.category_load_start.take() {
                     log::info!(

@@ -1,5 +1,5 @@
 use cosmic::widget;
-use rayon::prelude::*;
+use futures::StreamExt;
 use std::{
     collections::{BTreeMap, HashMap},
     error::Error,
@@ -96,8 +96,12 @@ pub trait Backend: fmt::Debug + Send + Sync {
 // BTreeMap for stable sort order
 pub type Backends = BTreeMap<BackendName, Arc<dyn Backend>>;
 
-pub fn backends(locale: &str, refresh: bool) -> Backends {
-    let mut backends = Backends::new();
+/// Load store backends using rayon parallelism and concurrency.
+pub fn backends<'a>(
+    locale: &'a str,
+    refresh: bool,
+) -> impl futures::Stream<Item = (BackendName, Arc<dyn Backend>)> + Send + Unpin + 'static {
+    let backends = futures::stream::FuturesUnordered::new();
 
     #[cfg(feature = "flatpak")]
     {
@@ -105,85 +109,136 @@ pub fn backends(locale: &str, refresh: bool) -> Backends {
             (BackendName::FlatpakUser, true),
             (BackendName::FlatpakSystem, false),
         ] {
-            let start = Instant::now();
-            match flatpak::Flatpak::new(user, locale) {
-                Ok(backend) => {
-                    backends.insert(backend_name, Arc::new(backend));
-                    let duration = start.elapsed();
-                    log::info!("initialized {} backend in {:?}", backend_name, duration);
-                }
-                Err(err) => {
-                    log::error!("failed to load {} backend: {}", backend_name, err);
-                }
-            }
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let locale = locale.to_owned();
+
+            tokio::task::spawn_blocking(move || {
+                let start = Instant::now();
+                log::info!("adding flatpak repository");
+                _ = tx.send(match flatpak::Flatpak::new(user, &locale) {
+                    Ok(backend) => {
+                        let duration = start.elapsed();
+                        log::warn!("initialized {} backend in {:?}", backend_name, duration);
+                        let backend: Arc<dyn Backend> = Arc::new(backend);
+                        Some((backend_name, backend))
+                    }
+                    Err(err) => {
+                        log::warn!("failed to load {} backend: {}", backend_name, err);
+                        None
+                    }
+                });
+            });
+
+            backends.push(rx)
         }
     }
 
     #[cfg(feature = "packagekit")]
     {
-        let start = Instant::now();
-        match packagekit::Packagekit::new(locale) {
-            Ok(backend) => {
-                backends.insert(BackendName::Packagekit, Arc::new(backend));
-                let duration = start.elapsed();
-                log::info!(
-                    "initialized {} backend in {:?}",
-                    BackendName::Packagekit,
-                    duration
-                );
-            }
-            Err(err) => {
-                log::error!(
-                    "failed to load {} backend: {}",
-                    BackendName::Packagekit,
-                    err
-                );
-            }
-        }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding packagekit backend");
+            _ = tx.send(match packagekit::Packagekit::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::warn!(
+                        "initialized {} backend in {:?}",
+                        BackendName::Packagekit,
+                        duration
+                    );
+                    Some((BackendName::Packagekit, backend))
+                }
+                Err(err) => {
+                    log::error!(
+                        "failed to load {} backend: {}",
+                        BackendName::Packagekit,
+                        err
+                    );
+                    None
+                }
+            });
+        });
+
+        backends.push(rx)
     }
 
     #[cfg(feature = "pkgar")]
     {
-        let start = Instant::now();
-        match pkgar::Pkgar::new(locale) {
-            Ok(backend) => {
-                backends.insert(BackendName::Pkgar, Arc::new(backend));
-                let duration = start.elapsed();
-                log::info!(
-                    "initialized {} backend in {:?}",
-                    BackendName::Pkgar,
-                    duration
-                );
-            }
-            Err(err) => {
-                log::error!("failed to load {} backend: {}", BackendName::Pkgar, err);
-            }
-        }
-    }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
 
-    backends.par_iter_mut().for_each(|(backend_name, backend)| {
-        let start = Instant::now();
-        match Arc::get_mut(backend).unwrap().load_caches(refresh) {
-            Ok(()) => {
-                let duration = start.elapsed();
-                log::info!("loaded {} backend caches in {:?}", backend_name, duration);
-            }
-            Err(err) => {
-                log::error!("failed to load {} backend caches: {}", backend_name, err);
-            }
-        }
-    });
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding pkgar backend");
+            _ = tx.send(match pkgar::Pkgar::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::info!(
+                        "initialized {} backend in {:?}",
+                        BackendName::Pkgar,
+                        duration
+                    );
+                    Some((BackendName::Pkgar, backend))
+                }
+                Err(err) => {
+                    log::error!("failed to load {} backend: {}", BackendName::Pkgar, err);
+                    None
+                }
+            })
+        });
 
-    //TODO: Workaround for xml-rs memory leak when loading appstream data
-    #[cfg(all(target_os = "linux", target_env = "gnu"))]
-    {
-        let start = Instant::now();
-        unsafe {
-            libc::malloc_trim(0);
-        }
-        let duration = start.elapsed();
-        log::info!("trimmed allocations in {:?}", duration);
+        backends.push(rx)
     }
 
     backends
+        // Create a stream of futures that wait for caches to be loaded for each backend received
+        .map(move |value| async move {
+            let (backend_name, mut backend) = value.ok()??;
+
+            let start = Instant::now();
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            tokio::task::spawn_blocking(move || {
+                match Arc::get_mut(&mut backend).unwrap().load_caches(refresh) {
+                    Ok(()) => {
+                        let duration = start.elapsed();
+                        log::info!("loaded {} backend caches in {:?}", backend_name, duration);
+                    }
+                    Err(err) => {
+                        log::error!("failed to load {} backend caches: {}", backend_name, err);
+                    }
+                }
+
+                _ = tx.send(backend);
+            });
+
+            Some((backend_name, rx.await.unwrap()))
+        })
+        // Concurrently load caches for up to 4 backends at one time
+        .buffer_unordered(4)
+        // After all backends have been loaded, trim malloc
+        .chain(futures::stream::once(async {
+            //TODO: Workaround for xml-rs memory leak when loading appstream data
+            #[cfg(all(target_os = "linux", target_env = "gnu"))]
+            {
+                let start = Instant::now();
+                unsafe {
+                    libc::malloc_trim(0);
+                }
+                let duration = start.elapsed();
+                log::info!("trimmed allocations in {:?}", duration);
+            }
+
+            None
+        }))
+        // Filter None outcomes
+        .filter_map(|result| async move { result })
+        // Pin it for `StreamExt::next()`.
+        .boxed()
 }
