@@ -266,7 +266,7 @@ impl App {
                     }
                 }
             },
-            Message::Installed(installed) => {
+            Message::Installed((backend_name, installed)) => {
                 let mut installed = match self.installed.take() {
                     Some(mut existing) => {
                         existing.extend_from_slice(&installed);
@@ -286,7 +286,13 @@ impl App {
                 });
 
                 self.installed = Some(installed);
-                self.waiting_installed.clear();
+                if let Some(pos) = self
+                    .waiting_installed
+                    .iter()
+                    .position(|(name, ..)| *name == backend_name)
+                {
+                    self.waiting_installed.swap_remove(pos);
+                }
 
                 return self.update_apps();
             }
@@ -864,7 +870,7 @@ impl App {
                     }
                 }
             }
-            Message::Updates(updates) => {
+            Message::Updates((backend_name, updates)) => {
                 let mut updates = match self.updates.take() {
                     Some(mut existing) => {
                         existing.extend_from_slice(&updates);
@@ -884,7 +890,13 @@ impl App {
                 });
 
                 self.updates = Some(updates);
-                self.waiting_updates.clear();
+                if let Some(pos) = self
+                    .waiting_updates
+                    .iter()
+                    .position(|(name, ..)| *name == backend_name)
+                {
+                    self.waiting_updates.swap_remove(pos);
+                }
             }
             Message::WindowClose => {
                 if let Some(window_id) = self.core.main_window_id() {

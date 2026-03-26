@@ -301,7 +301,7 @@ pub enum Message {
     GStreamerInstall,
     GStreamerToggle(usize),
     AppsUpdated(Arc<Apps>, Arc<CategoryIndex>),
-    Installed(Vec<(BackendName, Package)>),
+    Installed((BackendName, Vec<(BackendName, Package)>)),
     InstalledResults(Vec<SearchResult>),
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
     Key(Modifiers, Key, Option<SmolStr>),
@@ -346,7 +346,7 @@ pub enum Message {
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     ToggleContextPage(ContextPage),
     UpdateAll,
-    Updates(Vec<(BackendName, Package)>),
+    Updates((BackendName, Vec<(BackendName, Package)>)),
     WindowClose,
     WindowNew,
     SelectPlacement(cosmic::widget::segmented_button::Entity),
@@ -1373,7 +1373,7 @@ impl App {
                         installed.len(),
                         collect_start.elapsed()
                     );
-                    action::app(Message::Installed(installed))
+                    action::app(Message::Installed((backend_name, installed)))
                 })
                 .await
                 .unwrap_or(action::none())
@@ -1413,7 +1413,7 @@ impl App {
                         collect_start.elapsed()
                     );
 
-                    action::app(Message::Updates(updates))
+                    action::app(Message::Updates((backend_name, updates)))
                 })
                 .await
                 .unwrap_or(action::none())
