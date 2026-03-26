@@ -1,4 +1,5 @@
 use cosmic::widget;
+use futures::StreamExt;
 use libflatpak::{Installation, Ref, Remote, Transaction, gio::Cancellable, glib, prelude::*};
 use std::{
     cell::{Cell, RefCell},
@@ -230,20 +231,56 @@ impl Flatpak {
 
 impl Backend for Flatpak {
     fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>> {
-        if refresh {
-            let inst = self.installation()?;
-            for remote in inst.list_remotes(Cancellable::NONE)? {
-                let Some(remote_name) = remote.name() else {
-                    continue;
-                };
-                inst.update_remote_sync(&remote_name, Cancellable::NONE)?;
-                inst.update_appstream_sync(&remote_name, None, Cancellable::NONE)?;
-            }
-        }
+        let inst = self.installation()?;
+        let appstream_caches = std::mem::take(&mut self.appstream_caches);
+        let local_set = tokio::task::LocalSet::new();
 
-        for appstream_cache in self.appstream_caches.iter_mut() {
-            appstream_cache.reload();
-        }
+        self.appstream_caches = futures::executor::block_on(async move {
+            local_set.run_until(async move {
+                if refresh {
+                    if let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
+                        remotes.into_iter()
+                            .filter_map(|remote| remote.name())
+                            .for_each(|remote_name| {
+                                log::info!("updating flatpak remote {remote_name}");
+                                if let Err(why) =
+                                    inst.update_remote_sync(&remote_name, Cancellable::NONE)
+                                {
+                                    log::error!(
+                                        "failed to update flatpak remote {remote_name}: {why:?}"
+                                    );
+                                    return;
+                                }
+
+                                log::info!("updating appstream metadata for flatpak remote {remote_name}");
+                                if let Err(why) = inst.update_appstream_sync(&remote_name, None, Cancellable::NONE) {
+                                    log::error!(
+                                        "failed to update flatpak remote {remote_name} appstream metadata: {why:?}"
+                                    );
+                                    return;
+                                }
+                            });
+                    }
+                }
+
+                // Parallel reload of appstream caches.
+                appstream_caches
+                    .into_iter()
+                    .map(|mut cache| async move {
+                        tokio::task::spawn_blocking(move || {
+                            cache.reload();
+                            cache
+                        })
+                        .await
+                        .expect("flatpak worker thread failed to join")
+                    })
+                    .collect::<futures::stream::FuturesOrdered<_>>()
+                    .collect::<Vec<AppstreamCache>>()
+                    .await
+            })
+            .await
+        });
+
         Ok(())
     }
 
