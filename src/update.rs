@@ -1009,30 +1009,19 @@ impl App {
                 }
 
                 // launch the applet settings
-                let settings_desktop_id = "com.system76.CosmicSettings";
-                let exec = panel_info.1;
-                return Task::perform(
-                    async move {
-                        tokio::task::spawn_blocking(move || Some((exec, settings_desktop_id)))
-                            .await
-                            .unwrap_or(None)
-                    },
-                    |result| {
-                        #[cfg(feature = "desktop")]
-                        if let Some((exec, settings_desktop_id)) = result {
-                            tokio::spawn(async move {
-                                cosmic::desktop::spawn_desktop_exec(
-                                    &exec,
-                                    Vec::<(&str, &str)>::new(),
-                                    Some(settings_desktop_id),
-                                    false,
-                                )
-                                .await;
-                            });
-                        }
-                        action::none()
-                    },
-                );
+                #[cfg(feature = "desktop")]
+                {
+                    let exec = panel_info.1;
+                    tokio::task::spawn(async move {
+                        cosmic::desktop::spawn_desktop_exec(
+                            &exec,
+                            Vec::<(&str, &str)>::new(),
+                            Some("com.system76.CosmicSettings"),
+                            false,
+                        )
+                        .await;
+                    });
+                }
             }
         }
 
