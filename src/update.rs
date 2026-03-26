@@ -122,7 +122,7 @@ impl App {
                 //TODO: this only checks updates if they have already been checked
                 if self.updates.take().is_some() {
                     if self.pending_operations.is_empty() {
-                        return self.update_backends(true);
+                        return self.update_backends(false);
                     } else {
                         log::warn!("cannot check for updates, operations are in progress");
                     }
