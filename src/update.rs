@@ -294,7 +294,15 @@ impl App {
                     self.waiting_installed.swap_remove(pos);
                 }
 
-                return self.update_apps();
+                // Delay `App::update_apps` task to allow backends to catch up.
+                if !self.update_apps_scheduled {
+                    self.update_apps_scheduled = true;
+                    return cosmic::Task::future(tokio::time::sleep(
+                        std::time::Duration::from_millis(300),
+                    ))
+                    .discard()
+                    .chain(cosmic::Task::done(action::app(Message::AppsUpdatedStart)));
+                }
             }
             Message::AppsUpdated(apps, category_index) => {
                 self.apps = apps;
@@ -338,6 +346,10 @@ impl App {
                     Mode::GStreamer { .. } => {}
                 }
                 return Task::batch(commands);
+            }
+            Message::AppsUpdatedStart => {
+                self.update_apps_scheduled = false;
+                return self.update_apps();
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);

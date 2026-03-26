@@ -301,6 +301,8 @@ pub enum Message {
     GStreamerInstall,
     GStreamerToggle(usize),
     AppsUpdated(Arc<Apps>, Arc<CategoryIndex>),
+    /// Use to unset `App::updated_apps_scheduled`
+    AppsUpdatedStart,
     Installed((BackendName, Vec<(BackendName, Package)>)),
     InstalledResults(Vec<SearchResult>),
     InstalledIconsLoaded(Vec<(usize, widget::icon::Handle)>),
@@ -457,6 +459,8 @@ pub struct App {
     pub search_results: Option<(String, Vec<SearchResult>)>,
     pub selected_opt: Option<Selected>,
     pub applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
+    /// Prevents multiple instances of `App::update_apps()` tasks
+    pub update_apps_scheduled: bool,
     pub uninstall_purge_data: bool,
 }
 
@@ -1214,6 +1218,7 @@ impl App {
     fn update_apps(&self) -> Task<Message> {
         let backends = self.backends.clone();
         let installed = self.installed.clone();
+
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
@@ -2052,6 +2057,7 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
+            update_apps_scheduled: false,
             uninstall_purge_data: false,
         };
 
