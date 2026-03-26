@@ -1343,53 +1343,35 @@ impl App {
         )
     }
 
-    fn update_installed(&self) -> Task<Message> {
-        let backends = self.backends.clone();
+    fn update_backend_installed(
+        &self,
+        backend_name: BackendName,
+        backend: Arc<dyn Backend>,
+    ) -> Task<Message> {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let total_start = Instant::now();
                     let collect_start = Instant::now();
-                    let mut installed: Vec<_> = backends
-                        .par_iter()
-                        .flat_map(|(backend_name, backend)| {
-                            let start = Instant::now();
-                            let result: Vec<_> = match backend.installed() {
-                                Ok(packages) => packages
-                                    .into_iter()
-                                    .map(|package| (*backend_name, package))
-                                    .collect(),
-                                Err(err) => {
-                                    log::error!("failed to list installed: {}", err);
-                                    Vec::new()
-                                }
-                            };
-                            let duration = start.elapsed();
-                            log::info!("loaded installed from {} in {:?}", backend_name, duration);
-                            result
-                        })
-                        .collect();
+                    let installed: Vec<_> = {
+                        let start = Instant::now();
+                        let result: Vec<_> = match backend.installed() {
+                            Ok(packages) => packages
+                                .into_iter()
+                                .map(|package| (backend_name, package))
+                                .collect(),
+                            Err(err) => {
+                                log::error!("failed to list installed: {}", err);
+                                Vec::new()
+                            }
+                        };
+                        let duration = start.elapsed();
+                        log::info!("loaded installed from {} in {:?}", backend_name, duration);
+                        result
+                    };
                     log::debug!(
-                        "update_installed: collected {} packages in {:?}",
+                        "update_backend_installed: collected {} packages in {:?}",
                         installed.len(),
                         collect_start.elapsed()
-                    );
-                    let sort_start = Instant::now();
-                    installed.par_sort_unstable_by(|a, b| {
-                        let a_is_system = a.1.id.is_system();
-                        let b_is_system = b.1.id.is_system();
-                        if a_is_system && !b_is_system {
-                            cmp::Ordering::Less
-                        } else if b_is_system && !a_is_system {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
-                    log::debug!(
-                        "update_installed: sorted in {:?}, total {:?}",
-                        sort_start.elapsed(),
-                        total_start.elapsed()
                     );
                     action::app(Message::Installed(installed))
                 })
@@ -1400,52 +1382,37 @@ impl App {
         )
     }
 
-    fn update_updates(&self) -> Task<Message> {
-        let backends = self.backends.clone();
+    fn update_backend_updates(
+        &self,
+        backend_name: BackendName,
+        backend: Arc<dyn Backend>,
+    ) -> Task<Message> {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let total_start = Instant::now();
                     let collect_start = Instant::now();
-                    let mut updates: Vec<_> = backends
-                        .par_iter()
-                        .flat_map(|(backend_name, backend)| {
-                            let start = Instant::now();
-                            let result: Vec<_> = match backend.updates() {
-                                Ok(packages) => packages
-                                    .into_iter()
-                                    .map(|package| (*backend_name, package))
-                                    .collect(),
-                                Err(err) => {
-                                    log::error!("failed to list updates: {}", err);
-                                    Vec::new()
-                                }
-                            };
-                            let duration = start.elapsed();
-                            log::info!("loaded updates from {} in {:?}", backend_name, duration);
-                            result
-                        })
-                        .collect();
+                    let updates: Vec<_> = {
+                        let start = Instant::now();
+                        let result: Vec<_> = match backend.updates() {
+                            Ok(packages) => packages
+                                .into_iter()
+                                .map(|package| (backend_name, package))
+                                .collect(),
+                            Err(err) => {
+                                log::error!("failed to list updates: {}", err);
+                                Vec::new()
+                            }
+                        };
+                        let duration = start.elapsed();
+                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                        result
+                    };
                     log::debug!(
-                        "update_updates: collected {} packages in {:?}",
+                        "update_backend_updates: collected {} packages in {:?}",
                         updates.len(),
                         collect_start.elapsed()
                     );
-                    let sort_start = Instant::now();
-                    updates.par_sort_unstable_by(|a, b| {
-                        if a.1.id.is_system() {
-                            cmp::Ordering::Less
-                        } else if b.1.id.is_system() {
-                            cmp::Ordering::Greater
-                        } else {
-                            LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
-                        }
-                    });
-                    log::debug!(
-                        "update_updates: sorted in {:?}, total {:?}",
-                        sort_start.elapsed(),
-                        total_start.elapsed()
-                    );
+
                     action::app(Message::Updates(updates))
                 })
                 .await
@@ -2185,7 +2152,9 @@ impl Application for App {
         }
         if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
             if self.updates.is_some() {
-                commands.push(self.update_updates());
+                for (name, backend) in self.backends.clone() {
+                    commands.push(self.update_backend_updates(name, backend));
+                }
             }
         }
         Task::batch(commands)

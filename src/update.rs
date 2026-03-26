@@ -21,6 +21,7 @@ use cosmic::{
 use cosmic::cosmic_config::CosmicConfigEntry;
 #[cfg(feature = "wayland")]
 use cosmic_panel_config::CosmicPanelConfig;
+use rayon::slice::ParallelSliceMut;
 
 use crate::backend::BackendName;
 use crate::explore::ExplorePage;
@@ -65,7 +66,8 @@ impl App {
             }
 
             Message::BackendUpdate(name, backend) => {
-                self.backends.insert(name, backend);
+                log::info!("adding backend {name}");
+                self.backends.insert(name.clone(), backend.clone());
 
                 if let Some(pos) = self
                     .repos_changing
@@ -77,10 +79,10 @@ impl App {
 
                 // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
                 let mut tasks = Vec::with_capacity(2);
-                tasks.push(self.update_installed());
+                tasks.push(self.update_backend_installed(name, backend.clone()));
                 match self.mode {
                     Mode::Normal => {
-                        tasks.push(self.update_updates());
+                        tasks.push(self.update_backend_updates(name, backend));
                     }
                     Mode::GStreamer { .. } => {}
                 }
@@ -240,10 +242,6 @@ impl App {
                                     } else {
                                         OperationKind::Install
                                     };
-                                    eprintln!(
-                                        "{:?} {:?} from backend {} and info {:?}",
-                                        kind, result.id, result.backend_name, result.info
-                                    );
                                     ops.push(Operation {
                                         kind,
                                         backend_name: result.backend_name,
@@ -269,6 +267,24 @@ impl App {
                 }
             },
             Message::Installed(installed) => {
+                let mut installed = match self.installed.take() {
+                    Some(mut existing) => {
+                        existing.extend_from_slice(&installed);
+                        existing
+                    }
+                    None => installed,
+                };
+
+                installed.par_sort_unstable_by(|a, b| {
+                    if a.1.id.is_system() {
+                        std::cmp::Ordering::Less
+                    } else if b.1.id.is_system() {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        super::LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
+                    }
+                });
+
                 self.installed = Some(installed);
                 self.waiting_installed.clear();
 
@@ -419,11 +435,15 @@ impl App {
                         ]);
                     }
                 }
-                return Task::batch([
-                    self.update_notification(),
-                    self.update_installed(),
-                    self.update_updates(),
-                ]);
+
+                let mut tasks = Vec::with_capacity(self.backends.len() * 2 + 1);
+                tasks.push(self.update_notification());
+                for (name, backend) in self.backends.clone() {
+                    tasks.push(self.update_backend_installed(name, backend.clone()));
+                    tasks.push(self.update_backend_updates(name, backend));
+                }
+
+                return Task::batch(tasks);
             }
             Message::PendingDismiss => {
                 self.progress_operations.clear();
@@ -845,6 +865,24 @@ impl App {
                 }
             }
             Message::Updates(updates) => {
+                let mut updates = match self.updates.take() {
+                    Some(mut existing) => {
+                        existing.extend_from_slice(&updates);
+                        existing
+                    }
+                    None => updates,
+                };
+
+                updates.par_sort_unstable_by(|a, b| {
+                    if a.1.id.is_system() {
+                        std::cmp::Ordering::Less
+                    } else if b.1.id.is_system() {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        super::LANGUAGE_SORTER.compare(&a.1.info.name, &b.1.info.name)
+                    }
+                });
+
                 self.updates = Some(updates);
                 self.waiting_updates.clear();
             }
