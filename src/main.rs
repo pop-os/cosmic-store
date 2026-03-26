@@ -2079,7 +2079,7 @@ impl Application for App {
             }
         }
 
-        let command = Task::batch([app.update_title(), app.update_backends(true)]);
+        let command = Task::batch([app.update_title(), app.update_backends(false)]);
         (app, command)
     }
 
