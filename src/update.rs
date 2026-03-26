@@ -193,11 +193,12 @@ impl App {
                 // Save pre-built cache in background
                 tasks.push(Task::perform(
                     async move {
-                        tokio::task::spawn_blocking(move || {
-                            cached.save().map_err(|e| e.to_string())
-                        })
-                        .await
-                        .unwrap_or_else(|e| Err(e.to_string()))
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        rayon::spawn(move || {
+                            _ = tx.send(cached.save().map_err(|e| e.to_string()));
+                        });
+
+                        rx.await.unwrap_or_else(|e| Err(e.to_string()))
                     },
                     |result| action::app(Message::ExploreCacheSaved(result)),
                 ));
