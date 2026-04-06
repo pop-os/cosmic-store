@@ -2340,7 +2340,7 @@ impl Application for App {
                 .title(fl!("place-applet"))
                 .body(fl!("place-applet-desc"))
                 .control(
-                    widget::row().push(
+                    widget::row::with_capacity(1).push(
                         cosmic::widget::segmented_control::horizontal(
                             &self.applet_placement_buttons,
                         )

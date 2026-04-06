@@ -78,7 +78,7 @@ pub fn package_card_view<'a>(
     };
 
     widget::container(
-        widget::row()
+        widget::row::with_capacity(2)
             .push(icon)
             .push(column)
             .align_y(Alignment::Center)
