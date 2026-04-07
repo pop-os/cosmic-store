@@ -178,7 +178,8 @@ impl App {
         if let Some(progress) = progress_opt {
             //TODO: get height from theme?
             buttons.push(
-                widget::progress_bar(0.0..=100.0, progress)
+                widget::determinate_linear::<Message>(progress)
+                    .width(Length::Fill)
                     .girth(Length::Fixed(4.0))
                     .into(),
             )
@@ -919,7 +920,8 @@ impl App {
                                     }
                                     let controls = if let Some(progress) = progress_opt {
                                         vec![
-                                            widget::progress_bar(0.0..=100.0, progress)
+                                            widget::determinate_linear::<Message>(progress)
+                                                .width(Length::Fill)
                                                 .girth(Length::Fixed(4.0))
                                                 .into(),
                                         ]

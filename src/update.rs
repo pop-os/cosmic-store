@@ -66,7 +66,7 @@ impl App {
             }
 
             Message::BackendUpdate(name, backend) => {
-                log::info!("adding backend {name}");
+                log::debug!("adding backend {name}");
                 self.backends.insert(name.clone(), backend.clone());
 
                 if let Some(pos) = self
@@ -77,19 +77,22 @@ impl App {
                     self.repos_changing.remove(pos);
                 }
 
-                // Note: Don't clear explore_results to avoid flicker - fresh results will overwrite
                 let mut tasks = Vec::with_capacity(2);
                 tasks.push(self.update_backend_installed(name, backend.clone()));
-                match self.mode {
-                    Mode::Normal => {
-                        tasks.push(self.update_backend_updates(name, backend));
-                    }
-                    Mode::GStreamer { .. } => {}
+
+                if let Mode::Normal = self.mode {
+                    tasks.push(self.update_backend_updates(name, backend));
                 }
+
                 return Task::batch(tasks);
             }
 
+            Message::BackendUpdateStart => {
+                self.fetching_backends = true;
+            }
+
             Message::BackendUpdateFinished => {
+                self.fetching_backends = false;
                 self.repos_changing.clear();
             }
 
@@ -270,6 +273,7 @@ impl App {
             Message::Installed((backend_name, installed)) => {
                 let mut installed = match self.installed.take() {
                     Some(mut existing) => {
+                        existing.retain(|(backend, _)| *backend != backend_name);
                         existing.extend_from_slice(&installed);
                         existing
                     }
@@ -287,13 +291,6 @@ impl App {
                 });
 
                 self.installed = Some(installed);
-                if let Some(pos) = self
-                    .waiting_installed
-                    .iter()
-                    .position(|(name, ..)| *name == backend_name)
-                {
-                    self.waiting_installed.swap_remove(pos);
-                }
 
                 // Delay `App::update_apps` task to allow backends to catch up.
                 if !self.update_apps_scheduled {
@@ -306,6 +303,7 @@ impl App {
                 }
             }
             Message::AppsUpdated(apps, category_index) => {
+                self.update_apps_in_progress = false;
                 self.apps = apps;
                 self.category_index = category_index;
 
@@ -349,7 +347,6 @@ impl App {
                 return Task::batch(commands);
             }
             Message::AppsUpdatedStart => {
-                self.update_apps_scheduled = false;
                 return self.update_apps();
             }
             Message::InstalledResults(installed_results) => {
@@ -427,6 +424,7 @@ impl App {
                 });
             }
             Message::PendingComplete(id) => {
+                log::debug!("pending complete {id}");
                 if let Some((op, _)) = self.pending_operations.remove(&id) {
                     for (package_id, info) in op.package_ids.iter().zip(op.infos.iter()) {
                         self.waiting_installed.push((
@@ -442,6 +440,9 @@ impl App {
                     }
                     self.complete_operations.insert(id, op);
                 }
+
+                let mut tasks = Vec::with_capacity(self.backends.len() * 2 + 1);
+
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
@@ -453,12 +454,12 @@ impl App {
                             self.update_backends(true),
                         ]);
                     }
+
+                    tasks.push(self.update_notification());
                 }
 
-                let mut tasks = Vec::with_capacity(self.backends.len() * 2 + 1);
-                tasks.push(self.update_notification());
                 for (name, backend) in self.backends.clone() {
-                    tasks.push(self.update_backend_installed(name, backend.clone()));
+                    tasks.push(self.update_backend_installed(name.clone(), backend.clone()));
                     tasks.push(self.update_backend_updates(name, backend));
                 }
 
@@ -473,6 +474,9 @@ impl App {
                     self.failed_operations.insert(id, (op, progress, err));
                     self.dialog_pages.push_back(DialogPage::FailedOperation(id));
                 }
+
+                let mut tasks = Vec::with_capacity(self.backends.len() * 2 + 1);
+
                 // Close progress notification if all relavent operations are finished
                 if self.pending_operations.is_empty() {
                     self.progress_operations.clear();
@@ -484,12 +488,20 @@ impl App {
                             self.update_backends(true),
                         ]);
                     }
+
+                    tasks.push(self.update_notification());
                 }
-                return self.update_notification();
+
+                for (name, backend) in self.backends.clone() {
+                    tasks.push(self.update_backend_installed(name.clone(), backend.clone()));
+                    tasks.push(self.update_backend_updates(name, backend));
+                }
+
+                return Task::batch(tasks);
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
-                    *progress = new_progress;
+                    *progress = new_progress / 100.0;
                 }
                 return self.update_notification();
             }
@@ -886,6 +898,7 @@ impl App {
             Message::Updates((backend_name, updates)) => {
                 let mut updates = match self.updates.take() {
                     Some(mut existing) => {
+                        existing.retain(|(backend, _)| *backend != backend_name);
                         existing.extend_from_slice(&updates);
                         existing
                     }
@@ -903,14 +916,12 @@ impl App {
                 });
 
                 self.updates = Some(updates);
-                if let Some(pos) = self
-                    .waiting_updates
-                    .iter()
-                    .position(|(name, ..)| *name == backend_name)
-                {
-                    self.waiting_updates.swap_remove(pos);
-                }
             }
+
+            Message::UpdatesComplete(key) => {
+                self.pending_backend_updates.remove(key);
+            }
+
             Message::WindowClose => {
                 if let Some(window_id) = self.core.main_window_id() {
                     self.core.set_main_window_id(None);

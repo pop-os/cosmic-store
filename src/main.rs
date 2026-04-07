@@ -25,6 +25,7 @@ use freedesktop_desktop_entry as fde;
 use futures::StreamExt;
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
+use slotmap::SlotMap;
 use std::{
     any::TypeId,
     cell::Cell,
@@ -283,6 +284,7 @@ pub enum Message {
     AppTheme(AppTheme),
     BackendUpdate(BackendName, Arc<dyn Backend>),
     BackendUpdateFinished,
+    BackendUpdateStart,
     CategoryResults(&'static [Category], Vec<SearchResult>),
     CategoryIconsLoaded(&'static [Category], Vec<(usize, widget::icon::Handle)>),
     CheckUpdates,
@@ -349,6 +351,7 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateAll,
     Updates((BackendName, Vec<(BackendName, Package)>)),
+    UpdatesComplete(slotmap::DefaultKey),
     WindowClose,
     WindowNew,
     SelectPlacement(cosmic::widget::segmented_button::Entity),
@@ -459,6 +462,9 @@ pub struct App {
     pub search_results: Option<(String, Vec<SearchResult>)>,
     pub selected_opt: Option<Selected>,
     pub applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
+    pub pending_backend_updates: SlotMap<slotmap::DefaultKey, ()>,
+    pub fetching_backends: bool,
+    pub update_apps_in_progress: bool,
     /// Prevents multiple instances of `App::update_apps()` tasks
     pub update_apps_scheduled: bool,
     pub uninstall_purge_data: bool,
@@ -1162,9 +1168,13 @@ impl App {
 
     fn update_backends(&mut self, refresh: bool) -> Task<Message> {
         let locale = self.locale.clone();
+
+        let backend_updates = backend::backends(&locale, refresh)
+            .map(|(name, backend)| Message::BackendUpdate(name, backend));
+
         cosmic::task::stream(
-            backend::backends(&locale, refresh)
-                .map(|(name, backend)| Message::BackendUpdate(name, backend))
+            futures::stream::once(async { Message::BackendUpdateStart })
+                .chain(backend_updates)
                 .chain(futures::stream::once(async {
                     Message::BackendUpdateFinished
                 })),
@@ -1215,13 +1225,16 @@ impl App {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
-    fn update_apps(&self) -> Task<Message> {
+    fn update_apps(&mut self) -> Task<Message> {
+        self.update_apps_scheduled = false;
+        self.update_apps_in_progress = true;
         let backends = self.backends.clone();
         let installed = self.installed.clone();
 
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    log::debug!("update_apps start");
                     let start = Instant::now();
                     let mut apps = Apps::new();
 
@@ -1356,6 +1369,7 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    log::debug!("update_backend_installed {backend_name}: starting");
                     let collect_start = Instant::now();
                     let installed: Vec<_> = {
                         let start = Instant::now();
@@ -1374,7 +1388,7 @@ impl App {
                         result
                     };
                     log::debug!(
-                        "update_backend_installed: collected {} packages in {:?}",
+                        "update_backend_installed {backend_name}: collected {} packages in {:?}",
                         installed.len(),
                         collect_start.elapsed()
                     );
@@ -1388,13 +1402,15 @@ impl App {
     }
 
     fn update_backend_updates(
-        &self,
+        &mut self,
         backend_name: BackendName,
         backend: Arc<dyn Backend>,
     ) -> Task<Message> {
+        let id = self.pending_backend_updates.insert(());
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    log::debug!("update_backend_updates {backend_name}: starting");
                     let collect_start = Instant::now();
                     let updates: Vec<_> = {
                         let start = Instant::now();
@@ -1413,7 +1429,7 @@ impl App {
                         result
                     };
                     log::debug!(
-                        "update_backend_updates: collected {} packages in {:?}",
+                        "update_backend_updates {backend_name}: collected {} packages in {:?}",
                         updates.len(),
                         collect_start.elapsed()
                     );
@@ -1425,6 +1441,7 @@ impl App {
             },
             |x| x,
         )
+        .chain(cosmic::task::message(Message::UpdatesComplete(id)))
     }
 
     fn update_notification(&mut self) -> Task<Message> {
@@ -1647,13 +1664,13 @@ impl App {
         if !self.pending_operations.is_empty() {
             let mut section = widget::settings::section().title(fl!("pending"));
             for (_id, (op, progress)) in self.pending_operations.iter().rev() {
-                section = section.add(widget::column::with_children(vec![
-                    widget::progress_bar(0.0..=100.0, *progress)
-                        .girth(progress_bar_height)
-                        .into(),
-                    widget::space::vertical().height(space_xs).into(),
-                    widget::text(op.pending_text(*progress as i32)).into(),
-                ]));
+                section = section.add(widget::column![
+                    widget::determinate_linear::<Message>(*progress)
+                        .width(Length::Fill)
+                        .girth(progress_bar_height),
+                    widget::space::vertical().height(space_xs),
+                    widget::text(op.pending_text((*progress * 100.0) as i32)),
+                ]);
             }
             children.push(section.into());
         }
@@ -1662,7 +1679,7 @@ impl App {
             let mut section = widget::settings::section().title(fl!("failed"));
             for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
                 section = section.add(widget::column::with_children(vec![
-                    widget::text(op.pending_text(*progress as i32)).into(),
+                    widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
                     widget::text(error).into(),
                 ]));
             }
@@ -2032,6 +2049,7 @@ impl Application for App {
             nav_model,
             #[cfg(feature = "notify")]
             notification_opt: None,
+            pending_backend_updates: SlotMap::new(),
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             progress_operations: BTreeSet::new(),
@@ -2057,7 +2075,9 @@ impl Application for App {
             search_results: None,
             selected_opt: None,
             applet_placement_buttons,
+            fetching_backends: false,
             update_apps_scheduled: false,
+            update_apps_in_progress: false,
             uninstall_purge_data: false,
         };
 
@@ -2159,6 +2179,7 @@ impl Application for App {
         if let Some(NavPage::Updates) = self.nav_model.active_data::<NavPage>() {
             if self.updates.is_some() {
                 for (name, backend) in self.backends.clone() {
+                    commands.push(self.update_backend_installed(name.clone(), backend.clone()));
                     commands.push(self.update_backend_updates(name, backend));
                 }
             }
@@ -2339,7 +2360,7 @@ impl Application for App {
         let mut count = 0;
         for (_id, (op, progress)) in self.pending_operations.iter() {
             if title.is_empty() {
-                title = op.pending_text(*progress as i32);
+                title = op.pending_text((*progress * 100.0) as i32);
             }
             total_progress += progress;
             count += 1;
@@ -2373,8 +2394,9 @@ impl Application for App {
 
         //TODO: get height from theme?
         let progress_bar_height = Length::Fixed(4.0);
-        let progress_bar =
-            widget::progress_bar(0.0..=100.0, total_progress).girth(progress_bar_height);
+        let progress_bar = widget::determinate_linear::<Message>(total_progress)
+            .width(Length::Fill)
+            .girth(progress_bar_height);
 
         let container = widget::layer_container(widget::column::with_children(vec![
             progress_bar.into(),
@@ -2424,15 +2446,31 @@ impl Application for App {
     fn header_end(&self) -> Vec<Element<'_, Message>> {
         match self.mode {
             Mode::Normal => {
-                vec![
-                    widget::tooltip(
-                        widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
-                            .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
-                        widget::text(fl!("manage-repositories")),
-                        widget::tooltip::Position::Bottom,
-                    )
-                    .into(),
-                ]
+                let manage_repositories = widget::tooltip(
+                    widget::button::icon(widget::icon::from_name("application-menu-symbolic"))
+                        .on_press(Message::ToggleContextPage(ContextPage::Repositories)),
+                    widget::text(fl!("manage-repositories")),
+                    widget::tooltip::Position::Bottom,
+                );
+
+                let mut widgets = Vec::new();
+
+                if self.fetching_backends
+                    || self.update_apps_scheduled
+                    || self.update_apps_in_progress
+                    || !self.pending_backend_updates.is_empty()
+                    || !self.waiting_installed.is_empty()
+                    || !self.waiting_updates.is_empty()
+                {
+                    widgets.push(
+                        cosmic::widget::indeterminate_circular::<Message>()
+                            .size(20.0)
+                            .into(),
+                    );
+                }
+
+                widgets.push(manage_repositories.into());
+                widgets
             }
             Mode::GStreamer { .. } => Vec::new(),
         }
@@ -2482,17 +2520,18 @@ impl Application for App {
 
                     for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
-                            widget::progress_bar(0.0..=100.0, *progress)
+                            widget::determinate_linear::<Message>(*progress)
+                                .width(Length::Fill)
                                 .girth(Length::Fixed(4.0))
                                 .into(),
                             widget::space::vertical().height(space_xs).into(),
-                            widget::text(op.pending_text(*progress as i32)).into(),
+                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
                         ]));
                     }
 
                     for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
-                            widget::text(op.pending_text(*progress as i32)).into(),
+                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
                             widget::text(error).into(),
                         ]));
                     }
