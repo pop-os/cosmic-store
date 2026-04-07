@@ -2459,6 +2459,7 @@ impl Application for App {
                     || self.update_apps_scheduled
                     || self.update_apps_in_progress
                     || !self.pending_backend_updates.is_empty()
+                    || !self.pending_operations.is_empty()
                     || !self.waiting_installed.is_empty()
                     || !self.waiting_updates.is_empty()
                 {

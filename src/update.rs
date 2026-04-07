@@ -291,6 +291,8 @@ impl App {
                 });
 
                 self.installed = Some(installed);
+                self.waiting_installed
+                    .retain(|(name, _, _)| *name != backend_name);
 
                 // Delay `App::update_apps` task to allow backends to catch up.
                 if !self.update_apps_scheduled {
@@ -916,6 +918,8 @@ impl App {
                 });
 
                 self.updates = Some(updates);
+                self.waiting_updates
+                    .retain(|(name, _, _)| *name != backend_name);
             }
 
             Message::UpdatesComplete(key) => {
