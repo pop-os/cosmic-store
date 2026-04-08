@@ -174,6 +174,7 @@ impl App {
                 return self.update_scroll();
             }
             Message::AllExploreResults(mut all_results, cached) => {
+                self.explore_results_handle = None;
                 let mut tasks = Vec::new();
                 for &explore_page in ExplorePage::all() {
                     if let Some(mut results) = all_results.remove(&explore_page) {
@@ -185,33 +186,17 @@ impl App {
                     }
                 }
 
-                if let Some(start) = self.explore_load_start.take() {
-                    log::info!(
-                        "explore page reloaded after data fetch: {} categories in {:?}",
-                        self.explore_results.len(),
-                        start.elapsed()
-                    );
-                }
-
                 // Save pre-built cache in background
-                tasks.push(Task::perform(
-                    async move {
-                        let (tx, rx) = tokio::sync::oneshot::channel();
-                        rayon::spawn(move || {
-                            _ = tx.send(cached.save().map_err(|e| e.to_string()));
-                        });
-
-                        rx.await.unwrap_or_else(|e| Err(e.to_string()))
-                    },
-                    |result| action::app(Message::ExploreCacheSaved(result)),
-                ));
+                rayon::spawn(move || {
+                    if let Err(why) = cached.save() {
+                        log::warn!("failed to save explore cache: {}", why);
+                    } else {
+                        log::info!("explore cache saved");
+                    }
+                });
 
                 return Task::batch(tasks);
             }
-            Message::ExploreCacheSaved(result) => match result {
-                Ok(()) => log::info!("explore cache saved"),
-                Err(err) => log::warn!("failed to save explore cache: {}", err),
-            },
             Message::ExploreIconsLoaded(explore_page, icons) => {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
                     apply_icons_to_results(results, icons);
@@ -305,7 +290,6 @@ impl App {
                 }
             }
             Message::AppsUpdated(apps, category_index) => {
-                self.update_apps_in_progress = false;
                 self.apps = apps;
                 self.category_index = category_index;
 
@@ -339,17 +323,21 @@ impl App {
                             self.category_load_start = Some(Instant::now());
                             commands.push(self.categories(categories));
                         }
+
                         commands.push(self.installed_results());
-                        // Start timing explore page loading
-                        self.explore_load_start = Some(Instant::now());
                         commands.push(self.explore_results_all());
                     }
                     Mode::GStreamer { .. } => {}
                 }
-                return Task::batch(commands);
+
+                return Task::batch(commands)
+                    .chain(Task::done(Message::AppsUpdatedFinished.into()));
             }
             Message::AppsUpdatedStart => {
                 return self.update_apps();
+            }
+            Message::AppsUpdatedFinished => {
+                self.update_apps_in_progress = false;
             }
             Message::InstalledResults(installed_results) => {
                 self.installed_results = Some(installed_results);
@@ -898,6 +886,7 @@ impl App {
                 }
             }
             Message::Updates((backend_name, updates)) => {
+                self.pending_backend_updates.remove(&backend_name);
                 let mut updates = match self.updates.take() {
                     Some(mut existing) => {
                         existing.retain(|(backend, _)| *backend != backend_name);
@@ -920,10 +909,6 @@ impl App {
                 self.updates = Some(updates);
                 self.waiting_updates
                     .retain(|(name, _, _)| *name != backend_name);
-            }
-
-            Message::UpdatesComplete(key) => {
-                self.pending_backend_updates.remove(key);
             }
 
             Message::WindowClose => {

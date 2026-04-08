@@ -25,7 +25,6 @@ use freedesktop_desktop_entry as fde;
 use futures::StreamExt;
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
-use slotmap::SlotMap;
 use std::{
     any::TypeId,
     cell::Cell,
@@ -35,7 +34,7 @@ use std::{
     future::pending,
     hash::Hash,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic},
     time::Instant,
 };
 
@@ -298,11 +297,11 @@ pub enum Message {
         CachedExploreResults,
     ),
     ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
-    ExploreCacheSaved(Result<(), String>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
     AppsUpdated(Arc<Apps>, Arc<CategoryIndex>),
+    AppsUpdatedFinished,
     /// Use to unset `App::updated_apps_scheduled`
     AppsUpdatedStart,
     Installed((BackendName, Vec<(BackendName, Package)>)),
@@ -351,7 +350,6 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateAll,
     Updates((BackendName, Vec<(BackendName, Package)>)),
-    UpdatesComplete(slotmap::DefaultKey),
     WindowClose,
     WindowNew,
     SelectPlacement(cosmic::widget::segmented_button::Entity),
@@ -457,12 +455,13 @@ pub struct App {
     pub category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     pub category_load_start: Option<Instant>,
     pub explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
-    pub explore_load_start: Option<Instant>,
+    pub explore_results_handle: Option<(Arc<atomic::AtomicBool>, cosmic::iced::task::Handle)>,
     pub installed_results: Option<Vec<SearchResult>>,
     pub search_results: Option<(String, Vec<SearchResult>)>,
     pub selected_opt: Option<Selected>,
     pub applet_placement_buttons: cosmic::widget::segmented_button::SingleSelectModel,
-    pub pending_backend_updates: SlotMap<slotmap::DefaultKey, ()>,
+    pub pending_backend_updates:
+        HashMap<BackendName, (Arc<atomic::AtomicBool>, cosmic::iced::task::Handle)>,
     pub fetching_backends: bool,
     pub update_apps_in_progress: bool,
     /// Prevents multiple instances of `App::update_apps()` tasks
@@ -826,44 +825,39 @@ impl App {
         }
     }
 
-    fn explore_results_all(&self) -> Task<Message> {
+    fn explore_results_all(&mut self) -> Task<Message> {
         let apps = self.apps.clone();
         let backends = self.backends.clone();
         let category_index = self.category_index.clone();
-        Task::perform(
-            async move {
-                tokio::task::spawn_blocking(move || {
-                    log::info!("start batched search for all explore pages");
-                    let overall_start = Instant::now();
-                    let mut all_results = HashMap::new();
-                    for &explore_page in ExplorePage::all() {
-                        let start = Instant::now();
-                        let results = Self::search_explore_page(
-                            explore_page,
-                            &apps,
-                            &backends,
-                            &category_index,
-                        );
-                        log::info!(
-                            "searched for {:?} in {:?}, found {} results",
-                            explore_page,
-                            start.elapsed(),
-                            results.len()
-                        );
-                        all_results.insert(explore_page, results);
-                    }
-                    let cached = CachedExploreResults::from_results(&all_results, &backends);
-                    log::info!(
-                        "batched explore search completed in {:?}",
-                        overall_start.elapsed()
-                    );
-                    action::app(Message::AllExploreResults(all_results, cached))
-                })
-                .await
-                .unwrap_or(action::none())
-            },
-            |x| x,
-        )
+
+        abortable_blocking_task(&mut self.explore_results_handle, move |cancel| {
+            log::info!("start batched search for all explore pages");
+            let overall_start = Instant::now();
+            let mut all_results = HashMap::new();
+            for &explore_page in ExplorePage::all() {
+                if cancel.load(atomic::Ordering::Relaxed) {
+                    log::info!("cancelled explore_results_all");
+                    return None;
+                }
+
+                let start = Instant::now();
+                let results =
+                    Self::search_explore_page(explore_page, &apps, &backends, &category_index);
+                log::info!(
+                    "searched for {:?} in {:?}, found {} results",
+                    explore_page,
+                    start.elapsed(),
+                    results.len()
+                );
+                all_results.insert(explore_page, results);
+            }
+            let cached = CachedExploreResults::from_results(&all_results, &backends);
+            log::info!(
+                "batched explore search completed in {:?}",
+                overall_start.elapsed()
+            );
+            Some(Message::AllExploreResults(all_results, cached))
+        })
     }
 
     fn load_explore_icons(&self, explore_page: ExplorePage) -> Task<Message> {
@@ -1406,42 +1400,48 @@ impl App {
         backend_name: BackendName,
         backend: Arc<dyn Backend>,
     ) -> Task<Message> {
-        let id = self.pending_backend_updates.insert(());
-        Task::perform(
-            async move {
-                tokio::task::spawn_blocking(move || {
-                    log::debug!("update_backend_updates {backend_name}: starting");
-                    let collect_start = Instant::now();
-                    let updates: Vec<_> = {
-                        let start = Instant::now();
-                        let result: Vec<_> = match backend.updates() {
-                            Ok(packages) => packages
-                                .into_iter()
-                                .map(|package| (backend_name, package))
-                                .collect(),
-                            Err(err) => {
-                                log::error!("failed to list updates: {}", err);
-                                Vec::new()
-                            }
-                        };
-                        let duration = start.elapsed();
-                        log::info!("loaded updates from {} in {:?}", backend_name, duration);
-                        result
-                    };
-                    log::debug!(
-                        "update_backend_updates {backend_name}: collected {} packages in {:?}",
-                        updates.len(),
-                        collect_start.elapsed()
-                    );
+        let mut handle = self.pending_backend_updates.remove(&backend_name);
 
-                    action::app(Message::Updates((backend_name, updates)))
-                })
-                .await
-                .unwrap_or(action::none())
-            },
-            |x| x,
-        )
-        .chain(cosmic::task::message(Message::UpdatesComplete(id)))
+        let task = abortable_blocking_task(&mut handle, move |cancel| {
+            log::debug!("update_backend_updates {backend_name}: starting");
+            let collect_start = Instant::now();
+            let updates: Vec<_> = {
+                let start = Instant::now();
+                let result: Vec<_> = match backend.updates() {
+                    Ok(packages) => packages
+                        .into_iter()
+                        .map(|package| (backend_name, package))
+                        .collect(),
+                    Err(err) => {
+                        log::error!("failed to list updates: {}", err);
+                        Vec::new()
+                    }
+                };
+                let duration = start.elapsed();
+                log::info!("loaded updates from {} in {:?}", backend_name, duration);
+                result
+            };
+
+            if cancel.load(atomic::Ordering::Relaxed) {
+                log::info!("cancelling update_backend_updates: {backend_name}");
+                return None;
+            }
+
+            log::debug!(
+                "update_backend_updates {backend_name}: collected {} packages in {:?}",
+                updates.len(),
+                collect_start.elapsed()
+            );
+
+            Some(Message::Updates((backend_name, updates)))
+        });
+
+        self.pending_backend_updates.insert(
+            backend_name,
+            handle.expect("handle not set by abortable_blocking_task"),
+        );
+
+        task
     }
 
     fn update_notification(&mut self) -> Task<Message> {
@@ -2049,7 +2049,7 @@ impl Application for App {
             nav_model,
             #[cfg(feature = "notify")]
             notification_opt: None,
-            pending_backend_updates: SlotMap::new(),
+            pending_backend_updates: HashMap::new(),
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             progress_operations: BTreeSet::new(),
@@ -2070,7 +2070,7 @@ impl Application for App {
             category_results: None,
             category_load_start: None,
             explore_results: HashMap::new(),
-            explore_load_start: None,
+            explore_results_handle: None,
             installed_results: None,
             search_results: None,
             selected_opt: None,
@@ -2458,6 +2458,7 @@ impl Application for App {
                 if self.fetching_backends
                     || self.update_apps_scheduled
                     || self.update_apps_in_progress
+                    || self.explore_results_handle.is_some()
                     || !self.pending_backend_updates.is_empty()
                     || !self.pending_operations.is_empty()
                     || !self.waiting_installed.is_empty()
@@ -2907,4 +2908,40 @@ impl Application for App {
 
         Subscription::batch(subscriptions)
     }
+}
+
+/// Aborts a previous Task and sets cancel state if an existing task was found.
+pub fn abortable_task(
+    handle: &mut Option<(Arc<atomic::AtomicBool>, cosmic::iced::task::Handle)>,
+    task: impl FnOnce(Arc<atomic::AtomicBool>) -> cosmic::app::Task<Message>,
+) -> cosmic::app::Task<Message> {
+    let cancel = Arc::new(atomic::AtomicBool::new(false));
+    let (task, task_handle) = task(cancel.clone()).abortable();
+
+    // Cancel an existing thread
+    if let Some((cancel, task_handle)) = handle.replace((cancel, task_handle)) {
+        cancel.store(true, atomic::Ordering::Relaxed);
+        task_handle.abort();
+    }
+
+    task
+}
+
+/// Spawn a blocking function with an atomic bool for tracking cancellation requests.
+pub fn abortable_blocking_task(
+    handle: &mut Option<(Arc<atomic::AtomicBool>, cosmic::iced::task::Handle)>,
+    func: impl FnOnce(Arc<atomic::AtomicBool>) -> Option<Message> + Send + 'static,
+) -> cosmic::app::Task<Message> {
+    abortable_task(handle, |canceller| {
+        Task::future(async move {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            tokio::task::spawn_blocking(move || _ = tx.send(func(canceller)));
+
+            match rx.await {
+                Ok(Some(message)) => cosmic::action::app(message),
+                _ => cosmic::action::none(),
+            }
+        })
+    })
 }
