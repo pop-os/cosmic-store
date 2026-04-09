@@ -7,6 +7,7 @@ use cosmic::{
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
+    iced::widget::scrollable::AbsoluteOffset,
     iced::{
         Alignment, Length, Limits, Size, Subscription,
         core::SmolStr,
@@ -17,7 +18,6 @@ use cosmic::{
         widget::scrollable,
         window::{self, Event as WindowEvent},
     },
-    iced_widget::scrollable::AbsoluteOffset,
     theme,
     widget::{self},
 };
@@ -1665,7 +1665,7 @@ impl App {
             let mut section = widget::settings::section().title(fl!("pending"));
             for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                 section = section.add(widget::column![
-                    widget::determinate_linear::<Message>(*progress)
+                    widget::determinate_linear(*progress)
                         .width(Length::Fill)
                         .girth(progress_bar_height),
                     widget::space::vertical().height(space_xs),
@@ -2394,7 +2394,7 @@ impl Application for App {
 
         //TODO: get height from theme?
         let progress_bar_height = Length::Fixed(4.0);
-        let progress_bar = widget::determinate_linear::<Message>(total_progress)
+        let progress_bar = widget::determinate_linear(total_progress)
             .width(Length::Fill)
             .girth(progress_bar_height);
 
@@ -2464,11 +2464,7 @@ impl Application for App {
                     || !self.waiting_installed.is_empty()
                     || !self.waiting_updates.is_empty()
                 {
-                    widgets.push(
-                        cosmic::widget::indeterminate_circular::<Message>()
-                            .size(20.0)
-                            .into(),
-                    );
+                    widgets.push(cosmic::widget::indeterminate_circular().size(20.0).into());
                 }
 
                 widgets.push(manage_repositories.into());
@@ -2522,7 +2518,7 @@ impl Application for App {
 
                     for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
-                            widget::determinate_linear::<Message>(*progress)
+                            widget::determinate_linear(*progress)
                                 .width(Length::Fill)
                                 .girth(Length::Fixed(4.0))
                                 .into(),
