@@ -21,6 +21,7 @@ struct TransactionDetails {
     summary: String,
     description: String,
     url: String,
+    size: u64,
 }
 
 #[allow(dead_code)]
@@ -73,17 +74,33 @@ fn transaction_handle(
                         }
                     };
 
+                    let get_u64 = |key: &str| -> Option<u64> {
+                        match map.get(key).map(|v| &**v) {
+                            Some(zvariant::Value::U64(val)) => Some(*val),
+                            unknown => {
+                                log::warn!(
+                                    "failed to find u64 for key {:?} in packagekit Details: found {:?} instead",
+                                    key,
+                                    unknown
+                                );
+                                None
+                            }
+                        }
+                    };
+
                     let Some(package_id) = get_string("package-id") else {
                         continue;
                     };
                     let summary = get_string("summary").unwrap_or_default();
                     let description = get_string("description").unwrap_or_default();
                     let url = get_string("url").unwrap_or_default();
+                    let size = get_u64("size").unwrap_or_default();
                     details.push(TransactionDetails {
                         package_id,
                         summary,
                         description,
                         url,
+                        size,
                     });
                 }
                 "ErrorCode" => {
@@ -225,6 +242,7 @@ impl Packagekit {
                     } else {
                         Vec::new()
                     },
+                    installed_size: tx_detail.size,
                     ..Default::default()
                 }),
                 version: version_opt.unwrap_or("").to_string(),
