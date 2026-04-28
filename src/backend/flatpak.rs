@@ -155,10 +155,15 @@ impl Flatpak {
                 extra.insert("branch".to_string(), branch.to_string());
             }
 
+            let mut info_cloned = (**info).clone();
+            info_cloned.installed_size = r.installed_size();
+            // download_size is only available on RemoteRef, not InstalledRef
+            info_cloned.download_size = 0;
+
             return Some(Package {
                 id: id.clone(),
                 icon: appstream_cache.icon(info),
-                info: info.clone(),
+                info: Arc::new(info_cloned),
                 version: r.appdata_version().unwrap_or_default().to_string(),
                 extra,
             });
@@ -183,6 +188,7 @@ impl Flatpak {
                             .or(r.branch())
                             .unwrap_or_default()
                             .to_string(),
+                        r.installed_size(),
                     ));
                 }
             }
@@ -196,11 +202,13 @@ impl Flatpak {
             let mut description = String::new();
             let mut flatpak_refs = Vec::with_capacity(system_packages.len());
             let mut extra = HashMap::new();
-            for (flatpak_ref, version) in system_packages {
+            let mut total_system_installed_size = 0;
+            for (flatpak_ref, version, size) in system_packages {
                 let _ = writeln!(description, " * {}: {}", flatpak_ref, version);
                 // Store version info for the release notes display
                 extra.insert(format!("{}_installed", flatpak_ref), version);
                 flatpak_refs.push(flatpak_ref);
+                total_system_installed_size += size;
             }
             //TODO: translate
             packages.push(Package {
@@ -216,6 +224,7 @@ impl Flatpak {
                     summary,
                     description,
                     flatpak_refs,
+                    installed_size: total_system_installed_size,
                     ..Default::default()
                 }),
                 version: String::new(),
