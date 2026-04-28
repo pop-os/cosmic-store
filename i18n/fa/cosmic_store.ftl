@@ -66,3 +66,4 @@ theme = تم
 match-desktop = مطابق با میزکار
 dark = تاریک
 light = روشن
+size = Size

@@ -78,3 +78,4 @@ theme = ಥೀಮ್
 match-desktop = ಡೆಸ್ಕ್‌ಟಾಪ್‌ಗೆ ಹೊಂದಿಸಿ
 dark = ಡಾರ್ಕ್
 light = ಲೈಟ್
+size = Size

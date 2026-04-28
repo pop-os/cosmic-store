@@ -57,6 +57,7 @@ latest-version = 최신 버전
 codec-title = 추가 패키지를 설치할까요?
 place-and-refine = 배치 및 조정
 version = 버전 { $version }
+size = Size
 installed-apps = 설치된 앱
 faq = FAQ
 scientific-tools = 공학 도구

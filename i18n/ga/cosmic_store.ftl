@@ -136,6 +136,7 @@ view-more = Féach níos mó
 uninstall-app-flatpak-warning = Coinneofar a chuid cáipéisí agus sonraí má dhíshuiteálann tú { $name }.
 delete-app-data = Scrios sonraí aip go buan
 version = Leagan { $version }
+size = Size
 system-package-updates = Nuashonruithe pacáiste
 system-packages = Pacáistí córais
 flatpak-runtimes = Amanna rith Flatpak

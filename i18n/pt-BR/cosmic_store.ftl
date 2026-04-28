@@ -146,6 +146,7 @@ view-more = Ver mais
 delete-app-data = Apagar permanentemente os dados do aplicativo
 uninstall-app-flatpak-warning = A desinstalação de { $name } manterá seus documentos e dados.
 version = Versão { $version }
+size = Size
 system-package-updates = Atualizações de pacotes
 system-packages-summary =
     { $count ->

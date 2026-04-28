@@ -120,6 +120,7 @@ codec-footer =
     • Вы выкарыстоўваеце гэта праграмнае забеспячэнне толькі ў даследчых мэтах
 place-and-refine = Размясціць і ўдасканаліць
 version = Версія { $version }
+size = Size
 import-flatpakrepo = Імпартуйце файл .flatpakrepo, каб дадаць уласную крыніцу
 repository-remove-body =
     Выдаленне гэтага рэпазіторыя прывядзе да { $dependency ->

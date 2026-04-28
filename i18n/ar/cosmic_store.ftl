@@ -147,6 +147,7 @@ view-more = اعرض المزيد
 delete-app-data = احذف بيانات التطبيق نهائيًا
 uninstall-app-flatpak-warning = إلغاء تنصيب { $name } سيحتفظ بمستنداته وبياناته.
 version = الإصدار { $version }
+size = Size
 system-package-updates = تحديثات الحِزم
 system-packages-summary =
     { $count ->

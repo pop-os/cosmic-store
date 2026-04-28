@@ -82,3 +82,4 @@ light = Светла
 close = Затвори
 place-on-desktop = Место на радној површини
 place-applet = Поставите аплет
+size = Size

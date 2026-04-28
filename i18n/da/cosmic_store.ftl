@@ -92,3 +92,4 @@ theme = Tema
 match-desktop = Match systemtema
 dark = Mørkt
 light = Lyst
+size = Size

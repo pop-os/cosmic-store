@@ -120,6 +120,7 @@ manage-repositories = 管理軟體庫
 made-for-cosmic = 專為 COSMIC 設計
 addons = 外掛程式
 version = 版本 { $version }
+size = Size
 view-more = 查看更多
 cancelled = 已取消
 operations = 操作

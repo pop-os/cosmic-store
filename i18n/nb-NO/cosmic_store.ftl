@@ -108,3 +108,4 @@ import-flatpakrepo = Importer .flatpakrepo fil for å legge til en egendefinert 
 no-custom-flatpak-sources = Ingen egendefinerte Flatpak-kilder
 no-flatpak = Ingen Flatpak-støtte
 software-repositories = App-Arkiv
+size = Size

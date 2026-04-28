@@ -61,6 +61,7 @@ utilities = ਸਹੂਲਤਾਂ
 latest-version = ਨਵਾਂ ਵਰਜ਼ਨ
 codec-title = ਵਧੀਕ ਪੈਕੇਜ ਇੰਸਟਾਲ ਕਰਨੇ ਹਨ?
 version = ਵਰਜ਼ਨ { $version }
+size = Size
 installed-apps = ਇੰਸਟਾਲ ਹੋਈਆਂ ਐਪਾਂ
 scientific-tools = ਵਿਗਿਆਨਿਕ ਟੂਲ
 contact = ਸੰਪਰਕ

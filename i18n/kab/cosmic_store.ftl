@@ -91,6 +91,7 @@ source-installed = { $source } (yettwasbedd)
 developer = Aneflay
 monthly-downloads = Isidar n Flathub yal aggur
 version = Lqem { $version }
+size = Size
 licenses = Turagin
 proprietary = Amli
 view-more = Wali ugar

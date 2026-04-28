@@ -108,6 +108,7 @@ enable-flathub-cosmic = Bitte aktiviere Flathub und COSMIC Flatpak, um die verf√
 manage-repositories = Repositorien verwalten
 addons = Erweiterungen
 version = Version { $version }
+size = Size
 view-more = Mehr ansehen
 system-package-updates = Paketaktualisierungen
 system-packages = Systempakete

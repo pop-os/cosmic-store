@@ -144,3 +144,4 @@ light = Claro
 notification-in-progress = Instalaciones y actualizaciones en curso.
 addons = Complementos
 view-more = Ver más
+size = Size

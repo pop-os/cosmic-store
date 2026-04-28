@@ -77,6 +77,7 @@ help = Ohje
 latest-version = Viimeisin versio
 codec-title = Asennetaanko lisäpaketteja?
 version = Versio { $version }
+size = Size
 faq = UKK
 import-flatpakrepo = Lisää mukautettu lähde tuomalla .flatpakrepo-tiedosto
 contact = Ota yhteyttä

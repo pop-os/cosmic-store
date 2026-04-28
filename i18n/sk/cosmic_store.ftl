@@ -141,3 +141,4 @@ theme = Téma
 match-desktop = Prispôsobiť ploche
 dark = Tmavý
 light = Svetlý
+size = Size

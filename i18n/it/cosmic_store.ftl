@@ -144,3 +144,4 @@ dark = Scuro
 light = Chiaro
 addons = Estensioni
 view-more = Mostra altro
+size = Size

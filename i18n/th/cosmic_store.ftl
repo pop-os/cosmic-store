@@ -92,3 +92,4 @@ theme = ธีม
 match-desktop = ใช้ตามธีมหน้าจอหลัก
 dark = โหมดมืด
 light = โหมดสว่าง
+size = Size

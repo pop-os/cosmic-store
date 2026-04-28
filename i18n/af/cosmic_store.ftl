@@ -10,3 +10,4 @@ checking-for-updates = Kyk tans vir opdaterings…
 app-name = COSMIC Winkel
 appearance = Vertoon
 import = Voer in
+size = Size

@@ -130,6 +130,7 @@ view-more = Показать ещё
 delete-app-data = Стереть данные приложения
 uninstall-app-flatpak-warning = При удалении «{ $name }» его документы и данные останутся на устройстве.
 version = Версия { $version }
+size = Size
 system-package-updates = Обновления пакетов
 system-packages = Системные пакеты
 flatpak-runtimes = Среды выполнения Flatpak

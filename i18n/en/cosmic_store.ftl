@@ -101,6 +101,7 @@ developer = Developer
 app-developers = {$app} Developers
 monthly-downloads = Flathub monthly downloads
 version = Version {$version}
+size = Size
 licenses = Licenses
 proprietary = Proprietary
 view-more = View more

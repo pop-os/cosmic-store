@@ -82,6 +82,7 @@ developer = Pengembang
 app-developers = Pengembang { $app }
 monthly-downloads = Unduhan bulanan Flathub
 version = Versi { $version }
+size = Size
 licenses = Lisensi
 proprietary = Hak Milik
 view-more = Tampilkan selengkapnya
