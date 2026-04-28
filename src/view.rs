@@ -419,27 +419,68 @@ impl App {
                     .align_x(Alignment::Center)
                     .width(Length::Fill)
                 });
+                let size_widget = (selected.info.installed_size > 0
+                    || selected.info.download_size > 0)
+                    .then(|| {
+                        let mut text = String::new();
+                        if selected.info.download_size > 0 {
+                            text.push_str(&format!(
+                                "{:.1} MB",
+                                selected.info.download_size as f64 / 1_048_576.0
+                            ));
+                        }
+                        if selected.info.installed_size > 0 {
+                            if !text.is_empty() {
+                                text.push_str(" / ");
+                            }
+                            text.push_str(&format!(
+                                "{:.1} MB",
+                                selected.info.installed_size as f64 / 1_048_576.0
+                            ));
+                        }
+                        widget::column::with_children(vec![
+                            widget::text::heading(text).into(),
+                            widget::text::body(fl!("size")).into(),
+                        ])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill)
+                    });
+
                 if grid_width < 416 {
-                    let size = 4 + if downloads_widget.is_some() { 3 } else { 0 };
-                    let downloads_widget_space = downloads_widget
+                    let size = 5
+                        + if downloads_widget.is_some() { 2 } else { 0 }
+                        + if size_widget.is_some() { 2 } else { 0 };
+                    let downloads_widget_divider = downloads_widget
                         .is_some()
                         .then(widget::divider::horizontal::default);
+                    let size_widget_divider = size_widget
+                        .is_some()
+                        .then(widget::divider::horizontal::default);
+
                     column = column.push(
                         widget::column::with_capacity(size)
                             .push(widget::divider::horizontal::default())
                             .push(sources_widget)
                             .push(widget::divider::horizontal::default())
                             .push(developers_widget)
-                            .push(widget::divider::horizontal::default())
+                            .push_maybe(downloads_widget_divider)
                             .push_maybe(downloads_widget)
-                            .push_maybe(downloads_widget_space)
+                            .push_maybe(size_widget_divider)
+                            .push_maybe(size_widget)
+                            .push(widget::divider::horizontal::default())
                             .spacing(space_xxs),
                     );
                 } else {
-                    let row_size = 4 + if downloads_widget.is_some() { 2 } else { 0 };
+                    let row_size = 4
+                        + if downloads_widget.is_some() { 2 } else { 0 }
+                        + if size_widget.is_some() { 2 } else { 0 };
                     let downloads_widget_space = downloads_widget
                         .is_some()
                         .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
+                    let size_widget_space = size_widget
+                        .is_some()
+                        .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
+
                     column = column.push(
                         widget::column::with_children(vec![
                             widget::divider::horizontal::default().into(),
@@ -452,6 +493,8 @@ impl App {
                                 .push(developers_widget)
                                 .push_maybe(downloads_widget_space)
                                 .push_maybe(downloads_widget)
+                                .push_maybe(size_widget_space)
+                                .push_maybe(size_widget)
                                 .align_y(Alignment::Center)
                                 .into(),
                             widget::divider::horizontal::default().into(),
