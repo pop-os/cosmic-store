@@ -431,7 +431,7 @@ impl Backend for Packagekit {
     fn operation(
         &self,
         op: &Operation,
-        mut f: Box<dyn FnMut(f32) + 'static>,
+        mut f: Box<dyn FnMut(super::Progress) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         let mut package_names = Vec::new();
         let mut package_paths = Vec::new();
@@ -517,7 +517,10 @@ impl Backend for Packagekit {
                 progress.status,
                 progress.percentage
             );
-            f(total_percentage as f32);
+            f(super::Progress {
+                percentage: (total_percentage as f32) / 100.0,
+                ..Default::default()
+            });
         })?;
         Ok(())
     }

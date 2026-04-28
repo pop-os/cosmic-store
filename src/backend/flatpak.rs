@@ -20,6 +20,7 @@ use crate::{
 pub struct Flatpak {
     user: bool,
     appstream_caches: Vec<AppstreamCache>,
+    remote_sizes: Arc<std::sync::Mutex<HashMap<(String, AppId), (u64, u64)>>>,
 }
 
 impl Flatpak {
@@ -43,6 +44,7 @@ impl Flatpak {
         let mut this = Self {
             user,
             appstream_caches: Vec::new(),
+            remote_sizes: Arc::new(std::sync::Mutex::new(HashMap::new())),
         };
 
         let inst = this.installation()?;
@@ -127,8 +129,35 @@ impl Flatpak {
             ));
         }
 
+        this.update_remote_sizes()?;
+
         // We don't store the installation because it is not Send
         Ok(this)
+    }
+
+    fn update_remote_sizes(&self) -> Result<(), Box<dyn Error>> {
+        let inst = self.installation()?;
+        let mut remote_sizes = self.remote_sizes.lock().unwrap();
+        for remote in inst.list_remotes(Cancellable::NONE)? {
+            let remote_name = match remote.name() {
+                Some(name) => name,
+                None => continue,
+            };
+            let source_id = self.source_id(&remote_name);
+            log::info!("updating sizes for flatpak remote {}", remote_name);
+            if let Ok(refs) = inst.list_remote_refs_sync(&remote_name, Cancellable::NONE) {
+                for r in refs {
+                    if let Some(ref_id) = r.name() {
+                        let app_id = AppId::new(&ref_id);
+                        remote_sizes.insert(
+                            (source_id.clone(), app_id),
+                            (r.download_size(), r.installed_size()),
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn ref_to_package<R: InstalledRefExt + RefExt>(&self, r: &R) -> Option<Package> {
@@ -159,6 +188,7 @@ impl Flatpak {
             info_cloned.installed_size = r.installed_size();
             // download_size is only available on RemoteRef, not InstalledRef
             info_cloned.download_size = 0;
+            log::debug!("ref_to_package: {:?} installed_size={}", id, info_cloned.installed_size);
 
             return Some(Package {
                 id: id.clone(),
@@ -243,50 +273,64 @@ impl Backend for Flatpak {
         let local_set = tokio::task::LocalSet::new();
 
         self.appstream_caches = futures::executor::block_on(async move {
-            local_set.run_until(async move {
-                if refresh {
-                    if let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
-                        remotes.into_iter()
-                            .filter_map(|remote| remote.name())
-                            .for_each(|remote_name| {
-                                log::info!("updating flatpak remote {remote_name}");
-                                if let Err(why) =
-                                    inst.update_remote_sync(&remote_name, Cancellable::NONE)
-                                {
-                                    log::error!(
-                                        "failed to update flatpak remote {remote_name}: {why:?}"
-                                    );
-                                    return;
-                                }
+            local_set
+                .run_until(async move {
+                    if refresh {
+                        if let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
+                            remotes
+                                .into_iter()
+                                .filter_map(|remote| remote.name())
+                                .for_each(|remote_name| {
+                                    log::info!("updating flatpak remote {remote_name}");
+                                    if let Err(why) =
+                                        inst.update_remote_sync(&remote_name, Cancellable::NONE)
+                                    {
+                                        log::error!(
+                                            "failed to update flatpak remote {remote_name}: {why:?}"
+                                        );
+                                        return;
+                                    }
 
-                                log::info!("updating appstream metadata for flatpak remote {remote_name}");
-                                if let Err(why) = inst.update_appstream_sync(&remote_name, None, Cancellable::NONE) {
-                                    log::error!(
-                                        "failed to update flatpak remote {remote_name} appstream metadata: {why:?}"
+                                    log::info!(
+                                        "updating appstream metadata for flatpak remote {remote_name}"
                                     );
-                                    return;
-                                }
-                            });
+                                    if let Err(why) = inst.update_appstream_sync(
+                                        &remote_name,
+                                        None,
+                                        Cancellable::NONE,
+                                    ) {
+                                        log::error!(
+                                            "failed to update flatpak remote {remote_name} appstream metadata: {why:?}"
+                                        );
+                                        return;
+                                    }
+                                });
+                        }
                     }
-                }
 
-                // Parallel reload of appstream caches.
-                appstream_caches
-                    .into_iter()
-                    .map(|mut cache| async move {
-                        tokio::task::spawn_blocking(move || {
-                            cache.reload();
-                            cache
+                    // Parallel reload of appstream caches.
+                    appstream_caches
+                        .into_iter()
+                        .map(|mut cache| async move {
+                            tokio::task::spawn_blocking(move || {
+                                cache.reload();
+                                cache
+                            })
+                            .await
+                            .expect("flatpak worker thread failed to join")
                         })
+                        .collect::<futures::stream::FuturesOrdered<_>>()
+                        .collect::<Vec<AppstreamCache>>()
                         .await
-                        .expect("flatpak worker thread failed to join")
-                    })
-                    .collect::<futures::stream::FuturesOrdered<_>>()
-                    .collect::<Vec<AppstreamCache>>()
-                    .await
-            })
-            .await
+                })
+                .await
         });
+
+        if refresh {
+            if let Err(why) = self.update_remote_sizes() {
+                log::warn!("failed to update flatpak remote sizes: {why}");
+            }
+        }
 
         Ok(())
     }
@@ -388,7 +432,7 @@ impl Backend for Flatpak {
     fn operation(
         &self,
         op: &Operation,
-        callback: Box<dyn FnMut(f32) + 'static>,
+        callback: Box<dyn FnMut(super::Progress) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         let callback = Rc::new(RefCell::new(callback));
         let inst = self.installation()?;
@@ -405,7 +449,7 @@ impl Backend for Flatpak {
         tx.connect_new_operation(move |_, op, progress| {
             let current_op = started_ops.get();
             started_ops.set(current_op + 1);
-            let progress_per_op = 100.0 / (total_ops.get().max(started_ops.get()) as f32);
+            let progress_per_op = 1.0 / (total_ops.get().max(started_ops.get()) as f32);
             log::info!(
                 "Operation {}: {:?} {:?}",
                 current_op,
@@ -413,16 +457,27 @@ impl Backend for Flatpak {
                 op.get_ref()
             );
             let callback = callback.clone();
+            let op = op.clone();
             progress.connect_changed(move |progress| {
+                let op_download_size = op.download_size();
                 log::info!(
-                    "{}: {}%",
+                    "{}: {}% ({} bytes)",
                     progress.status().unwrap_or_default(),
-                    progress.progress()
+                    progress.progress(),
+                    progress.bytes_transferred()
                 );
                 let op_progress = (progress.progress() as f32) / 100.0;
                 let total_progress = ((current_op as f32) + op_progress) * progress_per_op;
                 let mut callback = callback.borrow_mut();
-                callback(total_progress)
+                callback(super::Progress {
+                    percentage: total_progress,
+                    downloaded_bytes: Some(progress.bytes_transferred()),
+                    total_bytes: if op_download_size > 0 {
+                        Some(op_download_size)
+                    } else {
+                        None
+                    },
+                })
             });
         });
         match &op.kind {
@@ -679,5 +734,9 @@ impl Backend for Flatpak {
         }
         tx.run(Cancellable::NONE)?;
         Ok(())
+    }
+
+    fn uninstalled_sizes(&self) -> HashMap<(String, AppId), (u64, u64)> {
+        self.remote_sizes.lock().unwrap().clone()
     }
 }

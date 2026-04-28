@@ -12,7 +12,7 @@ use cosmic::{
 use rayon::prelude::*;
 
 use crate::app_id::AppId;
-use crate::app_info::{AppInfo, AppProvide, AppUrl};
+use crate::app_info::{self, AppInfo, AppProvide, AppUrl};
 use crate::backend::{BackendName, Package};
 use crate::config::AppTheme;
 use crate::explore::ExplorePage;
@@ -166,7 +166,7 @@ impl App {
                     .iter()
                     .any(|package_id| package_id == selected_id)
             {
-                progress_opt = Some(*progress);
+                progress_opt = Some(progress.percentage);
                 break;
             }
         }
@@ -419,32 +419,24 @@ impl App {
                     .align_x(Alignment::Center)
                     .width(Length::Fill)
                 });
-                let size_widget = (selected.info.installed_size > 0
-                    || selected.info.download_size > 0)
-                    .then(|| {
-                        let mut text = String::new();
-                        if selected.info.download_size > 0 {
-                            text.push_str(&format!(
-                                "{:.1} MB",
-                                selected.info.download_size as f64 / 1_048_576.0
-                            ));
-                        }
-                        if selected.info.installed_size > 0 {
-                            if !text.is_empty() {
-                                text.push_str(" / ");
-                            }
-                            text.push_str(&format!(
-                                "{:.1} MB",
-                                selected.info.installed_size as f64 / 1_048_576.0
-                            ));
-                        }
-                        widget::column::with_children(vec![
-                            widget::text::heading(text).into(),
-                            widget::text::body(fl!("size")).into(),
-                        ])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill)
-                    });
+                let is_installed =
+                    self.is_installed(selected.backend_name, &selected.id, &selected.info);
+                let size_val = selected.info.download_size.max(selected.info.installed_size);
+
+                let size_widget = (size_val > 0).then(|| {
+                    let size_text = if is_installed {
+                        fl!("size-installed", size = app_info::format_size(size_val))
+                    } else {
+                        fl!("size-download", size = app_info::format_size(size_val))
+                    };
+
+                    widget::column::with_children(vec![
+                        widget::text::heading(size_text).into(),
+                        widget::text::body(fl!("size")).into(),
+                    ])
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill)
+                });
 
                 if grid_width < 416 {
                     let size = 5
@@ -948,7 +940,7 @@ impl App {
                                                 .iter()
                                                 .any(|package_id| package_id == &package.id)
                                         {
-                                            progress_opt = Some(*progress);
+                                            progress_opt = Some(progress.percentage);
                                             break;
                                         }
                                     }

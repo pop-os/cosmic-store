@@ -318,7 +318,7 @@ pub enum Message {
     PendingComplete(u64),
     PendingDismiss,
     PendingError(u64, String),
-    PendingProgress(u64, f32),
+    PendingProgress(u64, backend::Progress),
     RepositoryAdd(BackendName, Vec<RepositoryAdd>),
     RepositoryAddDialog(BackendName),
     RepositoryRemove(BackendName, Vec<RepositoryRemove>),
@@ -433,10 +433,10 @@ pub struct App {
     #[cfg(feature = "notify")]
     pub notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
     pub pending_operation_id: u64,
-    pub pending_operations: BTreeMap<u64, (Operation, f32)>,
+    pub pending_operations: BTreeMap<u64, (Operation, backend::Progress)>,
     pub progress_operations: BTreeSet<u64>,
     pub complete_operations: BTreeMap<u64, Operation>,
-    pub failed_operations: BTreeMap<u64, (Operation, f32, String)>,
+    pub failed_operations: BTreeMap<u64, (Operation, backend::Progress, String)>,
     pub repos_changing: Vec<(BackendName, String, bool)>,
     pub scrollable_id: widget::Id,
     pub scroll_views: HashMap<ScrollContext, scrollable::Viewport>,
@@ -555,7 +555,7 @@ impl App {
         let id = self.pending_operation_id;
         self.pending_operation_id += 1;
         self.progress_operations.insert(id);
-        self.pending_operations.insert(id, (operation, 0.0));
+        self.pending_operations.insert(id, (operation, backend::Progress::default()));
     }
 
     fn generic_search<F: Fn(&AppId, &AppInfo, bool) -> Option<i64> + Send + Sync>(
@@ -1261,6 +1261,25 @@ impl App {
                     // Collect all entries from backends in parallel
                     let collect_start = Instant::now();
                     let installed_ref = &installed;
+                    // Build a lookup: (backend_name, app_id) -> installed_size
+                    let installed_size_map: HashMap<(BackendName, AppId), u64> =
+                        installed_ref.as_ref().map_or_else(HashMap::new, |pkgs| {
+                            pkgs.iter()
+                                .filter(|(_, p)| p.info.installed_size > 0)
+                                .map(|(bn, p)| ((*bn, p.id.clone()), p.info.installed_size))
+                                .collect()
+                        });
+
+                    let uninstalled_size_map: HashMap<(BackendName, String, AppId), (u64, u64)> =
+                        backends
+                            .iter()
+                            .flat_map(|(bn, b)| {
+                                b.uninstalled_sizes()
+                                    .into_iter()
+                                    .map(move |((sid, aid), sizes)| ((*bn, sid, aid), sizes))
+                            })
+                            .collect();
+
                     let all_entries: Vec<(AppId, AppEntry)> = backends
                         .par_iter()
                         .flat_map(|(backend_name, backend)| {
@@ -1269,11 +1288,41 @@ impl App {
                                 .iter()
                                 .flat_map(|appstream_cache| {
                                     appstream_cache.infos.iter().map(|(id, info)| {
+                                        let mut merged_info = info.clone();
+
+                                        // Merge sizes from uninstalled map if available
+                                        if let Some((dl, inst)) = uninstalled_size_map.get(&(
+                                            *backend_name,
+                                            appstream_cache.source_id.clone(),
+                                            id.clone(),
+                                        )) {
+                                            if *dl > 0 || *inst > 0 {
+                                                let mut cloned = (*merged_info).clone();
+                                                if *dl > 0 {
+                                                    cloned.download_size = *dl;
+                                                }
+                                                if *inst > 0 {
+                                                    cloned.installed_size = *inst;
+                                                }
+                                                merged_info = Arc::new(cloned);
+                                            }
+                                        }
+
+                                        // Merge installed_size if available from installed packages
+                                        if let Some(&sz) =
+                                            installed_size_map.get(&(*backend_name, id.clone()))
+                                        {
+                                            if sz > 0 {
+                                                let mut cloned = (*merged_info).clone();
+                                                cloned.installed_size = sz;
+                                                merged_info = Arc::new(cloned);
+                                            }
+                                        }
                                         (
                                             id.clone(),
                                             AppEntry {
                                                 backend_name: *backend_name,
-                                                info: info.clone(),
+                                                info: merged_info,
                                                 installed: Self::is_installed_inner(
                                                     installed_ref,
                                                     *backend_name,
@@ -1666,11 +1715,33 @@ impl App {
             let mut section = widget::settings::section().title(fl!("pending"));
             for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                 section = section.add(widget::column![
-                    widget::determinate_linear(*progress)
+                    widget::determinate_linear(progress.percentage)
                         .width(Length::Fill)
                         .girth(progress_bar_height),
                     widget::space::vertical().height(space_xs),
-                    widget::text(op.pending_text((*progress * 100.0) as i32)),
+                    widget::text({
+                        let percentage = if let (Some(dl), Some(total)) =
+                            (progress.downloaded_bytes, progress.total_bytes)
+                            && total > 0
+                        {
+                            dl as f32 / total as f32
+                        } else {
+                            progress.percentage
+                        };
+
+                        if let (Some(dl), Some(total)) =
+                            (progress.downloaded_bytes, progress.total_bytes)
+                        {
+                            format!(
+                                "{} ({} / {})",
+                                op.pending_text((percentage * 100.0) as i32),
+                                app_info::format_size(dl),
+                                app_info::format_size(total)
+                            )
+                        } else {
+                            op.pending_text((percentage * 100.0) as i32)
+                        }
+                    }),
                 ]);
             }
             children.push(section.into());
@@ -1680,7 +1751,7 @@ impl App {
             let mut section = widget::settings::section().title(fl!("failed"));
             for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
                 section = section.add(widget::column::with_children(vec![
-                    widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
+                    widget::text(op.pending_text((progress.percentage * 100.0) as i32)).into(),
                     widget::text(error).into(),
                 ]));
             }
@@ -2355,38 +2426,63 @@ impl Application for App {
         let mut title = String::new();
         let mut total_progress = 0.0;
         let mut count = 0;
+        let mut total_downloaded = 0;
+        let mut total_to_download = 0;
+        let mut has_bytes = false;
         for (_id, (op, progress)) in self.pending_operations.iter() {
             if title.is_empty() {
-                title = op.pending_text((*progress * 100.0) as i32);
+                title = op.pending_text((progress.percentage * 100.0) as i32);
             }
-            total_progress += progress;
+            if let (Some(dl), Some(total)) = (progress.downloaded_bytes, progress.total_bytes) {
+                total_downloaded += dl;
+                total_to_download += total;
+                has_bytes = true;
+            }
+            total_progress += progress.percentage;
             count += 1;
         }
         let running = count;
         // Adjust the progress bar so it does not jump around when operations finish
         for id in self.progress_operations.iter() {
             if self.complete_operations.contains_key(id) {
-                total_progress += 100.0;
+                total_progress += 1.0;
                 count += 1;
             }
         }
         let finished = count - running;
-        total_progress /= count as f32;
+        if has_bytes && total_to_download > 0 {
+            total_progress = total_downloaded as f32 / total_to_download as f32;
+        } else if count > 0 {
+            total_progress /= count as f32;
+        }
         if running > 1 {
             if finished > 0 {
                 title = fl!(
                     "operations-running-finished",
                     running = running,
                     finished = finished,
-                    percent = (total_progress as i32)
+                    percent = ((total_progress * 100.0) as i32)
                 );
             } else {
                 title = fl!(
                     "operations-running",
                     running = running,
-                    percent = (total_progress as i32)
+                    percent = ((total_progress * 100.0) as i32)
                 );
             }
+        } else if running == 1 {
+            if let Some((op, _)) = self.pending_operations.values().next() {
+                title = op.pending_text((total_progress * 100.0) as i32);
+            }
+        }
+
+        if has_bytes && total_to_download > 0 {
+            title = format!(
+                "{} ({} / {})",
+                title,
+                app_info::format_size(total_downloaded),
+                app_info::format_size(total_to_download)
+            );
         }
 
         //TODO: get height from theme?
@@ -2515,18 +2611,20 @@ impl Application for App {
 
                     for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
-                            widget::determinate_linear(*progress)
+                            widget::determinate_linear(progress.percentage)
                                 .width(Length::Fill)
                                 .girth(Length::Fixed(4.0))
                                 .into(),
                             widget::space::vertical().height(space_xs).into(),
-                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
+                            widget::text(op.pending_text((progress.percentage * 100.0) as i32))
+                                .into(),
                         ]));
                     }
 
                     for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
                         list = list.add(widget::column::with_children(vec![
-                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
+                            widget::text(op.pending_text((progress.percentage * 100.0) as i32))
+                                .into(),
                             widget::text(error).into(),
                         ]));
                     }
@@ -2938,3 +3036,4 @@ pub fn abortable_blocking_task(
         })
     })
 }
+

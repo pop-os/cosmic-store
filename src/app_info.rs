@@ -89,10 +89,18 @@ fn write_node(
 
 fn convert_markup(markup: &str) -> Result<String, Box<dyn Error>> {
     let mut s = String::new();
-    for node in xmltree::Element::parse_all(markup.as_bytes())? {
-        write_node(&mut s, &node, 0)?;
+    match xmltree::Element::parse_all(markup.as_bytes()) {
+        Ok(nodes) => {
+            for node in nodes {
+                write_node(&mut s, &node, 0)?;
+            }
+            Ok(s)
+        }
+        Err(_) => {
+            // Fallback to plain text if XML parsing fails
+            Ok(markup.to_string())
+        }
     }
-    Ok(s)
 }
 
 // Replaced Icon due to skip_field not supported in bitcode
@@ -306,8 +314,16 @@ impl AppInfo {
                 // Extract size info from release
                 for size in &release.sizes {
                     match size {
-                        appstream::enums::Size::Download(s) => download_size_val = *s,
-                        appstream::enums::Size::Installed(s) => installed_size_val = *s,
+                        appstream::enums::Size::Download(s) => {
+                            if download_size_val == 0 {
+                                download_size_val = *s;
+                            }
+                        }
+                        appstream::enums::Size::Installed(s) => {
+                            if installed_size_val == 0 {
+                                installed_size_val = *s;
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -378,5 +394,23 @@ impl AppInfo {
             download_size: download_size_val,
             ..Default::default()
         }
+    }
+}
+
+pub fn format_size(bytes: u64) -> String {
+    if bytes < 1000 {
+        crate::fl!("size-bytes", count = (bytes as i32))
+    } else if bytes < 1000 * 1000 {
+        crate::fl!("size-kilobytes", count = ((bytes as f64 / 1000.0) as i32))
+    } else if bytes < 1000 * 1000 * 1000 {
+        crate::fl!(
+            "size-megabytes",
+            count = ((bytes as f64 / (1000.0 * 1000.0)) as i32)
+        )
+    } else {
+        crate::fl!(
+            "size-gigabytes",
+            count = ((bytes as f64 / (1000.0 * 1000.0 * 1000.0)) as i32)
+        )
     }
 }
