@@ -166,6 +166,8 @@ pub struct AppInfo {
     pub screenshots: Vec<AppScreenshot>,
     pub urls: Vec<AppUrl>,
     pub monthly_downloads: u64,
+    pub installed_size: u64,
+    pub download_size: u64,
 }
 
 impl AppInfo {
@@ -277,6 +279,9 @@ impl AppInfo {
                 })
             })
             .collect();
+        let mut download_size_val = 0;
+        let mut installed_size_val = 0;
+
         let releases = component
             .releases
             .into_iter()
@@ -297,6 +302,16 @@ impl AppInfo {
                         }
                     }
                 });
+
+                // Extract size info from release
+                for size in &release.sizes {
+                    match size {
+                        appstream::enums::Size::Download(s) => download_size_val = *s,
+                        appstream::enums::Size::Installed(s) => installed_size_val = *s,
+                        _ => {}
+                    }
+                }
+
                 AppRelease {
                     timestamp: release.date.map(|date| date.timestamp()),
                     version: release.version,
@@ -359,6 +374,8 @@ impl AppInfo {
             screenshots,
             urls,
             monthly_downloads,
+            installed_size: installed_size_val,
+            download_size: download_size_val,
             ..Default::default()
         }
     }
