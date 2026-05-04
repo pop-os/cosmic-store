@@ -17,6 +17,7 @@ pub enum BackendName {
     FlatpakSystem,
     Packagekit,
     Pkgar,
+    RpmOstree,
 }
 
 impl BackendName {
@@ -27,6 +28,7 @@ impl BackendName {
             BackendName::FlatpakSystem => "flatpak-system",
             BackendName::Packagekit => "packagekit",
             BackendName::Pkgar => "pkgar",
+            BackendName::RpmOstree => "rpm-ostree",
         }
     }
 
@@ -51,6 +53,7 @@ impl std::str::FromStr for BackendName {
             "flatpak-system" => Ok(BackendName::FlatpakSystem),
             "packagekit" => Ok(BackendName::Packagekit),
             "pkgar" => Ok(BackendName::Pkgar),
+            "rpm-ostree" => Ok(BackendName::RpmOstree),
             _ => Err(format!("unknown backend name: {}", s)),
         }
     }
@@ -64,6 +67,9 @@ mod packagekit;
 
 #[cfg(feature = "pkgar")]
 mod pkgar;
+
+#[cfg(feature = "rpm-ostree")]
+mod rpm_ostree;
 
 #[derive(Clone, Debug)]
 pub struct Package {
@@ -190,6 +196,39 @@ pub fn backends<'a>(
                     None
                 }
             })
+        });
+
+        backends.push(rx)
+    }
+
+    #[cfg(feature = "rpm-ostree")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding rpm-ostree backend");
+            _ = tx.send(match rpm_ostree::RpmOstree::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::warn!(
+                        "initialized {} backend in {:?}",
+                        BackendName::RpmOstree,
+                        duration
+                    );
+                    Some((BackendName::RpmOstree, backend))
+                }
+                Err(err) => {
+                    log::warn!(
+                        "failed to load {} backend: {}",
+                        BackendName::RpmOstree,
+                        err
+                    );
+                    None
+                }
+            });
         });
 
         backends.push(rx)
