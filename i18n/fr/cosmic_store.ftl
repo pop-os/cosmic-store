@@ -122,6 +122,7 @@ repository-remove-body =
     } les applications et élements suivants. Ils devront être réinstallés si le dépôt est ajouté de nouveau.
 dock = Dock
 version = Version { $version }
+size = Size
 removing = Suppression...
 enable-flathub-cosmic = Activez les dépôts Flathub et les Flatpak COSMIC pour voir les applets disponibles.
 manage-repositories = Gérer les dépôts

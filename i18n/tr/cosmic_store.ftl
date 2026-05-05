@@ -141,4 +141,5 @@ system-packages = Sistem Paketleri
 flatpak-runtimes = Flatpak Çalışma Ortamları
 view-more = Daha fazla göster
 version = Sürüm { $version }
+size = Size
 addons = Eklentiler

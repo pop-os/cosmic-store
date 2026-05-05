@@ -110,3 +110,4 @@ recommended-flatpak-sources = Flatpak-upprunastaðir sem mælt er með
 custom-flatpak-sources = Sérsniðnir Flatpak-upprunastaðir
 import-flatpakrepo = Flytja inn .flatpakrepo-skrá til að bæta við sérsniðnum upprunastað
 no-custom-flatpak-sources = Enginn sérsniðinnn Flatpak-upprunastaður
+size = Size

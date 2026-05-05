@@ -129,3 +129,4 @@ no-flatpak = No hay compatibilidad con Flatpak
 software-repositories = Repositorios de software
 addons = Complementos
 view-more = Ver más
+size = Size

@@ -127,6 +127,7 @@ light = Světlý
 addons = Doplňky
 view-more = Zobrazit více
 version = Verze { $version }
+size = Size
 delete-app-data = Trvale smazat data aplikace
 uninstall-app-flatpak-warning = Odinstalace { $name } zachová její dokumenty a data.
 system-package-updates = Aktualizace balíčků

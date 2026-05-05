@@ -143,3 +143,4 @@ light = Светла тема
 addons = Добавки
 view-more = Вижте още
 version = Версия { $version }
+size = Size

@@ -82,6 +82,7 @@ developer = Әзірлеуші
 app-developers = { $app } әзірлеушілері
 monthly-downloads = Flathub айлық жүктеулері
 version = Нұсқасы { $version }
+size = Size
 licenses = Лицензиялар
 proprietary = Меншікті
 view-more = Көбірек көру

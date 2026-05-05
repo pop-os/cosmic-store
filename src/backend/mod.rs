@@ -65,6 +65,13 @@ mod packagekit;
 #[cfg(feature = "pkgar")]
 mod pkgar;
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Progress {
+    pub percentage: f32,
+    pub downloaded_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Package {
     pub id: AppId,
@@ -89,8 +96,11 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn operation(
         &self,
         op: &Operation,
-        f: Box<dyn FnMut(f32) + 'static>,
+        f: Box<dyn FnMut(Progress) + 'static>,
     ) -> Result<(), Box<dyn Error>>;
+    fn uninstalled_sizes(&self) -> HashMap<(String, AppId), (u64, u64)> {
+        HashMap::new()
+    }
 }
 
 // BTreeMap for stable sort order

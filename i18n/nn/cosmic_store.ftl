@@ -3,3 +3,4 @@ cancel = Avbryt
 close = Lukk
 back = Tilbake
 settings = Innstillingar
+size = Size

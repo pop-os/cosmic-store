@@ -82,6 +82,7 @@ developer = Kūrėjas
 app-developers = { $app } Vystytojai
 monthly-downloads = Flathub mėnesiniai atsiuntimai
 version = Versija { $version }
+size = Size
 licenses = Licencijos
 proprietary = Privačios nuosavybės
 view-more = Žiūrėti daugiau

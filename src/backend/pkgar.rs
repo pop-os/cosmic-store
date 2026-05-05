@@ -124,7 +124,7 @@ impl Backend for Pkgar {
     fn operation(
         &self,
         _op: &Operation,
-        _f: Box<dyn FnMut(f32) + 'static>,
+        _f: Box<dyn FnMut(super::Progress) + 'static>,
     ) -> Result<(), Box<dyn Error>> {
         Err("Pkgar::operation not implemented".into())
     }

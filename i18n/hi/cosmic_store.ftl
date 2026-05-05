@@ -85,3 +85,4 @@ place-applet = एप्लेट रखें
 place-applet-desc = एप्लेट के स्थान को सुधारने से पहले उसे जोड़ने का स्थान चुनें।
 panel = पैनल
 dock = डाॅक
+size = Size

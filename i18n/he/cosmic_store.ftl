@@ -79,3 +79,4 @@ theme = ערכת עיצוב
 match-desktop = כמו שולחן העבודה
 dark = כהה
 light = בהירה
+size = Size

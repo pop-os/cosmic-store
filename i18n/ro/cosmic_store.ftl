@@ -92,3 +92,4 @@ theme = Temă
 match-desktop = Potrivește cu desktopul
 dark = Întunecat
 light = Luminos
+size = Size

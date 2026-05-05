@@ -490,7 +490,7 @@ impl App {
             }
             Message::PendingProgress(id, new_progress) => {
                 if let Some((_, progress)) = self.pending_operations.get_mut(&id) {
-                    *progress = new_progress / 100.0;
+                    *progress = new_progress;
                 }
                 return self.update_notification();
             }
@@ -820,18 +820,18 @@ impl App {
 
                 //TODO: can this be simplified?
                 if let Some((backend_name, source_id, id)) = next_ids {
-                    if let Some(backend) = self.backends.get(&backend_name) {
-                        for appstream_cache in backend.info_caches() {
-                            if appstream_cache.source_id == source_id
-                                && let Some(info) = appstream_cache.infos.get(&id)
-                            {
-                                return self.select(
-                                    backend_name,
-                                    id,
-                                    Some(appstream_cache.icon(info)),
-                                    info.clone(),
-                                );
-                            }
+                    if let Some(entries) = self.apps.get(&id) {
+                        if let Some(entry) = entries.iter().find(|e| {
+                            e.backend_name == backend_name && e.info.source_id == source_id
+                        }) {
+                            let icon = self.backends.get(&backend_name).and_then(|backend| {
+                                backend
+                                    .info_caches()
+                                    .iter()
+                                    .find(|cache| cache.source_id == source_id)
+                                    .map(|cache| cache.icon(&entry.info))
+                            });
+                            return self.select(backend_name, id, icon, entry.info.clone());
                         }
                     }
 

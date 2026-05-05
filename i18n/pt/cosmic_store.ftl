@@ -127,3 +127,4 @@ import = Importar
 no-flatpak = Sem suporte flatpak
 software-repositories = Repositórios de Software
 view-more = Ver mais
+size = Size

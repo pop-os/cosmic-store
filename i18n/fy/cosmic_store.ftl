@@ -5,3 +5,4 @@ back = Werom
 cancel = Annulearje
 settings = Ynstellings
 match-desktop = Systeemstandert
+size = Size

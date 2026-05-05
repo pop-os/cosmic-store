@@ -133,3 +133,4 @@ codec-footer =
     • 本ソフトウェアを研究目的でのみ使用していること
 addons = アドオン
 view-more = さらに表示
+size = Size

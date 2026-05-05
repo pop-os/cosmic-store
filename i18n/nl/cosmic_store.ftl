@@ -112,6 +112,7 @@ codec-header = “{ $application }” vereist aanvullende pakketten voor deze fu
 codec-error = Er zijn fouten opgetreden tijdens de pakketinstallatie.
 repository-remove-title = Softwarebron “{ $name }” verwijderen?
 version = Versie { $version }
+size = Size
 uninstall-app-flatpak-warning = Als u { $name } verwijdert, behoudt u de bijbehorende documenten en gegevens.
 repository-add-error-title = “Kon softwarebron niet toevoegen”
 addons = Extensies

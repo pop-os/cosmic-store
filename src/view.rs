@@ -12,7 +12,7 @@ use cosmic::{
 use rayon::prelude::*;
 
 use crate::app_id::AppId;
-use crate::app_info::{AppInfo, AppProvide, AppUrl};
+use crate::app_info::{self, AppInfo, AppProvide, AppUrl};
 use crate::backend::{BackendName, Package};
 use crate::config::AppTheme;
 use crate::explore::ExplorePage;
@@ -166,7 +166,7 @@ impl App {
                     .iter()
                     .any(|package_id| package_id == selected_id)
             {
-                progress_opt = Some(*progress);
+                progress_opt = Some(progress.percentage);
                 break;
             }
         }
@@ -419,27 +419,60 @@ impl App {
                     .align_x(Alignment::Center)
                     .width(Length::Fill)
                 });
+                let is_installed =
+                    self.is_installed(selected.backend_name, &selected.id, &selected.info);
+                let size_val = selected.info.download_size.max(selected.info.installed_size);
+
+                let size_widget = (size_val > 0).then(|| {
+                    let size_text = if is_installed {
+                        fl!("size-installed", size = app_info::format_size(size_val))
+                    } else {
+                        fl!("size-download", size = app_info::format_size(size_val))
+                    };
+
+                    widget::column::with_children(vec![
+                        widget::text::heading(size_text).into(),
+                        widget::text::body(fl!("size")).into(),
+                    ])
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill)
+                });
+
                 if grid_width < 416 {
-                    let size = 4 + if downloads_widget.is_some() { 3 } else { 0 };
-                    let downloads_widget_space = downloads_widget
+                    let size = 5
+                        + if downloads_widget.is_some() { 2 } else { 0 }
+                        + if size_widget.is_some() { 2 } else { 0 };
+                    let downloads_widget_divider = downloads_widget
                         .is_some()
                         .then(widget::divider::horizontal::default);
+                    let size_widget_divider = size_widget
+                        .is_some()
+                        .then(widget::divider::horizontal::default);
+
                     column = column.push(
                         widget::column::with_capacity(size)
                             .push(widget::divider::horizontal::default())
                             .push(sources_widget)
                             .push(widget::divider::horizontal::default())
                             .push(developers_widget)
-                            .push(widget::divider::horizontal::default())
+                            .push_maybe(downloads_widget_divider)
                             .push_maybe(downloads_widget)
-                            .push_maybe(downloads_widget_space)
+                            .push_maybe(size_widget_divider)
+                            .push_maybe(size_widget)
+                            .push(widget::divider::horizontal::default())
                             .spacing(space_xxs),
                     );
                 } else {
-                    let row_size = 4 + if downloads_widget.is_some() { 2 } else { 0 };
+                    let row_size = 4
+                        + if downloads_widget.is_some() { 2 } else { 0 }
+                        + if size_widget.is_some() { 2 } else { 0 };
                     let downloads_widget_space = downloads_widget
                         .is_some()
                         .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
+                    let size_widget_space = size_widget
+                        .is_some()
+                        .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
+
                     column = column.push(
                         widget::column::with_children(vec![
                             widget::divider::horizontal::default().into(),
@@ -452,6 +485,8 @@ impl App {
                                 .push(developers_widget)
                                 .push_maybe(downloads_widget_space)
                                 .push_maybe(downloads_widget)
+                                .push_maybe(size_widget_space)
+                                .push_maybe(size_widget)
                                 .align_y(Alignment::Center)
                                 .into(),
                             widget::divider::horizontal::default().into(),
@@ -905,7 +940,7 @@ impl App {
                                                 .iter()
                                                 .any(|package_id| package_id == &package.id)
                                         {
-                                            progress_opt = Some(*progress);
+                                            progress_opt = Some(progress.percentage);
                                             break;
                                         }
                                     }

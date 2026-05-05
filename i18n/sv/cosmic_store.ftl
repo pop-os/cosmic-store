@@ -129,6 +129,7 @@ applets = Miniprogram
 addons = Tillägg
 view-more = Visa mer
 version = Version { $version }
+size = Size
 delete-app-data = Radera program-data permanent
 uninstall-app-flatpak-warning = Om du avinstallerar { $name } kommer du att behålla dess dokument och data.
 system-package-updates = Paketuppdateringar

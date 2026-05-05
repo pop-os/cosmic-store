@@ -79,3 +79,4 @@ theme = Tema
 match-desktop = Kao sistem
 dark = Tamna
 light = Svetla
+size = Size

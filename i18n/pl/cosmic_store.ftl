@@ -145,6 +145,7 @@ light = Jasny
 addons = Rozszerzenia
 view-more = Zobacz więcej
 version = Wersja { $version }
+size = Size
 delete-app-data = Definitywnie usuń dane aplikacji
 uninstall-app-flatpak-warning = Odinstalowanie { $name } nie usunie danych i dokumentów.
 system-package-updates = Aktualizacje pakietów
