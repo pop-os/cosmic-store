@@ -6,7 +6,7 @@ checking-for-updates = Перевірка оновлень...
 install = Встановити
 no-installed-applications = Немає встановлених застосунків.
 no-updates = Усі встановлені застосунки оновлені.
-no-results = За запитом "{ $search }" нічого не знайдено.
+no-results = За запитом «{ $search }» нічого не знайдено.
 open = Відкрити
 see-all = Переглянути всі
 uninstall = Видалити
@@ -87,7 +87,7 @@ adding = Додавання...
 remove = Вилучити
 removing = Вилучення...
 applets = Віджети
-enable-flathub-cosmic = Будь ласка, увімкніть Flathub та COSMIC Flatpak, щоб переглянути доступні віджети.
+enable-flathub-cosmic = Увімкніть Flathub та COSMIC Flatpak, щоб переглянути доступні віджети.
 manage-repositories = Керувати сховищами
 made-for-cosmic = Зроблено для COSMIC
 monthly-downloads = Завантажень за місяць
@@ -133,6 +133,7 @@ system-package-updates = Оновлення пакетів
 system-packages-summary =
     { $count ->
         [one] { $count } пакет
+        [few] { $count } пакети
        *[other] { $count } пакетів
     }
 system-packages = Системні пакети
