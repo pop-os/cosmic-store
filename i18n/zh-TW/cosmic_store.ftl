@@ -18,7 +18,7 @@ uninstall-app = 解除安裝 { $name }?
 uninstall-app-warning = 解除安裝 { $name } 將會刪除其資料。
 # Nav Pages
 explore = 探索
-create = 創作
+create = 建立
 work = 工作
 develop = 開發
 learn = 學習
