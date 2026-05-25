@@ -8,4 +8,4 @@ StartupNotify=true
 Icon=com.system76.CosmicStore
 Categories=COSMIC;System;PackageManager;
 Keywords=App;Software;Store;Shop;
-MimeType=application/x-debian-package;application/vnd.debian.binary-package;application/vnd.flatpak.ref;x-scheme-handler/appstream;x-scheme-handler/mime;
+MimeType=application/x-debian-package;application/vnd.debian.binary-package;application/vnd.flatpak.ref;x-scheme-handler/appstream;x-scheme-handler/mime;application/x-rpm;
