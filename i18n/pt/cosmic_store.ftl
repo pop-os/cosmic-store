@@ -1,6 +1,6 @@
 app-name = Loja de Aplicações COSMIC
-comment = Loja de aplicativos do desktop COSMIC
-keywords = App;Aplicativos;Software;Programas;Loja;Store;
+comment = Loja de aplicações para o ambiente de trabalho COSMIC
+keywords = App;Aplicação;Software;Programas;Loja;Store;
 back = Voltar
 cancel = Cancelar
 check-for-updates = Procurar atualizações
@@ -75,8 +75,8 @@ place-and-refine = Colocar e ajustar
 codec-title = Instalar pacotes adicionais?
 complete = Concluído
 place-on-desktop = Colocar na área de trabalho
-place-applet = Colocar miniaplicativo
-place-applet-desc = Escolha onde adicionar a miniaplicativo antes de ajustar a sua posição.
+place-applet = Colocar miniaplicação
+place-applet-desc = Escolha onde adicionar a miniaplicação antes de ajustar a sua posição.
 codec-header = "{ $application }" requer pacotes adicionais fornecendo "{ $description }".
 codec-footer =
     O uso desses pacotes adicionais pode ser restrito em alguns países.

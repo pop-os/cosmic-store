@@ -7,10 +7,10 @@ check-for-updates = Frissítések keresése
 checking-for-updates = Frissítések keresése…
 close = Bezárás
 install = Telepítés
-no-installed-applications = Nincsenek telepített alkalmazások
-no-updates = Minden telepített alkalmazás naprakész
-no-results = Nincs találat a következőre: „{ $search }”
-notification-in-progress = Telepítések és frissítések folyamatban
+no-installed-applications = Nincsenek telepített alkalmazások.
+no-updates = Minden telepített alkalmazás naprakész.
+no-results = Nincs találat a következőre: „{ $search }”.
+notification-in-progress = Telepítések és frissítések folyamatban.
 open = Megnyitás
 see-all = Összes megjelenítése
 uninstall = Eltávolítás
@@ -24,7 +24,7 @@ dock = Dokk
 place-and-refine = Elhelyezés és pontosítás
 # Codec dialog
 codec-title = További csomagok telepítése?
-codec-header = „{ $application }” további csomagokat igényel, amelyek biztosítják: „{ $description }”
+codec-header = A(z) „{ $application }” további csomagokat igényel, amelyek a következőt biztosítják: „{ $description }”.
 codec-footer =
     Ezeknek a kiegészítő csomagoknak a használata egyes országokban korlátozott lehet.
     Ellenőrizned kell, hogy az alábbiak közül legalább egy igaz:
@@ -52,7 +52,7 @@ adding = Hozzáadás…
 remove = Eltávolítás
 removing = Eltávolítás…
 # Uninstall Dialog
-uninstall-app = Eltávolítod ezt: { $name }?
+uninstall-app = Eltávolítod a(z) { $name } alkalmazást?
 uninstall-app-warning = A(z) { $name } eltávolítása törölni fogja annak adatait.
 # Nav Pages
 explore = Felfedezés
@@ -111,7 +111,7 @@ translate = Fordítás
 
 cancelled = Megszakítva
 operations = Műveletek
-no-operations = Nincsenek műveletek az előzményekben
+no-operations = Nincsenek műveletek az előzményekben.
 pending = Függőben
 failed = Sikertelen
 complete = Befejezett
@@ -154,4 +154,4 @@ system-packages-summary =
        *[other] { $count } csomag
     }
 system-packages = Rendszercsomagok
-flatpak-runtimes = Flatpak futtatókörnyezetek
+flatpak-runtimes = Flatpak-futtatókörnyezetek
