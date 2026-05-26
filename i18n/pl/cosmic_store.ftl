@@ -155,4 +155,4 @@ system-packages-summary =
        *[other] { $count } pakietów
     }
 system-packages = Pakiety Systemowe
-flatpak-runtimes = Środowiska Uruchomieniowe Flatpak
+flatpak-runtimes = Środowisko Uruchomieniowe Flatpak
