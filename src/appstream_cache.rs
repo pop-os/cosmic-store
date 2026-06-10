@@ -58,6 +58,8 @@ pub struct AppstreamCache {
     pub addons: HashMap<AppId, Vec<AppId>>,
 }
 
+type ParsedComponents = (Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>);
+
 impl AppstreamCache {
     /// Get cache for specified appstream data sources
     pub fn new(
@@ -581,7 +583,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedComponents, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
@@ -660,7 +662,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedComponents, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
 
