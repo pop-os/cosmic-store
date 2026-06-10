@@ -6,7 +6,10 @@ use std::sync::Arc;
 
 use cosmic::{
     Apply, Element, cosmic_theme,
-    iced::{Alignment, Length, Size},
+    iced::{
+        Alignment, Length, Size,
+        advanced::text::{Ellipsize, EllipsizeHeightLimit, Wrapping},
+    },
     theme, widget,
 };
 use rayon::prelude::*;
@@ -27,6 +30,19 @@ use crate::{
     Message, SelectedSource, SourceKind,
 };
 
+/// Slightly dimmed text style for app card descriptions, so the summary reads
+/// as secondary to the app title.
+pub fn description_text_style(
+    theme: &cosmic::Theme,
+) -> cosmic::iced::advanced::widget::text::Style {
+    let mut color = theme.cosmic().background.component.on;
+    color.alpha *= 0.75;
+    cosmic::iced::advanced::widget::text::Style {
+        color: Some(color.into()),
+        ..Default::default()
+    }
+}
+
 pub fn package_card_view<'a>(
     info: &'a AppInfo,
     icon_opt: Option<&'a widget::icon::Handle>,
@@ -35,7 +51,7 @@ pub fn package_card_view<'a>(
     spacing: &cosmic_theme::Spacing,
     width: usize,
 ) -> Element<'a, Message> {
-    let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
+    let height = 20.0 + 34.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
     let top_row_cap = 1 + top_controls
         .as_deref()
         .map(|elements| 1 + elements.len())
@@ -48,7 +64,11 @@ pub fn package_card_view<'a>(
                     .width(width as f32 - 180.0)
                     .into(),
                 widget::text::caption(&info.summary)
-                    .height(28.0)
+                    .size(11.0)
+                    .wrapping(Wrapping::Word)
+                    .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(2)))
+                    .class(theme::Text::Custom(description_text_style))
+                    .height(34.0)
                     .width(width as f32 - 180.0)
                     .into(),
             ]))
