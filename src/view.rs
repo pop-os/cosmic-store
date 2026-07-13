@@ -182,7 +182,7 @@ impl App {
             }
         }
         let mut progress_opt = None;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if op.backend_name == selected_backend_name
                 && op
                     .infos
@@ -757,59 +757,64 @@ impl App {
                                         .height(Length::Fixed(size.height))
                                         .into()
                                 } else {
-                                let explore_pages = ExplorePage::all();
-                                let mut column =
-                                    widget::column::with_capacity(explore_pages.len() * 2)
-                                        .padding([0, space_s, space_m, space_s])
-                                        .spacing(space_xxs)
-                                        .width(Length::Fill);
-                                for explore_page in explore_pages.iter() {
-                                    //TODO: ensure explore_page matches
-                                    match self.explore_results.get(explore_page) {
-                                        Some(results) if !results.is_empty() => {
-                                            let GridMetrics { cols, .. } =
-                                                SearchResult::grid_metrics(&spacing, grid_width);
+                                    let explore_pages = ExplorePage::all();
+                                    let mut column =
+                                        widget::column::with_capacity(explore_pages.len() * 2)
+                                            .padding([0, space_s, space_m, space_s])
+                                            .spacing(space_xxs)
+                                            .width(Length::Fill);
+                                    for explore_page in explore_pages.iter() {
+                                        //TODO: ensure explore_page matches
+                                        match self.explore_results.get(explore_page) {
+                                            Some(results) if !results.is_empty() => {
+                                                let GridMetrics { cols, .. } =
+                                                    SearchResult::grid_metrics(
+                                                        &spacing, grid_width,
+                                                    );
 
-                                            let max_results = match cols {
-                                                1 => 4,
-                                                2 => 8,
-                                                3 => 9,
-                                                _ => cols * 2,
-                                            };
+                                                let max_results = match cols {
+                                                    1 => 4,
+                                                    2 => 8,
+                                                    3 => 9,
+                                                    _ => cols * 2,
+                                                };
 
-                                            //TODO: adjust results length based on app size?
-                                            let results_len = cmp::min(results.len(), max_results);
+                                                //TODO: adjust results length based on app size?
+                                                let results_len =
+                                                    cmp::min(results.len(), max_results);
 
-                                            column = column.push(widget::row::with_children(vec![
-                                                widget::text::title4(explore_page.title()).into(),
-                                                widget::space::horizontal().into(),
-                                                widget::button::text(fl!("see-all"))
-                                                    .trailing_icon(icon_cache_handle(
-                                                        "go-next-symbolic",
-                                                        16,
-                                                    ))
-                                                    .on_press(Message::ExplorePage(Some(
-                                                        *explore_page,
-                                                    )))
-                                                    .into(),
-                                            ]));
+                                                column =
+                                                    column.push(widget::row::with_children(vec![
+                                                        widget::text::title4(explore_page.title())
+                                                            .into(),
+                                                        widget::space::horizontal().into(),
+                                                        widget::button::text(fl!("see-all"))
+                                                            .trailing_icon(icon_cache_handle(
+                                                                "go-next-symbolic",
+                                                                16,
+                                                            ))
+                                                            .on_press(Message::ExplorePage(Some(
+                                                                *explore_page,
+                                                            )))
+                                                            .into(),
+                                                    ]));
 
-                                            column = column.push(SearchResult::grid_view(
-                                                &results[..results_len],
-                                                spacing,
-                                                grid_width,
-                                                |result_i| {
-                                                    Message::SelectExploreResult(
-                                                        *explore_page,
-                                                        result_i,
-                                                    )
-                                                },
-                                            ));
+                                                column = column.push(SearchResult::grid_view(
+                                                    &results[..results_len],
+                                                    spacing,
+                                                    grid_width,
+                                                    |result_i| {
+                                                        Message::SelectExploreResult(
+                                                            *explore_page,
+                                                            result_i,
+                                                        )
+                                                    },
+                                                ));
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
-                                }
-                                column.into()
+                                    column.into()
                                 }
                             }
                         }
@@ -945,7 +950,7 @@ impl App {
                                         }
                                     }
                                     let mut progress_opt = None;
-                                    for (_id, (op, progress)) in self.pending_operations.iter() {
+                                    for (op, progress) in self.pending_operations.values() {
                                         if &op.backend_name == backend_name
                                             && op.infos.iter().any(|info| {
                                                 info.source_id == package.info.source_id
