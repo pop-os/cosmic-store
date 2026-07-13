@@ -869,7 +869,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::ExploreIconsLoaded(explore_page, icons))
                 })
                 .await
@@ -888,7 +889,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::CategoryIconsLoaded(categories, icons))
                 })
                 .await
@@ -907,7 +909,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    // Installed page shows every app, so load all icons (no cap)
+                    let icons = Self::load_icons_for_results(&results, &backends, None);
                     action::app(Message::InstalledIconsLoaded(icons))
                 })
                 .await
@@ -926,7 +929,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::SearchIconsLoaded(input, icons))
                 })
                 .await
@@ -939,10 +943,13 @@ impl App {
     fn load_icons_for_results(
         results: &[SearchResult],
         backends: &Backends,
+        limit: Option<usize>,
     ) -> Vec<(usize, widget::icon::Handle)> {
         let icon_start = Instant::now();
         let mut icons = Vec::new();
-        for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+        // Load at most `limit` icons, or all of them when `limit` is None
+        let limit = limit.unwrap_or(results.len());
+        for (i, result) in results.iter().enumerate().take(limit) {
             // Skip results that already have icons (e.g., preserved from previous results)
             if result.icon_opt.is_some() {
                 continue;
