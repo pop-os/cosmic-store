@@ -350,6 +350,30 @@ impl App {
                 }
             }
             Message::Key(modifiers, key, text) => {
+                // Handle screenshot gallery navigation/close while it is open
+                if self
+                    .selected_opt
+                    .as_ref()
+                    .is_some_and(|selected| selected.screenshot_gallery)
+                    && !modifiers.logo()
+                    && !modifiers.control()
+                    && !modifiers.alt()
+                    && !modifiers.shift()
+                {
+                    match key {
+                        Key::Named(key::Named::Escape) => {
+                            return self.handle_update(Message::ScreenshotGallery(false));
+                        }
+                        Key::Named(key::Named::ArrowLeft | key::Named::ArrowUp) => {
+                            return self.handle_update(Message::ScreenshotGalleryPrev);
+                        }
+                        Key::Named(key::Named::ArrowRight | key::Named::ArrowDown) => {
+                            return self.handle_update(Message::ScreenshotGalleryNext);
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Handle ESC key to close dialogs
                 if !self.dialog_pages.is_empty()
                     && matches!(key, Key::Named(key::Named::Escape))
@@ -800,6 +824,31 @@ impl App {
             Message::SelectedScreenshotShown(i) => {
                 if let Some(selected) = &mut self.selected_opt {
                     selected.screenshot_shown = i;
+                }
+            }
+            Message::ScreenshotGallery(open) => {
+                if let Some(selected) = &mut self.selected_opt {
+                    // Only open the gallery when there is a screenshot to show
+                    selected.screenshot_gallery = open && !selected.info.screenshots.is_empty();
+                }
+            }
+            Message::ScreenshotGalleryPrev => {
+                if let Some(selected) = &mut self.selected_opt {
+                    let len = selected.info.screenshots.len();
+                    if len > 0 {
+                        selected.screenshot_shown = selected
+                            .screenshot_shown
+                            .checked_sub(1)
+                            .unwrap_or(len - 1);
+                    }
+                }
+            }
+            Message::ScreenshotGalleryNext => {
+                if let Some(selected) = &mut self.selected_opt {
+                    let len = selected.info.screenshots.len();
+                    if len > 0 {
+                        selected.screenshot_shown = (selected.screenshot_shown + 1) % len;
+                    }
                 }
             }
             Message::ToggleUninstallPurgeData(value) => {
