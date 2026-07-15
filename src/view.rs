@@ -385,16 +385,15 @@ impl App {
             let has_multiple = screenshots.len() > 1;
             let mut row = widget::row::with_capacity(5).align_y(Alignment::Center);
             row = row.push(widget::space::horizontal().width(space_m));
-            {
-                let mut button = widget::button::icon(
-                    widget::icon::from_name("go-previous-symbolic").size(16),
-                )
-                .padding(spacing.space_xs)
-                .class(theme::Button::Standard);
-                if has_multiple {
-                    button = button.on_press(Message::ScreenshotGalleryPrev);
-                }
-                row = row.push(button);
+            if has_multiple {
+                row = row.push(
+                    widget::button::icon(
+                        widget::icon::from_name("go-previous-symbolic").size(16),
+                    )
+                    .padding(spacing.space_xs)
+                    .class(theme::Button::Standard)
+                    .on_press(Message::ScreenshotGalleryPrev),
+                );
             }
             let image_element: Element<'_, Message> =
                 if let Some(image) = selected.screenshot_images.get(&selected.screenshot_shown) {
@@ -414,16 +413,15 @@ impl App {
                         .into()
                 };
             row = row.push(image_element);
-            {
-                let mut button = widget::button::icon(
-                    widget::icon::from_name("go-next-symbolic").size(16),
-                )
-                .padding(spacing.space_xs)
-                .class(theme::Button::Standard);
-                if has_multiple {
-                    button = button.on_press(Message::ScreenshotGalleryNext);
-                }
-                row = row.push(button);
+            if has_multiple {
+                row = row.push(
+                    widget::button::icon(
+                        widget::icon::from_name("go-next-symbolic").size(16),
+                    )
+                    .padding(spacing.space_xs)
+                    .class(theme::Button::Standard)
+                    .on_press(Message::ScreenshotGalleryNext),
+                );
             }
             row = row.push(widget::space::horizontal().width(space_m));
             column = column.push(row.height(Length::Fill));
@@ -588,8 +586,9 @@ impl App {
                 //TODO: proper image scroller
                 if let Some(screenshot) = selected.info.screenshots.get(selected.screenshot_shown) {
                     let image_height = Length::Fixed(320.0);
+                    let has_multiple = selected.info.screenshots.len() > 1;
                     let mut row = widget::row::with_capacity(3).align_y(Alignment::Center);
-                    {
+                    if has_multiple {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-previous-symbolic").size(16),
                         );
@@ -625,7 +624,7 @@ impl App {
                         ])
                         .align_x(Alignment::Center),
                     );
-                    {
+                    if has_multiple {
                         let mut button = widget::button::icon(
                             widget::icon::from_name("go-next-symbolic").size(16),
                         );
