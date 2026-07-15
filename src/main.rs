@@ -344,6 +344,9 @@ pub enum Message {
     SelectedAddonsViewMore(bool),
     SelectedScreenshot(usize, String, Vec<u8>),
     SelectedScreenshotShown(usize),
+    ScreenshotGallery(bool),
+    ScreenshotGalleryPrev,
+    ScreenshotGalleryNext,
     ToggleUninstallPurgeData(bool),
     SelectedSource(usize),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
@@ -409,6 +412,7 @@ pub struct Selected {
     pub info: Arc<AppInfo>,
     pub screenshot_images: HashMap<usize, widget::image::Handle>,
     pub screenshot_shown: usize,
+    pub screenshot_gallery: bool,
     pub sources: Vec<SelectedSource>,
     pub addons: Vec<(AppId, Arc<AppInfo>)>,
     pub addons_view_more: bool,
@@ -1121,6 +1125,7 @@ impl App {
             info,
             screenshot_images: HashMap::new(),
             screenshot_shown: 0,
+            screenshot_gallery: false,
             sources,
             addons,
             addons_view_more: false,
@@ -2144,6 +2149,13 @@ impl Application for App {
     }
 
     fn on_escape(&mut self) -> Task<Message> {
+        // Close the screenshot gallery first if it is open
+        if let Some(selected) = &mut self.selected_opt
+            && selected.screenshot_gallery
+        {
+            selected.screenshot_gallery = false;
+            return Task::none();
+        }
         if self.core.window.show_context {
             // Close context drawer if open
             self.core.window.show_context = false;
@@ -2224,6 +2236,11 @@ impl Application for App {
     }
 
     fn dialog(&self) -> Option<Element<'_, Message>> {
+        // Screenshot gallery overlay takes precedence over other dialogs
+        if let Some(gallery) = self.screenshot_gallery_view() {
+            return Some(gallery);
+        }
+
         let dialog_page = self.dialog_pages.front()?;
 
         let dialog = match dialog_page {

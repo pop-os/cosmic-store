@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use cosmic::{
     Apply, Element, cosmic_theme,
-    iced::{Alignment, Length, Size},
+    iced::{Alignment, Color, Length, Size},
     theme, widget,
 };
 use rayon::prelude::*;
@@ -347,6 +347,105 @@ impl App {
         .into()
     }
 
+    /// Full-screen overlay showing an enlarged screenshot with prev/next navigation.
+    /// `dialog()` calls this when `Selected::screenshot_gallery` is set. Reuses the
+    /// handles already downloaded into `Selected::screenshot_images`.
+    pub fn screenshot_gallery_view(&self) -> Option<Element<'_, Message>> {
+        let selected = self.selected_opt.as_ref()?;
+        if !selected.screenshot_gallery {
+            return None;
+        }
+        let screenshots = &selected.info.screenshots;
+        let screenshot = screenshots.get(selected.screenshot_shown)?;
+        let spacing = theme::active().cosmic().spacing;
+        let space_m = Length::Fixed(spacing.space_m.into());
+
+        let mut column = widget::column::with_capacity(2).spacing(spacing.space_s);
+
+        // Header row: caption + close button
+        {
+            let mut row = widget::row::with_capacity(3).align_y(Alignment::Center);
+            row = row.push(widget::space::horizontal());
+            if !screenshot.caption.is_empty() {
+                row = row.push(widget::text::heading(&screenshot.caption));
+            }
+            row = row.push(widget::space::horizontal());
+            row = row.push(
+                widget::button::icon(
+                    widget::icon::from_name("window-close-symbolic").size(16),
+                )
+                .class(theme::Button::Standard)
+                .on_press(Message::ScreenshotGallery(false)),
+            );
+            column = column.push(row);
+        }
+
+        // Navigation + image row: prev button | image | next button
+        {
+            let has_multiple = screenshots.len() > 1;
+            let mut row = widget::row::with_capacity(5).align_y(Alignment::Center);
+            row = row.push(widget::space::horizontal().width(space_m));
+            {
+                let mut button = widget::button::icon(
+                    widget::icon::from_name("go-previous-symbolic").size(16),
+                )
+                .padding(spacing.space_xs)
+                .class(theme::Button::Standard);
+                if has_multiple {
+                    button = button.on_press(Message::ScreenshotGalleryPrev);
+                }
+                row = row.push(button);
+            }
+            let image_element: Element<'_, Message> =
+                if let Some(image) = selected.screenshot_images.get(&selected.screenshot_shown) {
+                    // Scale up to fill the available space, preserving aspect ratio
+                    widget::container(
+                        widget::image(image.clone())
+                            .width(Length::Fill)
+                            .height(Length::Fill),
+                    )
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .into()
+                } else {
+                    widget::container(widget::text::body(fl!("loading")))
+                        .center_x(Length::Fill)
+                        .center_y(Length::Fill)
+                        .into()
+                };
+            row = row.push(image_element);
+            {
+                let mut button = widget::button::icon(
+                    widget::icon::from_name("go-next-symbolic").size(16),
+                )
+                .padding(spacing.space_xs)
+                .class(theme::Button::Standard);
+                if has_multiple {
+                    button = button.on_press(Message::ScreenshotGalleryNext);
+                }
+                row = row.push(button);
+            }
+            row = row.push(widget::space::horizontal().width(space_m));
+            column = column.push(row.height(Length::Fill));
+        }
+
+        Some(
+            widget::container(column.padding(spacing.space_m))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .class(theme::Container::custom(|theme| {
+                    let cosmic = theme.cosmic();
+                    let mut bg = cosmic.bg_color();
+                    bg.alpha = 0.9;
+                    widget::container::Style {
+                        background: Some(Color::from(bg).into()),
+                        ..Default::default()
+                    }
+                }))
+                .into(),
+        )
+    }
+
     pub fn view_responsive(&self, size: Size) -> Element<'_, Message> {
         self.size.set(Some(size));
         let spacing = theme::active().cosmic().spacing;
@@ -506,10 +605,13 @@ impl App {
                     let image_element = if let Some(image) =
                         selected.screenshot_images.get(&selected.screenshot_shown)
                     {
-                        widget::container(widget::image(image.clone()))
-                            .center_x(Length::Fill)
-                            .center_y(image_height)
-                            .into()
+                        widget::mouse_area(
+                            widget::container(widget::image(image.clone()))
+                                .center_x(Length::Fill)
+                                .center_y(image_height),
+                        )
+                        .on_press(Message::ScreenshotGallery(true))
+                        .into()
                     } else {
                         widget::space::horizontal()
                             .width(Length::Fill)
