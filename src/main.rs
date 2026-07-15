@@ -1192,7 +1192,7 @@ impl App {
     fn queue_previews(results: &[SearchResult], count: usize) {
         for result in results.iter().take(count) {
             if let Some(screenshot) = result.info.screenshots.first() {
-                preview_cache::queue(&screenshot.url);
+                preview_cache::queue(&screenshot.url, result.info.version());
             }
         }
     }
@@ -2968,18 +2968,22 @@ impl Application for App {
         }
 
         if let Some(selected) = &self.selected_opt {
+            let version = selected.info.version().to_string();
             for (screenshot_i, screenshot) in selected.info.screenshots.iter().enumerate() {
                 let url = screenshot.url.clone();
+                let version = version.clone();
                 subscriptions.push(Subscription::run_with(
-                    (screenshot_i, url.clone()),
-                    |(screenshot_i, url)| {
+                    // Key on version too so an app update restarts the fetch
+                    (screenshot_i, url.clone(), version.clone()),
+                    move |(screenshot_i, url, version)| {
                         let screenshot_i = *screenshot_i;
                         let url = url.clone();
+                        let version = version.clone();
                         stream::channel(
                             16,
                             move |mut msg_tx: futures::channel::mpsc::Sender<Message>| async move {
                                 // Check cache first
-                                if let Some(data) = preview_cache::get_cached(&url) {
+                                if let Some(data) = preview_cache::get_cached(&url, &version) {
                                     log::debug!("screenshot cache hit: {}", url);
                                     let _ = msg_tx
                                         .send(Message::SelectedScreenshot(screenshot_i, url, data))
@@ -2993,7 +2997,9 @@ impl Application for App {
                                         Ok(bytes) => {
                                             let data = bytes.to_vec();
                                             // Save to cache
-                                            if let Err(e) = preview_cache::save_to_cache(&url, &data) {
+                                            if let Err(e) =
+                                                preview_cache::save_to_cache(&url, &version, &data)
+                                            {
                                                 log::warn!("failed to cache screenshot {}: {}", url, e);
                                             }
                                             let _ = msg_tx
@@ -3032,13 +3038,13 @@ impl Application for App {
                 let mut bytes_since_limit_check: u64 = 0;
                 loop {
                     preview_cache::wait_for_work().await;
-                    let urls = preview_cache::take_pending();
-                    for url in &urls {
+                    let pending = preview_cache::take_pending();
+                    for (url, version) in &pending {
                         log::debug!("preview fetch: {}", url);
                         if let Ok(resp) = reqwest::get(url).await {
                             if let Ok(bytes) = resp.bytes().await {
                                 bytes_since_limit_check += bytes.len() as u64;
-                                let _ = preview_cache::save_to_cache(url, &bytes);
+                                let _ = preview_cache::save_to_cache(url, version, &bytes);
                             }
                         }
                     }
