@@ -81,6 +81,8 @@ mod stats;
 
 mod preview_cache;
 
+mod screenshot_image;
+
 use explore::ExplorePage;
 mod explore;
 
@@ -346,6 +348,7 @@ pub enum Message {
     SelectSearchResult(usize),
     SelectedAddonsViewMore(bool),
     SelectedScreenshot(usize, String, Vec<u8>),
+    SelectedScreenshotDecoded(usize, String, u32, u32, Vec<u8>),
     SelectedScreenshotShown(usize),
     ScreenshotGallery(bool),
     ScreenshotGalleryPrev,
