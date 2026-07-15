@@ -823,13 +823,48 @@ impl App {
                 }
             }
             Message::SelectedScreenshot(i, url, data) => {
+                // Only decode if this screenshot still belongs to the current selection
+                let matches = self.selected_opt.as_ref().is_some_and(|selected| {
+                    selected
+                        .info
+                        .screenshots
+                        .get(i)
+                        .is_some_and(|screenshot| screenshot.url == url)
+                });
+                if matches {
+                    // Decode + downscale off the UI thread to the display size so
+                    // switching gallery images doesn't stall on a full-res decode.
+                    let (display_w, display_h) = self
+                        .size
+                        .get()
+                        .map(|size| (size.width as u32, size.height as u32))
+                        .unwrap_or((1920, 1080));
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                crate::screenshot_image::decode_scaled(&data, display_w, display_h)
+                                    .map(|(w, h, rgba)| {
+                                        action::app(Message::SelectedScreenshotDecoded(
+                                            i, url, w, h, rgba,
+                                        ))
+                                    })
+                                    .unwrap_or(action::none())
+                            })
+                            .await
+                            .unwrap_or(action::none())
+                        },
+                        |x| x,
+                    );
+                }
+            }
+            Message::SelectedScreenshotDecoded(i, url, width, height, rgba) => {
                 if let Some(selected) = &mut self.selected_opt
                     && let Some(screenshot) = selected.info.screenshots.get(i)
                     && screenshot.url == url
                 {
                     selected
                         .screenshot_images
-                        .insert(i, widget::image::Handle::from_bytes(data));
+                        .insert(i, widget::image::Handle::from_rgba(width, height, rgba));
                 }
             }
             Message::SelectedScreenshotShown(i) => {
