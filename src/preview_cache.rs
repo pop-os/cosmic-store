@@ -14,23 +14,26 @@ const MAX_BATCH_SIZE: usize = 5;
 /// Maximum cache size in bytes (250 MB)
 const MAX_CACHE_BYTES: u64 = 250 * 1024 * 1024;
 
-/// Convert a URL to a cache file path using a hash
-fn url_to_path(url: &str) -> Option<PathBuf> {
+/// Convert a URL + app version to a cache file path using a hash. Including the
+/// version means a new app release gets a distinct key and refetches its
+/// screenshots instead of serving stale ones.
+fn url_to_path(url: &str, version: &str) -> Option<PathBuf> {
     let mut hasher = DefaultHasher::new();
     url.hash(&mut hasher);
+    version.hash(&mut hasher);
     let hash = format!("{:016x}", hasher.finish());
     dirs::cache_dir().map(|dir| dir.join("cosmic-store/previews").join(&hash))
 }
 
 /// Get cached image data from disk (returns None if not cached)
-pub fn get_cached(url: &str) -> Option<Vec<u8>> {
-    let path = url_to_path(url)?;
+pub fn get_cached(url: &str, version: &str) -> Option<Vec<u8>> {
+    let path = url_to_path(url, version)?;
     std::fs::read(&path).ok()
 }
 
 /// Save data to disk cache
-pub fn save_to_cache(url: &str, data: &[u8]) -> std::io::Result<()> {
-    let path = url_to_path(url)
+pub fn save_to_cache(url: &str, version: &str, data: &[u8]) -> std::io::Result<()> {
+    let path = url_to_path(url, version)
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no cache directory"))?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -38,8 +41,9 @@ pub fn save_to_cache(url: &str, data: &[u8]) -> std::io::Result<()> {
     std::fs::write(path, data)
 }
 
-/// Global download queue (LIFO for prioritizing recently viewed items)
-static PENDING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Global download queue of `(url, version)` (LIFO for prioritizing recently
+/// viewed items)
+static PENDING: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
 /// Notification for waking the background downloader
 static NOTIFY: OnceLock<Notify> = OnceLock::new();
@@ -48,23 +52,24 @@ fn notify() -> &'static Notify {
     NOTIFY.get_or_init(Notify::new)
 }
 
-/// Queue a URL for background download if not already cached
-pub fn queue(url: &str) {
+/// Queue a URL (for the given app version) for background download if not
+/// already cached
+pub fn queue(url: &str, version: &str) {
     // Skip if already cached
-    if url_to_path(url).is_some_and(|p| p.exists()) {
+    if url_to_path(url, version).is_some_and(|p| p.exists()) {
         return;
     }
     if let Ok(mut queue) = PENDING.lock() {
         // Avoid duplicates (cheap linear scan since queue stays small)
-        if !queue.iter().any(|u| u == url) {
-            queue.push(url.to_string());
+        if !queue.iter().any(|(u, v)| u == url && v == version) {
+            queue.push((url.to_string(), version.to_string()));
             notify().notify_one();
         }
     }
 }
 
-/// Take URLs to download (LIFO order, up to MAX_BATCH_SIZE)
-pub fn take_pending() -> Vec<String> {
+/// Take `(url, version)` pairs to download (LIFO order, up to MAX_BATCH_SIZE)
+pub fn take_pending() -> Vec<(String, String)> {
     let Ok(mut queue) = PENDING.lock() else {
         return Vec::new();
     };
