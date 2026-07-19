@@ -221,11 +221,7 @@ pub fn backends<'a>(
                     Some((BackendName::RpmOstree, backend))
                 }
                 Err(err) => {
-                    log::warn!(
-                        "failed to load {} backend: {}",
-                        BackendName::RpmOstree,
-                        err
-                    );
+                    log::warn!("failed to load {} backend: {}", BackendName::RpmOstree, err);
                     None
                 }
             });

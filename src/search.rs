@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use cosmic::{
-    Element, cosmic_theme,
+    Apply, Element, cosmic_theme,
     iced::{Alignment, Length},
     theme, widget,
 };
@@ -266,29 +266,28 @@ impl SearchResult {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        widget::container(
-            widget::row::with_children(vec![
-                match &self.icon_opt {
-                    Some(icon) => widget::icon::icon(icon.clone())
-                        .size(ICON_SIZE_SEARCH)
-                        .into(),
-                    None => widget::space::horizontal()
-                        .width(Length::Fixed(ICON_SIZE_SEARCH as f32))
-                        .into(),
-                },
-                widget::column::with_children(vec![
-                    widget::text::body(&self.info.name)
-                        .height(Length::Fixed(20.0))
-                        .into(),
-                    widget::text::caption(&self.info.summary)
-                        .height(Length::Fixed(28.0))
-                        .into(),
-                ])
-                .into(),
+        widget::row::with_children([
+            match &self.icon_opt {
+                Some(icon) => widget::icon::icon(icon.clone())
+                    .size(ICON_SIZE_SEARCH)
+                    .into(),
+                None => widget::space::horizontal()
+                    .width(Length::Fixed(ICON_SIZE_SEARCH as f32))
+                    .into(),
+            },
+            widget::column::with_children([
+                widget::text::body(&self.info.name)
+                    .height(Length::Fixed(20.0))
+                    .into(),
+                widget::text::caption(&self.info.summary)
+                    .height(Length::Fixed(28.0))
+                    .into(),
             ])
-            .align_y(Alignment::Center)
-            .spacing(spacing.space_s),
-        )
+            .into(),
+        ])
+        .align_y(Alignment::Center)
+        .spacing(spacing.space_s)
+        .apply(widget::container)
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
         .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
