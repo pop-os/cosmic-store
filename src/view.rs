@@ -182,7 +182,7 @@ impl App {
             }
         }
         let mut progress_opt = None;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if op.backend_name == selected_backend_name
                 && op
                     .infos
@@ -950,7 +950,7 @@ impl App {
                                         }
                                     }
                                     let mut progress_opt = None;
-                                    for (_id, (op, progress)) in self.pending_operations.iter() {
+                                    for (op, progress) in self.pending_operations.values() {
                                         if &op.backend_name == backend_name
                                             && op.infos.iter().any(|info| {
                                                 info.source_id == package.info.source_id
