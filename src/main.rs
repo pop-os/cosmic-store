@@ -502,8 +502,8 @@ impl App {
                 .collect::<Vec<_>>();
 
             let appid = fde::unicase::Ascii::new(desktop_id);
-            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid) {
-                if let Some(exec) = desktop_entry.exec().map(String::from) {
+            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid)
+                && let Some(exec) = desktop_entry.exec().map(String::from) {
                     let appid = desktop_entry.appid.clone();
                     let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
                         GpuPreference::NonDefault
@@ -532,7 +532,6 @@ impl App {
                         });
                     });
                 }
-            }
         });
     }
 
@@ -2203,7 +2202,7 @@ impl Application for App {
             && self.updates.is_some()
         {
             for (name, backend) in self.backends.clone() {
-                commands.push(self.update_backend_installed(name.clone(), backend.clone()));
+                commands.push(self.update_backend_installed(name, backend.clone()));
                 commands.push(self.update_backend_updates(name, backend));
             }
         }
@@ -2378,7 +2377,7 @@ impl Application for App {
         let mut title = String::new();
         let mut total_progress = 0.0;
         let mut count = 0;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if title.is_empty() {
                 title = op.pending_text((*progress * 100.0) as i32);
             }
