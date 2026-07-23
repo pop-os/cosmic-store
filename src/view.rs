@@ -429,19 +429,24 @@ impl App {
                             "app-developers",
                             app = selected.info.name.as_str()
                         ))
+                        .center()
                         .into()
                     } else {
-                        widget::text::heading(&selected.info.developer_name).into()
+                        widget::text::heading(&selected.info.developer_name)
+                            .center()
+                            .into()
                     },
-                    widget::text::body(fl!("developer")).into(),
+                    widget::text::body(fl!("developer")).center().into(),
                 ])
                 .align_x(Alignment::Center)
                 .width(Length::Fill);
                 let downloads_widget = (selected.info.monthly_downloads > 0).then(|| {
                     widget::column::with_children(vec![
-                        widget::text::heading(selected.info.monthly_downloads.to_string()).into(),
+                        widget::text::heading(selected.info.monthly_downloads.to_string())
+                            .center()
+                            .into(),
                         //TODO: description of what this means?
-                        widget::text::body(fl!("monthly-downloads")).into(),
+                        widget::text::body(fl!("monthly-downloads")).center().into(),
                     ])
                     .align_x(Alignment::Center)
                     .width(Length::Fill)
@@ -519,7 +524,7 @@ impl App {
                     row = row.push(
                         widget::column::with_children(vec![
                             image_element,
-                            widget::text::caption(&screenshot.caption).into(),
+                            widget::text::caption(&screenshot.caption).center().into(),
                         ])
                         .align_x(Alignment::Center),
                     );
