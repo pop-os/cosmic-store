@@ -88,6 +88,8 @@ mod nav;
 use search::{CachedExploreResults, SearchResult};
 mod search;
 
+mod version;
+
 mod view;
 
 mod update;
@@ -297,6 +299,9 @@ pub enum Message {
         CachedExploreResults,
     ),
     ExploreIconsLoaded(ExplorePage, Vec<(usize, widget::icon::Handle)>),
+    /// Packages found in a local package file, along with the versions needed
+    /// to tell if the file is an update
+    FilePackages(String, Vec<FilePackage>),
     GStreamerExit(GStreamerExitCode),
     GStreamerInstall,
     GStreamerToggle(usize),
@@ -371,6 +376,24 @@ pub enum DialogPage {
     RepositoryRemove(BackendName, RepositoryRemoveError),
     Uninstall(BackendName, AppId, Arc<AppInfo>),
     Place(AppId),
+}
+
+/// A package loaded from a local package file, such as a `.deb`
+#[derive(Clone, Debug)]
+pub struct FilePackage {
+    pub backend_name: BackendName,
+    pub package: Package,
+    /// Version of this package that is currently installed, if any
+    pub installed_version_opt: Option<String>,
+}
+
+/// Versions of a package that was loaded from a local package file
+#[derive(Clone, Debug)]
+pub struct FileVersions {
+    /// Version provided by the package file
+    pub file: String,
+    /// Version that was installed when the file was loaded, if any
+    pub installed_opt: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -454,6 +477,8 @@ pub struct App {
     pub waiting_updates: Vec<(BackendName, String, AppId)>,
     pub category_results: Option<(&'static [Category], Vec<SearchResult>)>,
     pub category_load_start: Option<Instant>,
+    /// Versions of packages loaded from local package files, keyed by backend and package ID
+    pub file_versions: HashMap<(BackendName, AppId), FileVersions>,
     pub explore_results: HashMap<ExplorePage, Vec<SearchResult>>,
     pub explore_results_handle: Option<(Arc<atomic::AtomicBool>, cosmic::iced::task::Handle)>,
     pub installed_results: Option<Vec<SearchResult>>,
@@ -1220,6 +1245,29 @@ impl App {
         Self::is_installed_inner(&self.installed, backend_name, id, info)
     }
 
+    /// Check if a package loaded from a local package file provides a newer
+    /// version than the one that is installed
+    pub fn file_update_available(
+        &self,
+        backend_name: BackendName,
+        id: &AppId,
+        info: &AppInfo,
+    ) -> bool {
+        // The file decides how versions are ordered, as `.deb` and `.rpm` do
+        // not sort them the same way
+        let Some(package_path) = info.package_paths.first() else {
+            return false;
+        };
+        let Some(versions) = self.file_versions.get(&(backend_name, id.clone())) else {
+            return false;
+        };
+        let Some(installed) = &versions.installed_opt else {
+            return false;
+        };
+        version::Format::from_path(package_path).compare(&versions.file, installed)
+            == cmp::Ordering::Greater
+    }
+
     fn update_apps(&mut self) -> Task<Message> {
         self.update_apps_scheduled = false;
         self.update_apps_in_progress = true;
@@ -1508,12 +1556,20 @@ impl App {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let start = Instant::now();
-                    let mut packages = Vec::new();
+                    let mut file_packages = Vec::new();
                     for (backend_name, backend) in backends.iter() {
                         match backend.file_packages(&path) {
                             Ok(backend_packages) => {
                                 for package in backend_packages {
-                                    packages.push((backend_name, package));
+                                    // Look up the installed version so that a file
+                                    // containing a newer version can be offered as
+                                    // an update
+                                    let installed_version_opt = backend.installed_version(&package);
+                                    file_packages.push(FilePackage {
+                                        backend_name: *backend_name,
+                                        package,
+                                        installed_version_opt,
+                                    });
                                 }
                             }
                             Err(err) => {
@@ -1531,21 +1587,10 @@ impl App {
                         "loaded file {:?} in {:?}, found {} packages",
                         path,
                         duration,
-                        packages.len()
+                        file_packages.len()
                     );
 
-                    //TODO: store the resolved packages somewhere
-                    let mut results = Vec::with_capacity(packages.len());
-                    for (backend_name, package) in packages {
-                        results.push(SearchResult {
-                            backend_name: *backend_name,
-                            id: package.id,
-                            icon_opt: Some(package.icon),
-                            info: package.info,
-                            weight: 0,
-                        });
-                    }
-                    action::app(Message::SearchResults(input, results, true))
+                    action::app(Message::FilePackages(input, file_packages))
                 })
                 .await
                 .unwrap_or(action::none())
@@ -2069,6 +2114,7 @@ impl Application for App {
             waiting_updates: Vec::new(),
             category_results: None,
             category_load_start: Some(Instant::now()),
+            file_versions: HashMap::new(),
             explore_results: HashMap::new(),
             explore_results_handle: None,
             installed_results: None,

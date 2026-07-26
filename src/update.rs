@@ -27,8 +27,8 @@ use crate::backend::BackendName;
 use crate::explore::ExplorePage;
 use crate::nav::NavPage;
 use crate::operation::{Operation, OperationKind, RepositoryAdd};
-use crate::search::{apply_icons_to_results, preserve_icons_from};
-use crate::{App, DialogPage, GStreamerExitCode, Message, Mode};
+use crate::search::{SearchResult, apply_icons_to_results, preserve_icons_from};
+use crate::{App, DialogPage, FileVersions, GStreamerExitCode, Message, Mode};
 
 impl App {
     pub fn handle_update(&mut self, message: Message) -> Task<Message> {
@@ -201,6 +201,31 @@ impl App {
                 if let Some(results) = self.explore_results.get_mut(&explore_page) {
                     apply_icons_to_results(results, icons);
                 }
+            }
+            Message::FilePackages(input, file_packages) => {
+                //TODO: store the resolved packages somewhere
+                let mut results = Vec::with_capacity(file_packages.len());
+                for file_package in file_packages {
+                    let backend_name = file_package.backend_name;
+                    let package = file_package.package;
+                    // Remember the versions so that the file can be offered as an
+                    // update when it is newer than the installed package
+                    self.file_versions.insert(
+                        (backend_name, package.id.clone()),
+                        FileVersions {
+                            file: package.version,
+                            installed_opt: file_package.installed_version_opt,
+                        },
+                    );
+                    results.push(SearchResult {
+                        backend_name,
+                        id: package.id,
+                        icon_opt: Some(package.icon),
+                        info: package.info,
+                        weight: 0,
+                    });
+                }
+                return self.handle_update(Message::SearchResults(input, results, true));
             }
             Message::GStreamerExit(code) => match self.mode {
                 Mode::Normal => {}
@@ -426,6 +451,10 @@ impl App {
                             info.source_id.clone(),
                             package_id.clone(),
                         ));
+                        // Versions found when a package file was loaded are out of
+                        // date once an operation on that package has finished
+                        self.file_versions
+                            .remove(&(op.backend_name, package_id.clone()));
                     }
                     self.complete_operations.insert(id, op);
                 }

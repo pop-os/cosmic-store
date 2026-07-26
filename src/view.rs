@@ -181,6 +181,18 @@ impl App {
                 }
             }
         }
+        // A package file can contain a newer version than the installed one, which
+        // the package manager knows nothing about
+        let file_update = update_opt.is_none()
+            && self.file_update_available(selected_backend_name, selected_id, selected_info);
+        if file_update {
+            update_opt = Some(Message::Operation(
+                OperationKind::Update,
+                selected_backend_name,
+                selected_id.clone(),
+                selected_info.clone(),
+            ));
+        }
         let mut progress_opt = None;
         for (_id, (op, progress)) in self.pending_operations.iter() {
             if op.backend_name == selected_backend_name
@@ -228,9 +240,15 @@ impl App {
             }
             if let Some(update) = update_opt {
                 buttons.push(
-                    widget::button::standard(fl!("update"))
-                        .on_press(update)
-                        .into(),
+                    // Updating is the reason a package file was opened, so
+                    // suggest it over uninstalling
+                    if file_update {
+                        widget::button::suggested(fl!("update"))
+                    } else {
+                        widget::button::standard(fl!("update"))
+                    }
+                    .on_press(update)
+                    .into(),
                 );
             }
             if !selected_id.is_system() {

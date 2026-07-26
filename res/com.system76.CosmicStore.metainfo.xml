@@ -39,6 +39,7 @@
     <mimetypes>
         <mimetype>application/x-debian-package</mimetype>
         <mimetype>application/vnd.debian.binary-package</mimetype>
+        <mimetype>application/x-rpm</mimetype>
         <mimetype>application/vnd.flatpak.ref</mimetype>
     </mimetypes>
   </provides>

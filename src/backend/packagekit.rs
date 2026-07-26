@@ -181,6 +181,27 @@ impl Packagekit {
         Ok(tx)
     }
 
+    /// Installed version of the first of `package_names` that is installed.
+    ///
+    /// The same package can be installed for more than one architecture, in
+    /// which case the versions are expected to match.
+    fn resolve_installed_version(
+        &self,
+        package_names: &[&str],
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        let tx = self.transaction()?;
+        tx.resolve(FilterKind::Installed as u64, package_names)?;
+        let (_tx_details, tx_packages) = transaction_handle(tx, |_, _| {})?;
+        Ok(tx_packages.iter().find_map(|tx_package| {
+            let mut parts = tx_package.package_id.split(';');
+            let package_name = parts.next()?;
+            let version = parts.next()?;
+            package_names
+                .contains(&package_name)
+                .then(|| version.to_string())
+        }))
+    }
+
     fn package_transaction(
         &self,
         tx: TransactionProxyBlocking,
@@ -383,6 +404,31 @@ impl Backend for Packagekit {
         Ok(packages)
     }
 
+    fn installed_version(&self, package: &Package) -> Option<String> {
+        let package_names: Vec<&str> = package
+            .info
+            .pkgnames
+            .iter()
+            .map(|pkgname| pkgname.as_str())
+            .collect();
+        if package_names.is_empty() {
+            return None;
+        }
+        match self.resolve_installed_version(&package_names) {
+            Ok(version_opt) => version_opt,
+            Err(err) => {
+                // A package that is not installed is not an error here, so this
+                // is only worth logging
+                log::debug!(
+                    "failed to resolve installed version of {:?}: {}",
+                    package_names,
+                    err
+                );
+                None
+            }
+        }
+    }
+
     fn gstreamer_packages(
         &self,
         gstreamer_codec: &GStreamerCodec,
@@ -428,7 +474,14 @@ impl Backend for Packagekit {
         if package_names.is_empty() {
             return Err(format!("{:?} missing package name", op.package_ids).into());
         }
-        let (_tx_details, tx_packages) = {
+        // Package files provide everything that is required to install or update,
+        // and the packages they contain may not be in any repository, so there is
+        // nothing to resolve in that case
+        let use_package_paths = !package_paths.is_empty()
+            && matches!(op.kind, OperationKind::Install | OperationKind::Update);
+        let (_tx_details, tx_packages) = if use_package_paths {
+            (Vec::new(), Vec::new())
+        } else {
             let tx = self.transaction()?;
             log::info!("resolve packages for {:?}", package_names);
             let filter = match &op.kind {
@@ -452,7 +505,7 @@ impl Backend for Packagekit {
         tx.set_hints(&["interactive=true"])?;
         match &op.kind {
             OperationKind::Install => {
-                if !package_paths.is_empty() {
+                if use_package_paths {
                     log::info!("installing package files {:?}", package_paths);
                     //TODO: transaction flags
                     tx.install_files(0, &package_paths)?;
@@ -480,9 +533,17 @@ impl Backend for Packagekit {
                 tx.remove_packages(0, &package_ids, true, true)?;
             }
             OperationKind::Update => {
-                log::info!("updating packages {:?}", package_ids);
-                //TODO: transaction flags?
-                tx.update_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+                if use_package_paths {
+                    // Installing a package file that contains a newer version
+                    // updates the installed package, like `apt install ./file.deb`
+                    log::info!("updating from package files {:?}", package_paths);
+                    //TODO: transaction flags
+                    tx.install_files(0, &package_paths)?;
+                } else {
+                    log::info!("updating packages {:?}", package_ids);
+                    //TODO: transaction flags?
+                    tx.update_packages(TransactionFlag::OnlyTrusted as u64, &package_ids)?;
+                }
             }
             OperationKind::RepositoryAdd { .. } => {
                 return Err("packagekit backend does not support adding repositories".into());

@@ -86,6 +86,13 @@ pub trait Backend: fmt::Debug + Send + Sync {
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>>;
+    /// Version of `package` that is currently installed, if any.
+    ///
+    /// This is used to find out if a package loaded with
+    /// [`Backend::file_packages`] provides an update for an installed package.
+    fn installed_version(&self, _package: &Package) -> Option<String> {
+        None
+    }
     fn gstreamer_packages(
         &self,
         _gstreamer_codec: &GStreamerCodec,
