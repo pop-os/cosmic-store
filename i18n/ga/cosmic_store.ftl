@@ -146,3 +146,4 @@ system-packages-summary =
     }
 comment = Siopa feidhmchlár don deasc COSMIC
 keywords = Aip;Bogearraí;Siopa;
+loading = Ag lódáil...

@@ -155,3 +155,4 @@ system-packages-summary =
 system-packages = Pacotes do sistema
 flatpak-runtimes = Ambientes de execução de Flatpak
 keywords = Aplicativo;Software;Loja;App;
+loading = Carregando...

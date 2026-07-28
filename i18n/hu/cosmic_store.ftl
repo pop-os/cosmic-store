@@ -80,7 +80,7 @@ new-apps = Új alkalmazások
 recently-updated = Nemrég frissített
 development-tools = Fejlesztői eszközök
 scientific-tools = Tudományos eszközök
-productivity-apps = Hatékonysági alkalmazások
+productivity-apps = Hatékonyságnövelő alkalmazások
 graphics-and-photography-tools = Grafikai és fényképészeti eszközök
 social-networking-apps = Közösségi hálózati alkalmazások
 games = Játékok
@@ -155,3 +155,4 @@ system-packages-summary =
     }
 system-packages = Rendszercsomagok
 flatpak-runtimes = Flatpak-futtatókörnyezetek
+loading = Betöltés…

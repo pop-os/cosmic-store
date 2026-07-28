@@ -139,3 +139,4 @@ system-packages-summary =
        *[other] { $count } paket
     }
 system-packages = Systempaket
+loading = Läser in...

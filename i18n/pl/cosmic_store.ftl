@@ -21,7 +21,7 @@ place-applet = Umieść aplet
 place-applet-desc = Wybierz gdzie umieścić aplet przed ostatecznym umiejscowieniem.
 panel = Panel
 dock = Dok
-place-and-refine = Umieść i uwydatnij
+place-and-refine = Umieść i dostosuj
 # Codec dialog
 codec-title = Zainstalować dodatkowe pakiety?
 codec-header = „{ $application }” wymaga dodatkowych pakietów zapewniających „{ $description }”.
@@ -34,7 +34,7 @@ codec-footer =
 codec-error = Wystąpiły błędy podczas instalacji pakietów.
 codec-installed = Pakiety zostały zainstalowane.
 # Progress footer
-details = Detale
+details = Szczegóły
 dismiss = Odrzuć wiadomość
 operations-running = { $running } bieżące działania ({ $percent }%)...
 operations-running-finished = { $running } bieżące działania ({ $percent }%), { $finished } ukończone…
@@ -156,3 +156,4 @@ system-packages-summary =
     }
 system-packages = Pakiety Systemowe
 flatpak-runtimes = Środowisko Uruchomieniowe Flatpak
+loading = Ładowanie…

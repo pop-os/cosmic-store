@@ -65,7 +65,7 @@ translate = अनुवाद
 
 ## Settings
 
-settings = सेटिंग
+settings = सेटिंग्स
 
 ## Release notes
 
@@ -74,9 +74,9 @@ no-description = कोई विवरण उपलब्ध नहीं।
 
 ### Appearance
 
-appearance = उपस्थिति
-theme = थीम
-match-desktop = डेस्कटॉप से मिलाएँ
+appearance = रुप-रंग
+theme = प्रसंग
+match-desktop = डेस्कटॉप से मेल खाएँ
 dark = डार्क
 light = लाइट
 close = बंद करें
@@ -85,3 +85,7 @@ place-applet = एप्लेट रखें
 place-applet-desc = एप्लेट के स्थान को सुधारने से पहले उसे जोड़ने का स्थान चुनें।
 panel = पैनल
 dock = डाॅक
+dismiss = संदेश खारिज करें
+remove = हटाएँ
+details = विवरण
+cancelled = रद्द किया गया

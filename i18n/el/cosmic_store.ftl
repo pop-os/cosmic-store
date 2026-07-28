@@ -123,3 +123,4 @@ system-packages-summary =
 flatpak-runtimes = Flatpak Runtime
 comment = Κατάστημα εφαρμογών για το περιβάλλον επιφάνειας εργασίας COSMIC
 keywords = Κατάστημα;Μαγαζί;Εφαρμογή;Λογισμικό;App;Software;Store;Shop;
+loading = Φόρτωση...

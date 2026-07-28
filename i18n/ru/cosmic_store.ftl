@@ -61,7 +61,7 @@ no-description = Описание отсутствует.
 
 ### Appearance
 
-appearance = Оформление
+appearance = Внешний вид
 theme = Тема
 match-desktop = Как в системе
 dark = Тёмная
@@ -140,3 +140,4 @@ system-packages-summary =
        *[other] { $count } пакетов
     }
 comment = Магазин приложений для среды COSMIC
+loading = Загрузка...
