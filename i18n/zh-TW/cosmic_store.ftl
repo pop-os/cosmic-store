@@ -82,23 +82,23 @@ close = 關閉
 import = 匯入
 keywords = 應用;應用程式;軟體;商店;
 place-on-desktop = 放置於桌面
-place-applet = 放置工具程式
-place-applet-desc = 在調整位置前，先選擇要新增工具程式的位置。
+place-applet = 放置小程式
+place-applet-desc = 在調整位置前，先選擇要新增小程式的位置。
 panel = 面板
-dock = 程式塢
+dock = Dock
 place-and-refine = 放置及調整
-codec-title = 安裝附加的軟體套件？
-codec-header = 「{ $application }」需要額外的軟體套件來提供「{ $description }」。
+codec-title = 安裝額外的軟體包？
+codec-header = 「{ $application }」需要額外的軟體包來提供「{ $description }」。
 codec-footer =
-    在某些國家，使用這些附加的軟體套件可能受到限制。 
+    在某些國家，使用這些額外的軟體包可能受到限制。 
     您必須確認以下其中一項為真： 
-     • 這些限制並不適用於您合法所居國家 
+     • 這些限制並不適用於您合法居住的國家 
      • 您已取得使用此軟體的許可（例如專利授權）
-     • 您將此軟體僅用於研究目的
-codec-error = 軟體套件安裝過程中發生錯誤。
-codec-installed = 軟體套件已經安裝。
-details = 詳情
-dismiss = 撤停訊息
+     • 此軟體您僅用於研究目的
+codec-error = 軟體包安裝過程中發生錯誤。
+codec-installed = 軟體包已安裝。
+details = 詳細資訊
+dismiss = 關閉訊息
 operations-running = { $running } 個操作正在執行（{ $percent }%）...
 operations-running-finished = { $running } 個操作正在執行（{ $percent }%），{ $finished } 個已經完成...
 repository-add-error-title = 「添增軟體庫失敗」
@@ -107,15 +107,15 @@ repository-remove-body =
     移除此軟體庫將 { $dependency ->
         [none] 刪除
        *[other] 移除 "{ $dependency }" 並刪除
-    }以下應用程式與項目。若再次添增此軟體庫，將需重新安裝它們。
-add = 添增
+    }以下應用程式與項目。若再次新增此軟體庫，將需要重新安裝它們。
+add = 新增
 adding = 添增中...
 remove = 移除
 removing = 移除中...
 uninstall-app-flatpak-warning = 解除安裝 { $name } 將會保留其文件和資料。
 delete-app-data = 永久刪除應用程式資料
-applets = 工具程式
-enable-flathub-cosmic = 請啟用 Flathub 與 COSMIC Flatpak 以查看可用的工具程式。
+applets = 小程式
+enable-flathub-cosmic = 請啟用 Flathub 與 COSMIC Flatpak 以查看可用的小程式。
 manage-repositories = 管理軟體庫
 made-for-cosmic = 專為 COSMIC 設計
 addons = 外掛程式
@@ -127,13 +127,13 @@ no-operations = 沒有任何操作於歷史紀錄。
 pending = 待處理
 failed = 失敗
 complete = 完成
-system-package-updates = 軟體套件更新
-system-packages = 系統軟體套件
+system-package-updates = 軟體包更新
+system-packages = 系統軟體包
 flatpak-runtimes = Flatpak 執行環境
 system-packages-summary =
     { $count ->
-        [one] { $count } 個軟體套件
-       *[other] { $count } 個軟體套件
+        [one] { $count } 個軟體包
+       *[other] { $count } 個軟體包
     }
 recommended-flatpak-sources = 推薦的 Flatpak 軟體庫來源
 custom-flatpak-sources = 自訂 Flatpak 軟體庫來源
@@ -142,3 +142,4 @@ no-custom-flatpak-sources = 無自訂的 Flatpak 軟體庫來源
 no-flatpak = 無 Flatpak 支援
 software-repositories = 軟體庫
 comment = COSMIC 桌面應用程式商店
+loading = 載入中...

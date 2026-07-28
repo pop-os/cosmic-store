@@ -138,3 +138,4 @@ system-packages-summary =
     }
 system-packages = Balíčky systému
 flatpak-runtimes = Běhová prostředí Flatpak
+loading = Načítání...

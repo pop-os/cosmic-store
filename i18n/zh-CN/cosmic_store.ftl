@@ -155,3 +155,4 @@ system-packages = 系统软件包
 flatpak-runtimes = Flatpak 运行时
 comment = COSMIC 桌面的软件商店
 keywords = 应用;应用程序;软件;商店;
+loading = 正在加载…

@@ -34,7 +34,7 @@ codec-footer =
 codec-error = حدثت أخطاء أثناء تنصيب الحِزمة.
 codec-installed = نُصِّبت الحِزم.
 # Progress footer
-details = التفاصيل
+details = تفاصيل
 dismiss = أهمِل الرسالة
 operations-running = { $running } عملية قيد التشغيل ({ $percent }٪)...
 operations-running-finished = { $running } عملية قيد التشغيل ({ $percent }٪)، { $finished } انتهت...
@@ -138,7 +138,7 @@ software-repositories = مستودعات البرامج
 ### Appearance
 
 appearance = المظهر
-theme = النسق
+theme = السمة
 match-desktop = طابق سطح المكتب
 dark = داكن
 light = فاتح
@@ -155,3 +155,4 @@ system-packages-summary =
     }
 system-packages = حِزم النظام
 flatpak-runtimes = أزمنة تشغيل فلاتباك
+loading = يحمّل...

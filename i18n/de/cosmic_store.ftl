@@ -2,7 +2,7 @@ app-name = COSMIC Store
 back = Zurück
 cancel = Abbrechen
 check-for-updates = Auf Aktualisierungen prüfen
-checking-for-updates = Prüfung auf Aktualisierungen...
+checking-for-updates = Auf Aktualisierungen wird geprüft ...
 install = Installieren
 no-installed-applications = Keine installierten Anwendungen.
 no-updates = Alle installierten Anwendungen sind auf dem neuesten Stand.
@@ -15,8 +15,8 @@ update-all = Alle aktualisieren
 # Fortschrittsfußzeile
 details = Details
 dismiss = Meldung verwerfen
-operations-running = { $running } laufende Vorgänge ({ $percent } %)...
-operations-running-finished = { $running } laufende Vorgänge ({ $percent } %), { $finished } abgeschlossen...
+operations-running = { $running } laufende Vorgänge ({ $percent } %) ...
+operations-running-finished = { $running } laufende Vorgänge ({ $percent } %), { $finished } abgeschlossen ...
 # Deinstallationsdialog
 uninstall-app = { $name } deinstallieren?
 uninstall-app-warning = Durch die Deinstallation von { $name } werden dessen Daten gelöscht.
@@ -99,9 +99,9 @@ codec-header = „{ $application }“ erfordert zusätzliche Pakete, die „{ $d
 codec-error = Während der Paketinstallation sind Fehler aufgetreten.
 codec-installed = Die Pakete wurden installiert.
 add = Hinzufügen
-adding = Wird hinzugefügt...
+adding = Wird hinzugefügt ...
 remove = Entfernen
-removing = Wird entfernt...
+removing = Wird entfernt ...
 place-and-refine = Platzieren und anpassen
 applets = Applets
 enable-flathub-cosmic = Bitte aktiviere Flathub und COSMIC Flatpak, um die verfügbaren Applets anzusehen.
@@ -141,8 +141,9 @@ codec-footer =
      • Du hast die Erlaubnis, diese Software zu verwenden (z. B. eine Patentlizenz)
      • Du verwendest diese Software ausschließlich zu Forschungszwecken
 repository-remove-body =
-    Durch das Entfernen dieses Repositoriums werden die folgenden Anwendungen und Elemente gelöscht { $dependency ->
-        [none] .
-       *[other] und „{ $dependency }“ entfernt.
-    } Sie müssen neu installiert werden, wenn das Repositorium erneut hinzugefügt wird.
+    Durch das Entfernen dieses Repositoriums werden die folgenden Anwendungen und Elemente { $dependency ->
+        [none] gelöscht
+       *[other] gelöscht und „{ $dependency }“ entfernt
+    }. Sie müssen neu installiert werden, wenn das Repositorium erneut hinzugefügt wird.
 keywords = App;Software;Store;Shop;
+loading = Wird geladen ...
