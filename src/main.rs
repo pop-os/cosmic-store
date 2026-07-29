@@ -501,8 +501,8 @@ impl App {
                 .collect::<Vec<_>>();
 
             let appid = fde::unicase::Ascii::new(desktop_id);
-            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid) {
-                if let Some(exec) = desktop_entry.exec().map(String::from) {
+            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid)
+                && let Some(exec) = desktop_entry.exec().map(String::from) {
                     let appid = desktop_entry.appid.clone();
                     let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
                         GpuPreference::NonDefault
@@ -531,7 +531,6 @@ impl App {
                         });
                     });
                 }
-            }
         });
     }
 
@@ -869,7 +868,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::ExploreIconsLoaded(explore_page, icons))
                 })
                 .await
@@ -888,7 +888,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::CategoryIconsLoaded(categories, icons))
                 })
                 .await
@@ -907,7 +908,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    // Installed page shows every app, so load all icons (no cap)
+                    let icons = Self::load_icons_for_results(&results, &backends, None);
                     action::app(Message::InstalledIconsLoaded(icons))
                 })
                 .await
@@ -926,7 +928,8 @@ impl App {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let icons = Self::load_icons_for_results(&results, &backends);
+                    let icons =
+                        Self::load_icons_for_results(&results, &backends, Some(MAX_RESULTS));
                     action::app(Message::SearchIconsLoaded(input, icons))
                 })
                 .await
@@ -939,10 +942,13 @@ impl App {
     fn load_icons_for_results(
         results: &[SearchResult],
         backends: &Backends,
+        limit: Option<usize>,
     ) -> Vec<(usize, widget::icon::Handle)> {
         let icon_start = Instant::now();
         let mut icons = Vec::new();
-        for (i, result) in results.iter().enumerate().take(MAX_RESULTS) {
+        // Load at most `limit` icons, or all of them when `limit` is None
+        let limit = limit.unwrap_or(results.len());
+        for (i, result) in results.iter().enumerate().take(limit) {
             // Skip results that already have icons (e.g., preserved from previous results)
             if result.icon_opt.is_some() {
                 continue;
@@ -2181,7 +2187,7 @@ impl Application for App {
             && self.updates.is_some()
         {
             for (name, backend) in self.backends.clone() {
-                commands.push(self.update_backend_installed(name.clone(), backend.clone()));
+                commands.push(self.update_backend_installed(name, backend.clone()));
                 commands.push(self.update_backend_updates(name, backend));
             }
         }
@@ -2356,7 +2362,7 @@ impl Application for App {
         let mut title = String::new();
         let mut total_progress = 0.0;
         let mut count = 0;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if title.is_empty() {
                 title = op.pending_text((*progress * 100.0) as i32);
             }
