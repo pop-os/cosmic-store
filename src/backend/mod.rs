@@ -15,6 +15,7 @@ use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 pub enum BackendName {
     FlatpakUser,
     FlatpakSystem,
+    Homebrew,
     Packagekit,
     Pkgar,
     RpmOstree,
@@ -26,6 +27,7 @@ impl BackendName {
         match self {
             BackendName::FlatpakUser => "flatpak-user",
             BackendName::FlatpakSystem => "flatpak-system",
+            BackendName::Homebrew => "homebrew",
             BackendName::Packagekit => "packagekit",
             BackendName::Pkgar => "pkgar",
             BackendName::RpmOstree => "rpm-ostree",
@@ -51,6 +53,7 @@ impl std::str::FromStr for BackendName {
         match s {
             "flatpak-user" => Ok(BackendName::FlatpakUser),
             "flatpak-system" => Ok(BackendName::FlatpakSystem),
+            "homebrew" => Ok(BackendName::Homebrew),
             "packagekit" => Ok(BackendName::Packagekit),
             "pkgar" => Ok(BackendName::Pkgar),
             "rpm-ostree" => Ok(BackendName::RpmOstree),
@@ -61,6 +64,9 @@ impl std::str::FromStr for BackendName {
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
+
+#[cfg(feature = "homebrew")]
+mod homebrew;
 
 #[cfg(feature = "packagekit")]
 mod packagekit;
@@ -224,6 +230,40 @@ pub fn backends<'a>(
                     log::warn!(
                         "failed to load {} backend: {}",
                         BackendName::RpmOstree,
+                        err
+                    );
+                    None
+                }
+            });
+        });
+
+        backends.push(rx)
+    }
+
+    #[cfg(feature = "homebrew")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding homebrew backend");
+            _ = tx.send(match homebrew::Homebrew::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::info!(
+                        "initialized {} backend in {:?}",
+                        BackendName::Homebrew,
+                        duration
+                    );
+                    Some((BackendName::Homebrew, backend))
+                }
+                Err(err) => {
+                    // Homebrew is commonly not installed; not an error
+                    log::debug!(
+                        "failed to load {} backend: {}",
+                        BackendName::Homebrew,
                         err
                     );
                     None
