@@ -7,7 +7,10 @@ use std::time::Instant;
 
 use cosmic::{
     Element, cosmic_theme,
-    iced::{Alignment, Length},
+    iced::{
+        Alignment, Length,
+        advanced::text::{Ellipsize, EllipsizeHeightLimit, Wrapping},
+    },
     theme, widget,
 };
 
@@ -281,9 +284,15 @@ impl SearchResult {
                         .height(Length::Fixed(20.0))
                         .into(),
                     widget::text::caption(&self.info.summary)
-                        .height(Length::Fixed(28.0))
+                        .size(11.0)
+                        .wrapping(Wrapping::Word)
+                        .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(2)))
+                        .class(theme::Text::Custom(crate::view::description_text_style))
+                        .width(Length::Fill)
+                        .height(Length::Fixed(34.0))
                         .into(),
                 ])
+                .width(Length::Fill)
                 .into(),
             ])
             .align_y(Alignment::Center)
@@ -291,7 +300,7 @@ impl SearchResult {
         )
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .height(Length::Fixed(54.0 + (spacing.space_xxs as f32) * 2.0))
         .padding([spacing.space_xxs, spacing.space_s])
         .class(theme::Container::Card)
         .into()

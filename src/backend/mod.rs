@@ -103,8 +103,8 @@ pub trait Backend: fmt::Debug + Send + Sync {
 pub type Backends = BTreeMap<BackendName, Arc<dyn Backend>>;
 
 /// Load store backends using rayon parallelism and concurrency.
-pub fn backends<'a>(
-    locale: &'a str,
+pub fn backends(
+    locale: &str,
     refresh: bool,
 ) -> impl futures::Stream<Item = (BackendName, Arc<dyn Backend>)> + Send + Unpin + 'static {
     let backends = futures::stream::FuturesUnordered::new();
@@ -221,11 +221,7 @@ pub fn backends<'a>(
                     Some((BackendName::RpmOstree, backend))
                 }
                 Err(err) => {
-                    log::warn!(
-                        "failed to load {} backend: {}",
-                        BackendName::RpmOstree,
-                        err
-                    );
+                    log::warn!("failed to load {} backend: {}", BackendName::RpmOstree, err);
                     None
                 }
             });
