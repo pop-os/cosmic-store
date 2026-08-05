@@ -110,3 +110,23 @@ recommended-flatpak-sources = Flatpak-upprunastaðir sem mælt er með
 custom-flatpak-sources = Sérsniðnir Flatpak-upprunastaðir
 import-flatpakrepo = Flytja inn .flatpakrepo-skrá til að bæta við sérsniðnum upprunastað
 no-custom-flatpak-sources = Enginn sérsniðinnn Flatpak-upprunastaður
+
+comment = Forritaverslun fyrir COSMIC skjáborðið
+keywords = App;Software;Store;Shop;Forrit;Hugbúnaður;Verslun;Búð;
+loading = Hleð inn...
+uninstall-app-flatpak-warning = Þegar { $name } er fjarlægt haldast skjöl þess og gögn.
+delete-app-data = Eyða forritsgögnum varanlega
+
+# Nav Pages
+version = Útgáfa { $version }
+system-package-updates = Pakkauppfærslur
+
+## System package names
+system-packages = Kerfispakkar
+flatpak-runtimes = Flatpak keyrsluumhverfi
+system-packages-summary = { $count ->
+    [one] { $count } pakki
+   *[other] { $count } pakkar
+}
+
+## Repositories
