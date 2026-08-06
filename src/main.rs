@@ -3,7 +3,7 @@
 
 use clap::Parser;
 use cosmic::{
-    Application, ApplicationExt, Element, action,
+    Application, ApplicationExt, Apply, Element, action,
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
@@ -59,6 +59,7 @@ mod editors_choice;
 use gstreamer::GStreamerCodec;
 mod gstreamer;
 
+use icon_cache::icon_cache_handle;
 mod icon_cache;
 
 use key_bind::{KeyBind, key_binds};
@@ -1977,6 +1978,27 @@ impl App {
 
         widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
+
+    fn back_button(&self) -> Option<Element<'_, Message>> {
+        if self.selected_opt.is_some() {
+            Some(
+                //TODO: describe where we are going back to
+                widget::button::text(fl!("back"))
+                    .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                    .on_press(Message::SelectNone)
+                    .into(),
+            )
+        } else if self.explore_page_opt.is_some() {
+            Some(
+                widget::button::text(NavPage::Explore.title())
+                    .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
+                    .on_press(Message::ExplorePage(None))
+                    .into(),
+            )
+        } else {
+            None
+        }
+    }
 }
 
 /// Implement [`Application`] to integrate with COSMIC.
@@ -2481,17 +2503,22 @@ impl Application for App {
             ..
         } = theme::active().cosmic().spacing;
 
-        let content: Element<_> = match &self.mode {
+        let content = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
                 widget::id_container(
-                    widget::scrollable(
-                        widget::container(
-                            widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
-                        )
-                        .align_x(Alignment::Center),
-                    )
-                    .on_scroll(Message::ScrollView),
+                    widget::column::with_capacity(2)
+                        .spacing(space_xxs)
+                        .push_maybe(self.back_button())
+                        .push(
+                            self.view_responsive(size)
+                                .apply(widget::container)
+                                .max_width(MAX_GRID_WIDTH)
+                                .apply(widget::container)
+                                .align_x(Alignment::Center)
+                                .apply(widget::scrollable)
+                                .on_scroll(Message::ScrollView),
+                        ),
                     self.scrollable_id.clone(),
                 )
                 .into()

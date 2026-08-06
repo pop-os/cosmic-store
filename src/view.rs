@@ -372,16 +372,10 @@ impl App {
                     }
                 }
 
-                let mut column = widget::column::with_capacity(2)
+                let mut column = widget::column::with_capacity(8)
                     .padding([0, space_s, space_m, space_s])
                     .spacing(space_m)
                     .width(Length::Fill);
-                column = column.push(
-                    //TODO: describe where we are going back to
-                    widget::button::text(fl!("back"))
-                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                        .on_press(Message::SelectNone),
-                );
 
                 let buttons = self.selected_buttons(
                     selected.backend_name,
@@ -705,15 +699,10 @@ impl App {
                     NavPage::Explore => {
                         match self.explore_page_opt {
                             Some(explore_page) => {
-                                let mut column = widget::column::with_capacity(3)
+                                let mut column = widget::column::with_capacity(2)
                                     .padding([0, space_s, space_m, space_s])
                                     .spacing(space_xxs)
                                     .width(Length::Fill);
-                                column = column.push(
-                                    widget::button::text(NavPage::Explore.title())
-                                        .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                                        .on_press(Message::ExplorePage(None)),
-                                );
                                 column = column.push(widget::text::title4(explore_page.title()));
                                 //TODO: ensure explore_page matches
                                 match self.explore_results.get(&explore_page) {
@@ -735,21 +724,9 @@ impl App {
                                     }
                                     None => {
                                         // Show loading indicator
-                                        return widget::column::with_capacity(3)
-                                            .padding([0, space_s, space_m, space_s])
-                                            .spacing(space_xxs)
-                                            .width(Length::Fill)
-                                            .height(Length::Fixed(size.height))
-                                            .push(
-                                                widget::button::text(NavPage::Explore.title())
-                                                    .leading_icon(icon_cache_handle(
-                                                        "go-previous-symbolic",
-                                                        16,
-                                                    ))
-                                                    .on_press(Message::ExplorePage(None)),
-                                            )
-                                            .push(widget::text::title4(explore_page.title()))
+                                        return column
                                             .push(self.loading_indicator(&fl!("loading")))
+                                            .height(Length::Fixed(size.height))
                                             .into();
                                     }
                                 }
