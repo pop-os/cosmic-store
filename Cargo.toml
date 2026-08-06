@@ -2,7 +2,7 @@
 name = "cosmic-store"
 version = "1.5.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.93"
 
 [dependencies]
 chrono = "0.4"

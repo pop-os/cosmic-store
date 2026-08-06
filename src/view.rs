@@ -40,9 +40,9 @@ pub fn package_card_view<'a>(
         .as_deref()
         .map(|elements| 1 + elements.len())
         .unwrap_or_default();
-    let column = widget::column::with_children(vec![
+    let column = widget::column::with_children([
         widget::row::with_capacity(top_row_cap)
-            .push(widget::column::with_children(vec![
+            .push(widget::column::with_children([
                 widget::text::body(&info.name)
                     .height(20.0)
                     .width(width as f32 - 180.0)
@@ -114,19 +114,14 @@ impl Package {
 
 impl App {
     fn loading_indicator(&self, text: &str) -> Element<'_, Message> {
-        let spacing = theme::active().cosmic().spacing;
-        widget::container(
-            widget::column::with_capacity(2)
-                .push(widget::indeterminate_circular().size(48.0).bar_height(4.0))
-                .push(widget::text(text.to_string()))
-                .spacing(spacing.space_s)
-                .align_x(Alignment::Center),
-        )
-        .align_x(Alignment::Center)
-        .align_y(Alignment::Center)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        widget::column::with_capacity(2)
+            .push(widget::indeterminate_circular())
+            .push(widget::text(text.to_string()))
+            .spacing(theme::spacing().space_s)
+            .align_x(Alignment::Center)
+            .apply(widget::container)
+            .center(Length::Fill)
+            .into()
     }
 
     fn has_category_results_for_page(&self, nav_page: NavPage) -> bool {
@@ -349,7 +344,7 @@ impl App {
 
     pub fn view_responsive(&self, size: Size) -> Element<'_, Message> {
         self.size.set(Some(size));
-        let spacing = theme::active().cosmic().spacing;
+        let spacing = theme::spacing();
         let cosmic_theme::Spacing {
             space_l,
             space_m,
@@ -390,7 +385,7 @@ impl App {
                     false,
                 );
                 column = column.push(
-                    widget::row::with_children(vec![
+                    widget::row::with_children([
                         match &selected.icon_opt {
                             Some(icon) => widget::icon::icon(icon.clone())
                                 .size(ICON_SIZE_DETAILS)
@@ -399,7 +394,7 @@ impl App {
                                 .width(Length::Fixed(ICON_SIZE_DETAILS as f32))
                                 .into(),
                         },
-                        widget::column::with_children(vec![
+                        widget::column::with_children([
                             widget::text::title2(&selected.info.name).into(),
                             widget::text(&selected.info.summary).into(),
                             widget::space::vertical()
@@ -413,17 +408,20 @@ impl App {
                     .spacing(space_m),
                 );
 
-                let sources_widget = widget::column::with_children(vec![if selected.sources.len()
-                    == 1
-                {
-                    widget::text(selected.sources[0].as_ref()).into()
-                } else {
-                    widget::dropdown(&selected.sources, selected_source, Message::SelectedSource)
+                let sources_widget =
+                    widget::column::with_children([if selected.sources.len() == 1 {
+                        widget::text(selected.sources[0].as_ref()).into()
+                    } else {
+                        widget::dropdown(
+                            &selected.sources,
+                            selected_source,
+                            Message::SelectedSource,
+                        )
                         .into()
-                }])
-                .align_x(Alignment::Center)
-                .width(Length::Fill);
-                let developers_widget = widget::column::with_children(vec![
+                    }])
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill);
+                let developers_widget = widget::column::with_children([
                     if selected.info.developer_name.is_empty() {
                         widget::text::heading(fl!(
                             "app-developers",
@@ -441,7 +439,7 @@ impl App {
                 .align_x(Alignment::Center)
                 .width(Length::Fill);
                 let downloads_widget = (selected.info.monthly_downloads > 0).then(|| {
-                    widget::column::with_children(vec![
+                    widget::column::with_children([
                         widget::text::heading(selected.info.monthly_downloads.to_string())
                             .center()
                             .into(),
@@ -473,7 +471,7 @@ impl App {
                         .is_some()
                         .then(|| widget::divider::vertical::default().height(Length::Fixed(32.0)));
                     column = column.push(
-                        widget::column::with_children(vec![
+                        widget::column::with_children([
                             widget::divider::horizontal::default().into(),
                             widget::row::with_capacity(row_size)
                                 .push(sources_widget)
@@ -522,7 +520,7 @@ impl App {
                             .into()
                     };
                     row = row.push(
-                        widget::column::with_children(vec![
+                        widget::column::with_children([
                             image_element,
                             widget::text::caption(&screenshot.caption).center().into(),
                         ])
@@ -762,59 +760,63 @@ impl App {
                                         .height(Length::Fixed(size.height))
                                         .into()
                                 } else {
-                                let explore_pages = ExplorePage::all();
-                                let mut column =
-                                    widget::column::with_capacity(explore_pages.len() * 2)
-                                        .padding([0, space_s, space_m, space_s])
-                                        .spacing(space_xxs)
-                                        .width(Length::Fill);
-                                for explore_page in explore_pages.iter() {
-                                    //TODO: ensure explore_page matches
-                                    match self.explore_results.get(explore_page) {
-                                        Some(results) if !results.is_empty() => {
-                                            let GridMetrics { cols, .. } =
-                                                SearchResult::grid_metrics(&spacing, grid_width);
+                                    let explore_pages = ExplorePage::all();
+                                    let mut column =
+                                        widget::column::with_capacity(explore_pages.len() * 2)
+                                            .padding([0, space_s, space_m, space_s])
+                                            .spacing(space_xxs)
+                                            .width(Length::Fill);
+                                    for explore_page in explore_pages.iter() {
+                                        //TODO: ensure explore_page matches
+                                        match self.explore_results.get(explore_page) {
+                                            Some(results) if !results.is_empty() => {
+                                                let GridMetrics { cols, .. } =
+                                                    SearchResult::grid_metrics(
+                                                        &spacing, grid_width,
+                                                    );
 
-                                            let max_results = match cols {
-                                                1 => 4,
-                                                2 => 8,
-                                                3 => 9,
-                                                _ => cols * 2,
-                                            };
+                                                let max_results = match cols {
+                                                    1 => 4,
+                                                    2 => 8,
+                                                    3 => 9,
+                                                    _ => cols * 2,
+                                                };
 
-                                            //TODO: adjust results length based on app size?
-                                            let results_len = cmp::min(results.len(), max_results);
+                                                //TODO: adjust results length based on app size?
+                                                let results_len =
+                                                    cmp::min(results.len(), max_results);
 
-                                            column = column.push(widget::row::with_children(vec![
-                                                widget::text::title4(explore_page.title()).into(),
-                                                widget::space::horizontal().into(),
-                                                widget::button::text(fl!("see-all"))
-                                                    .trailing_icon(icon_cache_handle(
-                                                        "go-next-symbolic",
-                                                        16,
-                                                    ))
-                                                    .on_press(Message::ExplorePage(Some(
-                                                        *explore_page,
-                                                    )))
-                                                    .into(),
-                                            ]));
+                                                column = column.push(widget::row::with_children([
+                                                    widget::text::title4(explore_page.title())
+                                                        .into(),
+                                                    widget::space::horizontal().into(),
+                                                    widget::button::text(fl!("see-all"))
+                                                        .trailing_icon(icon_cache_handle(
+                                                            "go-next-symbolic",
+                                                            16,
+                                                        ))
+                                                        .on_press(Message::ExplorePage(Some(
+                                                            *explore_page,
+                                                        )))
+                                                        .into(),
+                                                ]));
 
-                                            column = column.push(SearchResult::grid_view(
-                                                &results[..results_len],
-                                                spacing,
-                                                grid_width,
-                                                |result_i| {
-                                                    Message::SelectExploreResult(
-                                                        *explore_page,
-                                                        result_i,
-                                                    )
-                                                },
-                                            ));
+                                                column = column.push(SearchResult::grid_view(
+                                                    &results[..results_len],
+                                                    spacing,
+                                                    grid_width,
+                                                    |result_i| {
+                                                        Message::SelectExploreResult(
+                                                            *explore_page,
+                                                            result_i,
+                                                        )
+                                                    },
+                                                ));
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
-                                }
-                                column.into()
+                                    column.into()
                                 }
                             }
                         }
@@ -910,7 +912,7 @@ impl App {
                                 } else {
                                     column = column.push(widget::flex_row(vec![
                                         widget::text::title2(NavPage::Updates.title()).into(),
-                                        widget::space::horizontal().width(Length::Fill).into(),
+                                        widget::space::horizontal().into(),
                                         widget::row::with_capacity(2)
                                             .spacing(space_xxs)
                                             .push(
@@ -1060,7 +1062,7 @@ impl App {
                                 })
                             {
                                 column = column.push(
-                                    widget::column::with_children(vec![
+                                    widget::column::with_children([
                                         widget::space::vertical().height(space_m).into(),
                                         widget::text(fl!("enable-flathub-cosmic")).into(),
                                         widget::space::vertical().height(space_m).into(),

@@ -3,7 +3,7 @@
 
 use clap::Parser;
 use cosmic::{
-    Application, ApplicationExt, Element, action,
+    Application, ApplicationExt, Apply, Element, action,
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
@@ -18,8 +18,7 @@ use cosmic::{
         widget::scrollable,
         window::{self, Event as WindowEvent},
     },
-    theme,
-    widget::{self},
+    theme, widget,
 };
 use freedesktop_desktop_entry as fde;
 use futures::StreamExt;
@@ -1655,7 +1654,7 @@ impl App {
     fn operations(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xs, space_m, ..
-        } = theme::active().cosmic().spacing;
+        } = theme::spacing();
 
         let mut children = Vec::new();
 
@@ -1679,7 +1678,7 @@ impl App {
         if !self.failed_operations.is_empty() {
             let mut section = widget::settings::section().title(fl!("failed"));
             for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
-                section = section.add(widget::column::with_children(vec![
+                section = section.add(widget::column::with_children([
                     widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
                     widget::text(error).into(),
                 ]));
@@ -1707,7 +1706,7 @@ impl App {
     fn release_notes(&self, index: usize) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_s, space_xxs, ..
-        } = theme::active().cosmic().spacing;
+        } = theme::spacing();
 
         // Check if this is a system package update
         if let Some(package) = self
@@ -1875,7 +1874,7 @@ impl App {
 
         let sources = self.sources();
         let mut recommended = widget::settings::section().title(fl!("recommended-flatpak-sources"));
-        let mut custom = widget::settings::section().header(widget::column::with_children(vec![
+        let mut custom = widget::settings::section().header(widget::column::with_children([
             widget::text::heading(fl!("custom-flatpak-sources")).into(),
             widget::text::body(fl!("import-flatpakrepo")).into(),
         ]));
@@ -1960,18 +1959,18 @@ impl App {
             custom = custom.add(widget::text::body(fl!("no-custom-flatpak-sources")));
         }
 
-        let custom = widget::column::with_children(vec![
+        let custom = widget::column::with_children([
             custom.into(),
-            widget::container(widget::button::standard(fl!("import")).on_press_maybe(
-                if self.repos_changing.is_empty() {
+            widget::button::standard(fl!("import"))
+                .on_press_maybe(if self.repos_changing.is_empty() {
                     Some(Message::RepositoryAddDialog(BackendName::FlatpakUser))
                 } else {
                     None
-                },
-            ))
-            .width(Length::Fill)
-            .align_x(Alignment::End)
-            .into(),
+                })
+                .apply(widget::container)
+                .width(Length::Fill)
+                .align_x(Alignment::End)
+                .into(),
         ])
         .spacing(theme::spacing().space_xxs);
 
@@ -2351,7 +2350,7 @@ impl Application for App {
             space_xs,
             space_s,
             ..
-        } = theme::active().cosmic().spacing;
+        } = theme::spacing();
 
         let mut title = String::new();
         let mut total_progress = 0.0;
@@ -2396,12 +2395,12 @@ impl Application for App {
             .width(Length::Fill)
             .girth(progress_bar_height);
 
-        let container = widget::layer_container(widget::column::with_children(vec![
+        let container = widget::column::with_children([
             progress_bar.into(),
             widget::space::vertical().height(space_xs).into(),
             widget::text::body(title).into(),
             widget::space::vertical().height(space_s).into(),
-            widget::row::with_children(vec![
+            widget::row::with_children([
                 widget::button::link(fl!("details"))
                     .on_press(Message::ToggleContextPage(ContextPage::Operations))
                     .padding(0)
@@ -2414,7 +2413,8 @@ impl Application for App {
             ])
             .align_y(Alignment::Center)
             .into(),
-        ]))
+        ])
+        .apply(widget::layer_container)
         .padding([space_xxs, space_xs])
         .layer(cosmic_theme::Layer::Primary);
 
@@ -2479,19 +2479,18 @@ impl Application for App {
             space_xs,
             space_xxs,
             ..
-        } = theme::active().cosmic().spacing;
+        } = theme::spacing();
 
         let content: Element<_> = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
                 widget::id_container(
-                    widget::scrollable(
-                        widget::container(
-                            widget::container(self.view_responsive(size)).max_width(MAX_GRID_WIDTH),
-                        )
-                        .align_x(Alignment::Center),
-                    )
-                    .on_scroll(Message::ScrollView),
+                    widget::container(self.view_responsive(size))
+                        .max_width(MAX_GRID_WIDTH)
+                        .apply(widget::container)
+                        .align_x(Alignment::Center)
+                        .apply(widget::scrollable)
+                        .on_scroll(Message::ScrollView),
                     self.scrollable_id.clone(),
                 )
                 .into()
@@ -2515,7 +2514,7 @@ impl Application for App {
                     let mut list = widget::list_column();
 
                     for (_id, (op, progress)) in self.pending_operations.iter().rev() {
-                        list = list.add(widget::column::with_children(vec![
+                        list = list.add(widget::column::with_children([
                             widget::determinate_linear(*progress)
                                 .width(Length::Fill)
                                 .girth(Length::Fixed(4.0))
@@ -2526,7 +2525,7 @@ impl Application for App {
                     }
 
                     for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
-                        list = list.add(widget::column::with_children(vec![
+                        list = list.add(widget::column::with_children([
                             widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
                             widget::text(error).into(),
                         ]));
@@ -2556,40 +2555,35 @@ impl Application for App {
                             let mut list = widget::list_column();
                             for (i, result) in results.iter().enumerate() {
                                 list = list.add(
-                                    widget::mouse_area(
-                                        widget::button::custom(
-                                            widget::row::with_children(vec![
-                                                widget::column::with_children(vec![
-                                                    widget::text::body(&result.info.name).into(),
-                                                    widget::text::caption(&result.info.summary)
-                                                        .into(),
-                                                ])
-                                                .into(),
-                                                widget::space::horizontal().into(),
-                                                if selected.contains(&i) {
-                                                    widget::icon::from_name(
-                                                        "checkbox-checked-symbolic",
-                                                    )
-                                                    .size(16)
-                                                    .into()
-                                                } else {
-                                                    widget::space::horizontal()
-                                                        .width(Length::Fixed(16.0))
-                                                        .into()
-                                                },
-                                            ])
-                                            .spacing(space_s)
-                                            .align_y(Alignment::Center),
-                                        )
-                                        .width(Length::Fill)
-                                        .class(theme::Button::MenuItem)
-                                        .force_enabled(true),
-                                    )
+                                    widget::row::with_children([
+                                        widget::column::with_children([
+                                            widget::text::body(&result.info.name).into(),
+                                            widget::text::caption(&result.info.summary).into(),
+                                        ])
+                                        .into(),
+                                        widget::space::horizontal().into(),
+                                        if selected.contains(&i) {
+                                            widget::icon::from_name("checkbox-checked-symbolic")
+                                                .size(16)
+                                                .into()
+                                        } else {
+                                            widget::space::horizontal()
+                                                .width(Length::Fixed(16.0))
+                                                .into()
+                                        },
+                                    ])
+                                    .spacing(space_s)
+                                    .align_y(Alignment::Center)
+                                    .apply(widget::button::custom)
+                                    .width(Length::Fill)
+                                    .class(theme::Button::MenuItem)
+                                    .force_enabled(true)
+                                    .apply(widget::mouse_area)
                                     .on_press(Message::GStreamerToggle(i)),
                                 );
                             }
                             dialog = dialog.control(widget::scrollable(list)).control(
-                                widget::row::with_children(vec![
+                                widget::row::with_children([
                                     widget::icon::from_name("dialog-warning").size(16).into(),
                                     widget::text(fl!("codec-footer")).into(),
                                 ])
@@ -2625,7 +2619,7 @@ impl Application for App {
 
     fn view_window(&self, _id: window::Id) -> Element<'_, Message> {
         // When closing the main window, view_window may be called after the main window is unset
-        widget::space::horizontal().into()
+        widget::space().into()
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
