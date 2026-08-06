@@ -67,7 +67,7 @@ impl App {
 
             Message::BackendUpdate(name, backend) => {
                 log::debug!("adding backend {name}");
-                self.backends.insert(name.clone(), backend.clone());
+                self.backends.insert(name, backend.clone());
 
                 if let Some(pos) = self
                     .repos_changing
@@ -448,7 +448,7 @@ impl App {
                 }
 
                 for (name, backend) in self.backends.clone() {
-                    tasks.push(self.update_backend_installed(name.clone(), backend.clone()));
+                    tasks.push(self.update_backend_installed(name, backend.clone()));
                     tasks.push(self.update_backend_updates(name, backend));
                 }
 
@@ -482,7 +482,7 @@ impl App {
                 }
 
                 for (name, backend) in self.backends.clone() {
-                    tasks.push(self.update_backend_installed(name.clone(), backend.clone()));
+                    tasks.push(self.update_backend_installed(name, backend.clone()));
                     tasks.push(self.update_backend_updates(name, backend));
                 }
 
