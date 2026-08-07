@@ -57,7 +57,7 @@ settings = Asetukset
 
 appearance = Ulkoasu
 theme = Teema
-match-desktop = Sovita työpöytään
+match-desktop = Sama kuin työpöytä
 dark = Tumma
 light = Vaalea
 close = Sulje
@@ -136,3 +136,4 @@ pending = Jonossa
 failed = Epäonnistuneet
 system-package-updates = Paketin päivitykset
 flatpak-runtimes = Flatpak-ajonaikaistiedostot
+loading = Ladataan…
