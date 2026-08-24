@@ -503,35 +503,36 @@ impl App {
 
             let appid = fde::unicase::Ascii::new(desktop_id);
             if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid)
-                && let Some(exec) = desktop_entry.exec().map(String::from) {
-                    let appid = desktop_entry.appid.clone();
-                    let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
-                        GpuPreference::NonDefault
-                    } else {
-                        GpuPreference::Default
-                    };
-                    let terminal = desktop_entry.terminal();
-                    tokio::spawn(async move {
-                        let mut envs = Vec::new();
+                && let Some(exec) = desktop_entry.exec().map(String::from)
+            {
+                let appid = desktop_entry.appid.clone();
+                let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
+                    GpuPreference::NonDefault
+                } else {
+                    GpuPreference::Default
+                };
+                let terminal = desktop_entry.terminal();
+                tokio::spawn(async move {
+                    let mut envs = Vec::new();
 
-                        if let Some(gpu_envs) = try_get_gpu_envs(gpu_pref).await {
-                            envs.extend(gpu_envs);
-                        }
+                    if let Some(gpu_envs) = try_get_gpu_envs(gpu_pref).await {
+                        envs.extend(gpu_envs);
+                    }
 
-                        std::thread::spawn(move || {
-                            tokio::runtime::Builder::new_current_thread()
-                                .enable_io()
-                                .build()
-                                .unwrap()
-                                .block_on(cosmic::desktop::spawn_desktop_exec(
-                                    &exec,
-                                    envs,
-                                    Some(&appid),
-                                    terminal,
-                                ));
-                        });
+                    std::thread::spawn(move || {
+                        tokio::runtime::Builder::new_current_thread()
+                            .enable_io()
+                            .build()
+                            .unwrap()
+                            .block_on(cosmic::desktop::spawn_desktop_exec(
+                                &exec,
+                                envs,
+                                Some(&appid),
+                                terminal,
+                            ));
                     });
-                }
+                });
+            }
         });
     }
 
