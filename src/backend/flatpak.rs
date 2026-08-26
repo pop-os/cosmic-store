@@ -3,7 +3,7 @@ use futures::StreamExt;
 use libflatpak::{Installation, Ref, Remote, Transaction, gio::Cancellable, glib, prelude::*};
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     fmt::Write,
     fs, ptr,
@@ -20,6 +20,7 @@ use crate::{
 pub struct Flatpak {
     user: bool,
     appstream_caches: Vec<AppstreamCache>,
+    enabled_source_ids: HashSet<String>,
 }
 
 impl Flatpak {
@@ -43,6 +44,7 @@ impl Flatpak {
         let mut this = Self {
             user,
             appstream_caches: Vec::new(),
+            enabled_source_ids: HashSet::new(),
         };
 
         let inst = this.installation()?;
@@ -54,6 +56,9 @@ impl Flatpak {
                     continue;
                 }
             };
+            if !remote.is_disabled() {
+                this.enabled_source_ids.insert(source_id.clone());
+            }
 
             let appstream_dir = match remote.appstream_dir(None).and_then(|x| x.path()) {
                 Some(some) => some,
@@ -284,6 +289,10 @@ impl Backend for Flatpak {
 
     fn info_caches(&self) -> &[AppstreamCache] {
         &self.appstream_caches
+    }
+
+    fn source_enabled(&self, source_id: &str) -> Option<bool> {
+        Some(self.enabled_source_ids.contains(source_id))
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
@@ -670,5 +679,28 @@ impl Backend for Flatpak {
         }
         tx.run(Cancellable::NONE)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::{Backend, Flatpak};
+
+    #[test]
+    fn source_enabled_uses_system_source_id_transformation() {
+        let mut flatpak = Flatpak {
+            user: false,
+            appstream_caches: Vec::new(),
+            enabled_source_ids: HashSet::new(),
+        };
+        let system_source_id = flatpak.source_id("flathub");
+        flatpak.enabled_source_ids.insert(system_source_id.clone());
+
+        assert_eq!(system_source_id, "flathub (system)");
+        assert_eq!(flatpak.source_enabled("flathub (system)"), Some(true));
+        assert_eq!(flatpak.source_enabled("cosmic (system)"), Some(false));
+        assert_eq!(flatpak.source_enabled("flathub"), Some(false));
     }
 }
