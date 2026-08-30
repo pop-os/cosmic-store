@@ -18,10 +18,6 @@ Package: cosmic-store
 Architecture: amd64 arm64
 Depends:
     appstream-data-pop,
-    apt-config-icons,
-    apt-config-icons-hidpi,
-    apt-config-icons-large,
-    apt-config-icons-large-hidpi,
     cosmic-icons,
     ${misc:Depends},
     ${shlibs:Depends}
