@@ -1845,7 +1845,7 @@ impl App {
                     if *backend_name == source.backend_name && cache.source_id == source.id {
                         match &mut source.kind {
                             SourceKind::Recommended { enabled, .. } => {
-                                *enabled = true;
+                                *enabled = backend.source_enabled(&cache.source_id).unwrap_or(true);
                             }
                             SourceKind::Custom => {}
                         }

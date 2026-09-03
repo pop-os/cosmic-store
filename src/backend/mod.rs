@@ -83,6 +83,9 @@ pub struct Package {
 pub trait Backend: fmt::Debug + Send + Sync {
     fn load_caches(&mut self, refresh: bool) -> Result<(), Box<dyn Error>>;
     fn info_caches(&self) -> &[AppstreamCache];
+    fn source_enabled(&self, _source_id: &str) -> Option<bool> {
+        None
+    }
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>>;
     fn file_packages(&self, path: &str) -> Result<Vec<Package>, Box<dyn Error>>;

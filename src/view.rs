@@ -19,7 +19,7 @@ use crate::explore::ExplorePage;
 use crate::fl;
 use crate::icon_cache::icon_cache_handle;
 use crate::localize::LANGUAGE_SORTER;
-use crate::nav::NavPage;
+use crate::nav::{Category, NavPage};
 use crate::operation::OperationKind;
 use crate::search::{GridMetrics, SearchResult};
 use crate::{
@@ -112,6 +112,12 @@ impl Package {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CategoryViewDecision {
+    show_loading: bool,
+    show_results: bool,
+}
+
 impl App {
     fn loading_indicator(&self, text: &str) -> Element<'_, Message> {
         widget::column::with_capacity(2)
@@ -124,15 +130,22 @@ impl App {
             .into()
     }
 
-    fn has_category_results_for_page(&self, nav_page: NavPage) -> bool {
-        self.category_results
-            .as_ref()
-            .is_some_and(|(cats, results)| {
-                !results.is_empty()
-                    && nav_page
-                        .categories()
-                        .is_some_and(|page_cats| std::ptr::eq(*cats, page_cats))
-            })
+    fn category_view_decision(
+        nav_page: NavPage,
+        category_results: Option<(&'static [Category], bool)>,
+        show_repository_prompt: bool,
+    ) -> CategoryViewDecision {
+        let show_results = category_results.is_some_and(|(categories, has_results)| {
+            has_results
+                && nav_page
+                    .categories()
+                    .is_some_and(|page_categories| std::ptr::eq(categories, page_categories))
+        });
+
+        CategoryViewDecision {
+            show_loading: !show_results && !show_repository_prompt,
+            show_results,
+        }
     }
 
     fn selected_buttons(
@@ -1011,8 +1024,29 @@ impl App {
                     }
                     //TODO: reduce duplication
                     nav_page => {
+                        let applet_sources =
+                            matches!(nav_page, NavPage::Applets).then(|| self.sources());
+                        let show_repository_prompt =
+                            applet_sources.as_ref().is_some_and(|sources| {
+                                !sources.is_empty()
+                                    && sources.iter().any(|source| {
+                                        matches!(
+                                            source.kind,
+                                            SourceKind::Recommended { enabled: false, .. }
+                                        )
+                                    })
+                            });
+
+                        let category_view = Self::category_view_decision(
+                            nav_page,
+                            self.category_results
+                                .as_ref()
+                                .map(|(categories, results)| (*categories, !results.is_empty())),
+                            show_repository_prompt,
+                        );
+
                         // Show loading indicator when no results for current page
-                        if !self.has_category_results_for_page(nav_page) {
+                        if category_view.show_loading {
                             return widget::column::with_capacity(2)
                                 .padding([0, space_s, space_m, space_s])
                                 .spacing(space_xxs)
@@ -1028,35 +1062,26 @@ impl App {
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));
-                        if matches!(nav_page, NavPage::Applets) {
-                            let sources = self.sources();
-                            if !sources.is_empty()
-                                && sources.iter().any(|source| {
-                                    matches!(
-                                        source.kind,
-                                        SourceKind::Recommended { enabled: false, .. }
-                                    )
-                                })
-                            {
-                                column = column.push(
-                                    widget::column::with_children([
-                                        widget::space::vertical().height(space_m).into(),
-                                        widget::text(fl!("enable-flathub-cosmic")).into(),
-                                        widget::space::vertical().height(space_m).into(),
-                                        widget::button::standard(fl!("manage-repositories"))
-                                            .on_press(Message::ToggleContextPage(
-                                                ContextPage::Repositories,
-                                            ))
-                                            .into(),
-                                        widget::space::vertical().height(space_l).into(),
-                                    ])
-                                    .align_x(Alignment::Center)
-                                    .width(Length::Fill),
-                                );
-                            }
+                        if show_repository_prompt {
+                            column = column.push(
+                                widget::column::with_children([
+                                    widget::space::vertical().height(space_m).into(),
+                                    widget::text(fl!("enable-flathub-cosmic")).into(),
+                                    widget::space::vertical().height(space_m).into(),
+                                    widget::button::standard(fl!("manage-repositories"))
+                                        .on_press(Message::ToggleContextPage(
+                                            ContextPage::Repositories,
+                                        ))
+                                        .into(),
+                                    widget::space::vertical().height(space_l).into(),
+                                ])
+                                .align_x(Alignment::Center)
+                                .width(Length::Fill),
+                            );
                         }
-                        //TODO: ensure category matches?
-                        if let Some((_, results)) = &self.category_results {
+                        if category_view.show_results
+                            && let Some((_, results)) = &self.category_results
+                        {
                             //TODO: paging or dynamic load
                             let results_len = cmp::min(results.len(), MAX_RESULTS);
 
@@ -1076,5 +1101,123 @@ impl App {
                 },
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{App, CategoryViewDecision};
+    use crate::nav::NavPage;
+
+    #[test]
+    fn pending_without_prompt_shows_loading_without_results() {
+        assert_eq!(
+            App::category_view_decision(NavPage::Applets, None, false),
+            CategoryViewDecision {
+                show_loading: true,
+                show_results: false,
+            }
+        );
+    }
+
+    #[test]
+    fn matching_empty_without_prompt_shows_loading_without_results() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Applets.categories().unwrap(), false)),
+                false,
+            ),
+            CategoryViewDecision {
+                show_loading: true,
+                show_results: false,
+            }
+        );
+    }
+
+    #[test]
+    fn matching_nonempty_without_prompt_shows_results_without_loading() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Applets.categories().unwrap(), true)),
+                false,
+            ),
+            CategoryViewDecision {
+                show_loading: false,
+                show_results: true,
+            }
+        );
+    }
+
+    #[test]
+    fn mismatched_nonempty_without_prompt_shows_loading_without_results() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Develop.categories().unwrap(), true)),
+                false,
+            ),
+            CategoryViewDecision {
+                show_loading: true,
+                show_results: false,
+            }
+        );
+    }
+
+    #[test]
+    fn pending_with_prompt_shows_prompt_without_loading_or_results() {
+        assert_eq!(
+            App::category_view_decision(NavPage::Applets, None, true),
+            CategoryViewDecision {
+                show_loading: false,
+                show_results: false,
+            }
+        );
+    }
+
+    #[test]
+    fn matching_empty_with_prompt_shows_prompt_without_loading_or_results() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Applets.categories().unwrap(), false)),
+                true,
+            ),
+            CategoryViewDecision {
+                show_loading: false,
+                show_results: false,
+            }
+        );
+    }
+
+    #[test]
+    fn matching_nonempty_with_prompt_shows_prompt_and_results() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Applets.categories().unwrap(), true)),
+                true,
+            ),
+            CategoryViewDecision {
+                show_loading: false,
+                show_results: true,
+            }
+        );
+    }
+
+    #[test]
+    fn mismatched_nonempty_with_prompt_shows_prompt_without_results() {
+        assert_eq!(
+            App::category_view_decision(
+                NavPage::Applets,
+                Some((NavPage::Develop.categories().unwrap(), true)),
+                true,
+            ),
+            CategoryViewDecision {
+                show_loading: false,
+                show_results: false,
+            }
+        );
     }
 }
