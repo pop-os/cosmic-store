@@ -685,6 +685,7 @@ impl App {
                         &results[..results_len],
                         spacing,
                         grid_width,
+                        true,
                         Message::SelectSearchResult,
                     ));
                     column.into()
@@ -715,6 +716,7 @@ impl App {
                                             &results[..results_len],
                                             spacing,
                                             grid_width,
+                                            false,
                                             move |result_i| {
                                                 Message::SelectExploreResult(explore_page, result_i)
                                             },
@@ -782,6 +784,7 @@ impl App {
                                                     &results[..results_len],
                                                     spacing,
                                                     grid_width,
+                                                    false,
                                                     |result_i| {
                                                         Message::SelectExploreResult(
                                                             *explore_page,
@@ -1068,6 +1071,7 @@ impl App {
                                 &results[..results_len],
                                 spacing,
                                 grid_width,
+                                false,
                                 Message::SelectCategoryResult,
                             ));
                         }

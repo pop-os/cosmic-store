@@ -235,6 +235,7 @@ impl SearchResult {
         results: &'a [Self],
         spacing: cosmic_theme::Spacing,
         width: usize,
+        focusable: bool,
         callback: F,
     ) -> Element<'a, Message> {
         let GridMetrics {
@@ -250,10 +251,18 @@ impl SearchResult {
                 grid = grid.insert_row();
                 col = 0;
             }
-            grid = grid.push(
+            let card: Element<'a, Message> = if focusable {
+                widget::button::custom(result.card_view(&spacing, item_width))
+                    .padding(0)
+                    .class(theme::Button::Transparent)
+                    .on_press(callback(result_i))
+                    .into()
+            } else {
                 widget::mouse_area(result.card_view(&spacing, item_width))
-                    .on_press(callback(result_i)),
-            );
+                    .on_press(callback(result_i))
+                    .into()
+            };
+            grid = grid.push(card);
             col += 1;
         }
         grid.column_spacing(column_spacing)
