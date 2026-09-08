@@ -24,6 +24,9 @@ use std::{
 
 use crate::{AppIcon, AppId, AppInfo, stats};
 
+type ParsedApps = Vec<(AppId, Arc<AppInfo>)>;
+type ParsedMetadata = (Option<String>, ParsedApps, Vec<Component>);
+
 const PREFIXES: &[&str] = &["/usr/share", "/var/lib", "/var/cache"];
 const CATALOGS: &[&str] = &["swcatalog", "app-info"];
 
@@ -581,7 +584,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedMetadata, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
@@ -660,7 +663,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedMetadata, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
 

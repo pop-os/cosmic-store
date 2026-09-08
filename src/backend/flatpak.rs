@@ -13,7 +13,8 @@ use std::{
 
 use super::{Backend, Package};
 use crate::{
-    AppId, AppInfo, AppUrl, AppstreamCache, Operation, OperationKind, RepositoryRemoveError,
+    AppId, AppInfo, AppstreamCache, Operation, OperationKind, RepositoryRemoveError,
+    app_info::AppUrl,
 };
 
 #[derive(Debug)]
@@ -235,8 +236,8 @@ impl Backend for Flatpak {
 
         self.appstream_caches = futures::executor::block_on(async move {
             local_set.run_until(async move {
-                if refresh {
-                    if let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
+                if refresh
+                    && let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
                         remotes.into_iter()
                             .filter_map(|remote| remote.name())
                             .for_each(|remote_name| {
@@ -255,11 +256,9 @@ impl Backend for Flatpak {
                                     log::error!(
                                         "failed to update flatpak remote {remote_name} appstream metadata: {why:?}"
                                     );
-                                    return;
                                 }
                             });
                     }
-                }
 
                 // Parallel reload of appstream caches.
                 appstream_caches
