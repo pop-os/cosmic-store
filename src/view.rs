@@ -6,12 +6,14 @@ use std::sync::Arc;
 
 use cosmic::{
     Apply, Element, cosmic_theme,
-    iced::{Alignment, Length, Size},
+    iced::{
+        Alignment, Length, Size,
+        core::text::{Ellipsize, EllipsizeHeightLimit},
+    },
     theme, widget,
 };
 use rayon::prelude::*;
 
-use crate::app_id::AppId;
 use crate::app_info::{AppInfo, AppProvide, AppUrl};
 use crate::backend::{BackendName, Package};
 use crate::config::AppTheme;
@@ -26,45 +28,49 @@ use crate::{
     App, AppEntry, ContextPage, DialogPage, ICON_SIZE_DETAILS, ICON_SIZE_PACKAGE, MAX_RESULTS,
     Message, SelectedSource, SourceKind,
 };
+use crate::{CARD_TEXT_WIDTH, app_id::AppId};
 
 pub fn package_card_view<'a>(
     info: &'a AppInfo,
     icon_opt: Option<&'a widget::icon::Handle>,
     controls: Vec<Element<'a, Message>>,
-    top_controls: Option<Vec<Element<'a, Message>>>,
     spacing: &cosmic_theme::Spacing,
     width: usize,
 ) -> Element<'a, Message> {
-    let height = 20.0 + 28.0 + 32.0 + 3.0 * spacing.space_xxs as f32;
-    let top_row_cap = 1 + top_controls
-        .as_deref()
-        .map(|elements| 1 + elements.len())
-        .unwrap_or_default();
+    let height = 21.0
+        + 21.0
+        + spacing.space_xxs as f32
+        + 17.0
+        + spacing.space_xs as f32
+        + 32.0
+        + 2.0 * spacing.space_xxs as f32;
     let column = widget::column::with_children([
-        widget::row::with_capacity(top_row_cap)
-            .push(widget::column::with_children([
-                widget::text::body(&info.name)
-                    .height(20.0)
-                    .width(width as f32 - 180.0)
-                    .into(),
-                widget::text::caption(&info.summary)
-                    .height(28.0)
-                    .width(width as f32 - 180.0)
-                    .into(),
-            ]))
-            .push_maybe(
-                top_controls
-                    .is_some()
-                    .then_some(widget::space::horizontal()),
-            )
-            .extend(top_controls.unwrap_or_default())
+        widget::column::with_children([
+            widget::text::heading(&info.name)
+                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+                .height(21.0)
+                .into(),
+            widget::text::body(&info.summary)
+                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+                .height(21.0)
+                .into(),
+            widget::space().height(spacing.space_xxs).into(),
+            widget::text::caption(if info.developer_name.is_empty() {
+                String::new()
+            } else {
+                fl!("by-name", name = info.developer_name.as_str())
+            })
+            .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+            .height(17.0)
             .into(),
+        ])
+        .into(),
         widget::space::vertical()
-            .height(Length::Fixed(spacing.space_xxs.into()))
+            .height(Length::Fixed(spacing.space_xs.into()))
             .into(),
         widget::row::with_children(controls)
             .height(32.0)
-            .spacing(spacing.space_xs)
+            .spacing(spacing.space_xxs)
             .into(),
     ]);
 
@@ -91,24 +97,20 @@ pub fn package_card_view<'a>(
 
 impl Package {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
-        GridMetrics::new(width, 320 + 2 * spacing.space_s as usize, spacing.space_xxs)
+        GridMetrics::new(
+            width,
+            (ICON_SIZE_PACKAGE + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
+            spacing.space_xxs,
+        )
     }
 
     pub fn card_view<'a>(
         &'a self,
         controls: Vec<Element<'a, Message>>,
-        top_controls: Option<Vec<Element<'a, Message>>>,
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        package_card_view(
-            &self.info,
-            Some(&self.icon),
-            controls,
-            top_controls,
-            spacing,
-            width,
-        )
+        package_card_view(&self.info, Some(&self.icon), controls, spacing, width)
     }
 }
 
@@ -346,6 +348,7 @@ impl App {
         self.size.set(Some(size));
         let spacing = theme::spacing();
         let cosmic_theme::Spacing {
+            space_xl,
             space_l,
             space_m,
             space_s,
@@ -354,7 +357,8 @@ impl App {
             space_xxxs,
             ..
         } = spacing;
-        let grid_width = (size.width - 2.0 * space_s as f32).floor().max(0.0) as usize;
+        let page_padding = [0, space_xl, space_m, space_xl];
+        let grid_width = (size.width - 2.0 * space_xl as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
             Some(selected) => {
                 let mut selected_source = None;
@@ -368,7 +372,7 @@ impl App {
                 }
 
                 let mut column = widget::column::with_capacity(8)
-                    .padding([0, space_s, space_m, space_s])
+                    .padding(page_padding)
                     .spacing(space_m)
                     .width(Length::Fill);
 
@@ -671,7 +675,7 @@ impl App {
                     let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                     let mut column = widget::column::with_capacity(2)
-                        .padding([0, space_s, space_m, space_s])
+                        .padding(page_padding)
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
@@ -698,7 +702,7 @@ impl App {
                         match self.explore_page_opt {
                             Some(explore_page) => {
                                 let mut column = widget::column::with_capacity(2)
-                                    .padding([0, space_s, space_m, space_s])
+                                    .padding(page_padding)
                                     .spacing(space_xxs)
                                     .width(Length::Fill);
                                 column = column.push(widget::text::title4(explore_page.title()));
@@ -740,7 +744,7 @@ impl App {
                                     let explore_pages = ExplorePage::all();
                                     let mut column =
                                         widget::column::with_capacity(explore_pages.len() * 2)
-                                            .padding([0, space_s, space_m, space_s])
+                                            .padding(page_padding)
                                             .spacing(space_xxs)
                                             .width(Length::Fill);
                                     for explore_page in explore_pages.iter() {
@@ -800,7 +804,7 @@ impl App {
                     }
                     NavPage::Installed => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s, space_m, space_s])
+                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(NavPage::Installed.title()));
@@ -842,7 +846,6 @@ impl App {
                                             &result.info,
                                             result.icon_opt.as_ref(),
                                             buttons,
-                                            None,
                                             &spacing,
                                             item_width,
                                         ))
@@ -864,7 +867,7 @@ impl App {
                     //TODO: reduce duplication
                     NavPage::Updates => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s, space_m, space_s])
+                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         match &self.updates {
@@ -962,31 +965,27 @@ impl App {
                                                     package.info.clone(),
                                                 ))
                                                 .into(),
+                                            widget::button::icon(widget::icon::from_name(
+                                                "help-info-symbolic",
+                                            ))
+                                            .class(theme::Button::Standard)
+                                            .on_press(Message::ToggleContextPage(
+                                                ContextPage::ReleaseNotes(
+                                                    updates_i,
+                                                    package.info.name.clone(),
+                                                ),
+                                            ))
+                                            .into(),
                                         ]
                                     };
-                                    let top_controls = Some(vec![
-                                        widget::button::icon(widget::icon::from_name(
-                                            "help-info-symbolic",
-                                        ))
-                                        .on_press(Message::ToggleContextPage(
-                                            ContextPage::ReleaseNotes(
-                                                updates_i,
-                                                package.info.name.clone(),
-                                            ),
-                                        ))
-                                        .into(),
-                                    ]);
                                     if col >= cols {
                                         grid = grid.insert_row();
                                         col = 0;
                                     }
                                     grid = grid.push(
-                                        widget::mouse_area(package.card_view(
-                                            controls,
-                                            top_controls,
-                                            &spacing,
-                                            item_width,
-                                        ))
+                                        widget::mouse_area(
+                                            package.card_view(controls, &spacing, item_width),
+                                        )
                                         .on_press(Message::SelectUpdates(updates_i)),
                                     );
                                     col += 1;
@@ -998,7 +997,7 @@ impl App {
                             }
                             None => {
                                 return widget::column::with_capacity(2)
-                                    .padding([0, space_s, space_m, space_s])
+                                    .padding(page_padding)
                                     .spacing(space_xxs)
                                     .width(Length::Fill)
                                     .height(Length::Fixed(size.height))
@@ -1014,7 +1013,7 @@ impl App {
                         // Show loading indicator when no results for current page
                         if !self.has_category_results_for_page(nav_page) {
                             return widget::column::with_capacity(2)
-                                .padding([0, space_s, space_m, space_s])
+                                .padding(page_padding)
                                 .spacing(space_xxs)
                                 .width(Length::Fill)
                                 .height(Length::Fixed(size.height))
@@ -1024,7 +1023,7 @@ impl App {
                         }
 
                         let mut column = widget::column::with_capacity(3)
-                            .padding([0, space_s, space_m, space_s])
+                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(widget::text::title2(nav_page.title()));

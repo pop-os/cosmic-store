@@ -2,6 +2,7 @@ app-name = COSMIC Store
 comment = Application store for the COSMIC desktop
 keywords = App;Software;Store;Shop;
 back = Back
+by-name = By {$name}
 cancel = Cancel
 check-for-updates = Check for updates
 checking-for-updates = Checking for updates...

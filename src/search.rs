@@ -7,14 +7,18 @@ use std::time::Instant;
 
 use cosmic::{
     Apply, Element, cosmic_theme,
-    iced::{Alignment, Length},
+    iced::{
+        Alignment, Length,
+        core::text::{Ellipsize, EllipsizeHeightLimit},
+    },
     theme, widget,
 };
 
-use crate::app_id::AppId;
 use crate::app_info::AppInfo;
 use crate::backend::{BackendName, Backends};
 use crate::explore::ExplorePage;
+use crate::fl;
+use crate::{CARD_TEXT_WIDTH, app_id::AppId};
 use crate::{ICON_SIZE_SEARCH, MAX_RESULTS, Message};
 
 pub struct GridMetrics {
@@ -228,7 +232,11 @@ pub fn apply_icons_to_results(
 
 impl SearchResult {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
-        GridMetrics::new(width, 240 + 2 * spacing.space_s as usize, spacing.space_xxs)
+        GridMetrics::new(
+            width,
+            (ICON_SIZE_SEARCH + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
+            spacing.space_xxs,
+        )
     }
 
     pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
@@ -276,12 +284,23 @@ impl SearchResult {
                     .into(),
             },
             widget::column::with_children([
-                widget::text::body(&self.info.name)
-                    .height(Length::Fixed(20.0))
+                widget::text::heading(&self.info.name)
+                    .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+                    .height(Length::Fixed(21.0))
                     .into(),
-                widget::text::caption(&self.info.summary)
-                    .height(Length::Fixed(28.0))
+                widget::text::body(&self.info.summary)
+                    .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+                    .height(Length::Fixed(21.0))
                     .into(),
+                widget::space().height(spacing.space_xxs).into(),
+                widget::text::caption(if self.info.developer_name.is_empty() {
+                    String::new()
+                } else {
+                    fl!("by-name", name = self.info.developer_name.as_str())
+                })
+                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+                .height(Length::Fixed(17.0))
+                .into(),
             ])
             .into(),
         ])
@@ -290,7 +309,9 @@ impl SearchResult {
         .apply(widget::container)
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(48.0 + (spacing.space_xxs as f32) * 2.0))
+        .height(Length::Fixed(
+            21.0 + 21.0 + (spacing.space_xxs as f32) + 17.0 + (spacing.space_xxs as f32) * 2.0,
+        ))
         .padding([spacing.space_xxs, spacing.space_s])
         .class(theme::Container::Card)
         .into()
