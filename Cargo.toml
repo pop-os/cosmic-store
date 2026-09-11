@@ -49,6 +49,8 @@ zbus = { version = "5", optional = true }
 notify-rust = { version = "4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.2", optional = true }
+# mise feature
+serde_json = { version = "1", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
 freedesktop-desktop-entry = { version = "0.8.1", optional = true }
 switcheroo-control = { git = "https://github.com/pop-os/dbus-settings-bindings", optional = true }
@@ -84,6 +86,7 @@ desktop = [
 desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
 flatpak = ["dep:libflatpak", "xdg-portal"]
 logind = ["dep:logind-zbus", "dep:zbus"]
+mise = ["dep:serde_json"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus"]
 pkgar = []

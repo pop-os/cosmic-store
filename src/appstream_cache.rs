@@ -195,8 +195,11 @@ impl AppstreamCache {
     }
 
     /// Versioned filename of cache
+    ///
+    /// The trailing version must be bumped whenever the encoded representation of
+    /// [`AppInfo`](crate::AppInfo) changes, so stale caches are discarded.
     fn cache_filename() -> &'static str {
-        "appstream_cache-v3.bitcode-v0-6"
+        "appstream_cache-v3.bitcode-v0-7"
     }
 
     /// Remove all files from cache not matching filename

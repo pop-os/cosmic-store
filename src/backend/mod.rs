@@ -18,6 +18,7 @@ pub enum BackendName {
     Packagekit,
     Pkgar,
     RpmOstree,
+    Mise,
 }
 
 impl BackendName {
@@ -29,6 +30,7 @@ impl BackendName {
             BackendName::Packagekit => "packagekit",
             BackendName::Pkgar => "pkgar",
             BackendName::RpmOstree => "rpm-ostree",
+            BackendName::Mise => "mise",
         }
     }
 
@@ -54,6 +56,7 @@ impl std::str::FromStr for BackendName {
             "packagekit" => Ok(BackendName::Packagekit),
             "pkgar" => Ok(BackendName::Pkgar),
             "rpm-ostree" => Ok(BackendName::RpmOstree),
+            "mise" => Ok(BackendName::Mise),
             _ => Err(format!("unknown backend name: {}", s)),
         }
     }
@@ -61,6 +64,9 @@ impl std::str::FromStr for BackendName {
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
+
+#[cfg(feature = "mise")]
+mod mise;
 
 #[cfg(feature = "packagekit")]
 mod packagekit;
@@ -222,6 +228,35 @@ pub fn backends<'a>(
                 }
                 Err(err) => {
                     log::warn!("failed to load {} backend: {}", BackendName::RpmOstree, err);
+                    None
+                }
+            });
+        });
+
+        backends.push(rx)
+    }
+
+    #[cfg(feature = "mise")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding mise backend");
+            _ = tx.send(match mise::Mise::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::info!(
+                        "initialized {} backend in {:?}",
+                        BackendName::Mise,
+                        duration
+                    );
+                    Some((BackendName::Mise, backend))
+                }
+                Err(err) => {
+                    log::info!("failed to load {} backend: {}", BackendName::Mise, err);
                     None
                 }
             });
