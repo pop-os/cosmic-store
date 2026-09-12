@@ -1,6 +1,6 @@
-cancel = Sefsex
+cancel = Semmet
 open = Ldi
-details = Talqayt
+details = Ifatusen
 dismiss = Zgel izen
 create = Snulfu-d
 remove = Kkes
@@ -11,7 +11,7 @@ complete = Immed
 settings = Iɣewwaṛen
 appearance = Timeẓri
 theme = Asentel
-match-desktop = Amṣada d tnarit
+match-desktop = Semṣada akked tnarit
 dark = Aɣmayan
 light = Aceɛlal
 back = Ɣer deffir
