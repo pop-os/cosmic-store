@@ -2512,15 +2512,24 @@ impl Application for App {
                 widget::id_container(
                     widget::column::with_capacity(2)
                         .spacing(space_xxs)
-                        .push_maybe(self.back_button())
-                        .push(self.view_responsive(size))
-                        .apply(widget::container)
-                        .padding([0, space_xl, space_m, space_xl])
-                        .max_width(MAX_GRID_WIDTH)
-                        .apply(widget::container)
-                        .align_x(Alignment::Center)
-                        .apply(widget::scrollable)
-                        .on_scroll(Message::ScrollView),
+                        .push_maybe(self.back_button().map(|element| {
+                            element
+                                .apply(widget::container)
+                                .padding([0, space_xl, 0, space_xl])
+                                .max_width(MAX_GRID_WIDTH)
+                                .apply(widget::container)
+                                .align_x(Alignment::Center)
+                        }))
+                        .push(
+                            self.view_responsive(size)
+                                .apply(widget::container)
+                                .padding([0, space_xl, space_m, space_xl])
+                                .max_width(MAX_GRID_WIDTH)
+                                .apply(widget::container)
+                                .align_x(Alignment::Center)
+                                .apply(widget::scrollable)
+                                .on_scroll(Message::ScrollView),
+                        ),
                     self.scrollable_id.clone(),
                 )
                 .into()
