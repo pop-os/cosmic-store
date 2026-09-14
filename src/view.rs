@@ -58,7 +58,7 @@ pub fn card_tags<'a>(info: &'a AppInfo, spacing: &cosmic_theme::Spacing) -> Elem
                     .into(),
             ])
             .align_y(Alignment::Center)
-            .spacing(spacing.space_xxs)
+            .spacing(spacing.space_xxxs)
             .into(),
         );
     }
@@ -74,7 +74,7 @@ pub fn card_tags<'a>(info: &'a AppInfo, spacing: &cosmic_theme::Spacing) -> Elem
                     .into(),
             ])
             .align_y(Alignment::Center)
-            .spacing(spacing.space_xxs)
+            .spacing(spacing.space_xxxs)
             .into(),
         );
     }
@@ -132,7 +132,7 @@ pub fn package_card_view<'a>(
         )
         .push(column)
         .align_y(Alignment::Center)
-        .spacing(spacing.space_s)
+        .spacing(spacing.space_xs)
         .apply(widget::container)
         .align_y(Alignment::Center)
         .width(width as f32)
@@ -403,7 +403,6 @@ impl App {
             space_xxxs,
             ..
         } = spacing;
-        let page_padding = [0, space_xl, space_m, space_xl];
         let title_padding = [0, space_s];
         let grid_width = (size.width - 2.0 * space_xl as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
@@ -419,7 +418,6 @@ impl App {
                 }
 
                 let mut column = widget::column::with_capacity(8)
-                    .padding(page_padding)
                     .spacing(space_m)
                     .width(Length::Fill);
 
@@ -722,7 +720,6 @@ impl App {
                     let results_len = cmp::min(results.len(), MAX_RESULTS);
 
                     let mut column = widget::column::with_capacity(2)
-                        .padding(page_padding)
                         .spacing(space_xxs)
                         .width(Length::Fill);
                     //TODO: back button?
@@ -749,7 +746,6 @@ impl App {
                         match self.explore_page_opt {
                             Some(explore_page) => {
                                 let mut column = widget::column::with_capacity(2)
-                                    .padding(page_padding)
                                     .spacing(space_xxs)
                                     .width(Length::Fill);
                                 column = column.push(
@@ -794,7 +790,6 @@ impl App {
                                     let explore_pages = ExplorePage::all();
                                     let mut column =
                                         widget::column::with_capacity(explore_pages.len())
-                                            .padding(page_padding)
                                             .spacing(space_xl)
                                             .width(Length::Fill);
                                     for explore_page in explore_pages.iter() {
@@ -820,22 +815,27 @@ impl App {
                                                 column = column.push(
                                                     widget::column::with_children(vec![
                                                         widget::row::with_children([
-                                                            widget::text::title4(
-                                                                explore_page.title(),
+                                                            widget::mouse_area(
+                                                                widget::text::title4(
+                                                                    explore_page.title(),
+                                                                ),
                                                             )
+                                                            .on_press(Message::ExplorePage(Some(
+                                                                *explore_page,
+                                                            )))
                                                             .into(),
-                                                            widget::button::text(fl!("see-all"))
-                                                                .trailing_icon(icon_cache_handle(
+                                                            widget::button::icon(
+                                                                icon_cache_handle(
                                                                     "go-next-symbolic",
                                                                     16,
-                                                                ))
-                                                                .on_press(Message::ExplorePage(
-                                                                    Some(*explore_page),
-                                                                ))
-                                                                .into(),
+                                                                ),
+                                                            )
+                                                            .on_press(Message::ExplorePage(Some(
+                                                                *explore_page,
+                                                            )))
+                                                            .into(),
                                                         ])
                                                         .align_y(Alignment::Center)
-                                                        .spacing(space_xxs)
                                                         .padding(title_padding)
                                                         .into(),
                                                         SearchResult::grid_view(
@@ -864,7 +864,6 @@ impl App {
                     }
                     NavPage::Installed => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(
@@ -930,7 +929,6 @@ impl App {
                     //TODO: reduce duplication
                     NavPage::Updates => {
                         let mut column = widget::column::with_capacity(3)
-                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         match &self.updates {
@@ -963,6 +961,7 @@ impl App {
                                             widget::text::title2(NavPage::Updates.title()).into(),
                                             widget::space::horizontal().into(),
                                             widget::row::with_capacity(2)
+                                                .align_y(Alignment::Center)
                                                 .spacing(space_xxs)
                                                 .push(
                                                     widget::button::standard(fl!(
@@ -976,6 +975,7 @@ impl App {
                                                 )
                                                 .into(),
                                         ])
+                                        .align_items(Alignment::Center)
                                         .padding(title_padding),
                                     );
                                 }
@@ -1070,7 +1070,6 @@ impl App {
                             }
                             None => {
                                 return widget::column::with_capacity(2)
-                                    .padding(page_padding)
                                     .spacing(space_xxs)
                                     .width(Length::Fill)
                                     .height(Length::Fixed(size.height))
@@ -1091,7 +1090,6 @@ impl App {
                         // Show loading indicator when no results for current page
                         if !self.has_category_results_for_page(nav_page) {
                             return widget::column::with_capacity(2)
-                                .padding(page_padding)
                                 .spacing(space_xxs)
                                 .width(Length::Fill)
                                 .height(Length::Fixed(size.height))
@@ -1104,7 +1102,6 @@ impl App {
                         }
 
                         let mut column = widget::column::with_capacity(3)
-                            .padding(page_padding)
                             .spacing(space_xxs)
                             .width(Length::Fill);
                         column = column.push(

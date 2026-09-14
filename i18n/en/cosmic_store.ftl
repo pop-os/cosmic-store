@@ -14,7 +14,6 @@ no-updates = All installed applications are up to date.
 no-results = No results for "{$search}".
 notification-in-progress = Installations and updates are in progress.
 open = Open
-see-all = See all
 uninstall = Uninstall
 update = Update
 update-all = Update all

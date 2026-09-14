@@ -302,7 +302,7 @@ impl SearchResult {
             .into(),
         ])
         .align_y(Alignment::Center)
-        .spacing(spacing.space_s)
+        .spacing(spacing.space_xs)
         .apply(widget::container)
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))

@@ -2498,6 +2498,8 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
+            space_xl,
+            space_m,
             space_s,
             space_xs,
             space_xxs,
@@ -2511,15 +2513,14 @@ impl Application for App {
                     widget::column::with_capacity(2)
                         .spacing(space_xxs)
                         .push_maybe(self.back_button())
-                        .push(
-                            self.view_responsive(size)
-                                .apply(widget::container)
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                                .apply(widget::scrollable)
-                                .on_scroll(Message::ScrollView),
-                        ),
+                        .push(self.view_responsive(size))
+                        .apply(widget::container)
+                        .padding([0, space_xl, space_m, space_xl])
+                        .max_width(MAX_GRID_WIDTH)
+                        .apply(widget::container)
+                        .align_x(Alignment::Center)
+                        .apply(widget::scrollable)
+                        .on_scroll(Message::ScrollView),
                     self.scrollable_id.clone(),
                 )
                 .into()
