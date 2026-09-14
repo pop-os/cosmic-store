@@ -14,12 +14,11 @@ use cosmic::{
     theme, widget,
 };
 
-use crate::app_info::AppInfo;
 use crate::backend::{BackendName, Backends};
 use crate::explore::ExplorePage;
-use crate::fl;
 use crate::{CARD_TEXT_WIDTH, app_id::AppId};
 use crate::{ICON_SIZE_SEARCH, MAX_RESULTS, Message};
+use crate::{app_info::AppInfo, view::card_tags};
 
 pub struct GridMetrics {
     pub cols: usize,
@@ -274,15 +273,20 @@ impl SearchResult {
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
+        let icon: Element<_> = match &self.icon_opt {
+            Some(icon) => widget::icon::icon(icon.clone())
+                .size(ICON_SIZE_SEARCH)
+                .into(),
+            None => widget::space()
+                .width(ICON_SIZE_SEARCH)
+                .height(ICON_SIZE_SEARCH)
+                .into(),
+        };
         widget::row::with_children([
-            match &self.icon_opt {
-                Some(icon) => widget::icon::icon(icon.clone())
-                    .size(ICON_SIZE_SEARCH)
-                    .into(),
-                None => widget::space::horizontal()
-                    .width(Length::Fixed(ICON_SIZE_SEARCH as f32))
-                    .into(),
-            },
+            widget::container(icon)
+                .padding(spacing.space_xxs)
+                .class(theme::Container::Card)
+                .into(),
             widget::column::with_children([
                 widget::text::heading(&self.info.name)
                     .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
@@ -293,14 +297,7 @@ impl SearchResult {
                     .height(Length::Fixed(21.0))
                     .into(),
                 widget::space().height(spacing.space_xxs).into(),
-                widget::text::caption(if self.info.developer_name.is_empty() {
-                    String::new()
-                } else {
-                    fl!("by-name", name = self.info.developer_name.as_str())
-                })
-                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-                .height(Length::Fixed(17.0))
-                .into(),
+                card_tags(&self.info, spacing),
             ])
             .into(),
         ])
@@ -310,10 +307,10 @@ impl SearchResult {
         .align_y(Alignment::Center)
         .width(Length::Fixed(width as f32))
         .height(Length::Fixed(
-            21.0 + 21.0 + (spacing.space_xxs as f32) + 17.0 + (spacing.space_xxs as f32) * 2.0,
+            (21.0 + 21.0 + (spacing.space_xxs as f32) + 17.0 + (spacing.space_xxs as f32) * 2.0)
+                .max(ICON_SIZE_SEARCH as f32 + (spacing.space_xxs as f32) * 4.0),
         ))
         .padding([spacing.space_xxs, spacing.space_s])
-        .class(theme::Container::Card)
         .into()
     }
 }
