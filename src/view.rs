@@ -145,7 +145,7 @@ impl Package {
     pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
         GridMetrics::new(
             width,
-            (ICON_SIZE_PACKAGE + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
+            (ICON_SIZE_PACKAGE + spacing.space_xs + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
             spacing.space_xxs,
         )
     }
