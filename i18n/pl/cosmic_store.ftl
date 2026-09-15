@@ -1,5 +1,5 @@
 app-name = Sklep COSMIC
-comment = Sklep z aplikacjami pulpitu COSMIC
+comment = Sklep z aplikacjami dla środowiska COSMIC
 keywords = Aplikacje;Soft;Oprogramowanie;Sklep;
 back = Powrót
 cancel = Anuluj
