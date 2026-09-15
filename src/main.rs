@@ -92,7 +92,8 @@ mod view;
 
 mod update;
 
-pub const ICON_SIZE_SEARCH: u16 = 48;
+pub const CARD_TEXT_WIDTH: u16 = 180;
+pub const ICON_SIZE_SEARCH: u16 = 64;
 pub const ICON_SIZE_PACKAGE: u16 = 64;
 pub const ICON_SIZE_DETAILS: u16 = 128;
 pub const MAX_GRID_WIDTH: f32 = 1600.0;
@@ -2497,6 +2498,8 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
+            space_xl,
+            space_m,
             space_s,
             space_xs,
             space_xxs,
@@ -2509,10 +2512,18 @@ impl Application for App {
                 widget::id_container(
                     widget::column::with_capacity(2)
                         .spacing(space_xxs)
-                        .push_maybe(self.back_button())
+                        .push_maybe(self.back_button().map(|element| {
+                            element
+                                .apply(widget::container)
+                                .padding([0, space_xl, 0, space_xl])
+                                .max_width(MAX_GRID_WIDTH)
+                                .apply(widget::container)
+                                .align_x(Alignment::Center)
+                        }))
                         .push(
                             self.view_responsive(size)
                                 .apply(widget::container)
+                                .padding([0, space_xl, space_m, space_xl])
                                 .max_width(MAX_GRID_WIDTH)
                                 .apply(widget::container)
                                 .align_x(Alignment::Center)
