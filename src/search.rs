@@ -258,7 +258,9 @@ impl SearchResult {
                 col = 0;
             }
             grid = grid.push(
-                widget::mouse_area(result.card_view(&spacing, item_width))
+                widget::button::custom(result.card_view(&spacing, item_width))
+                    .padding(0.)
+                    .class(theme::Button::Transparent)
                     .on_press(callback(result_i)),
             );
             col += 1;
