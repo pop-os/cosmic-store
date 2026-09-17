@@ -166,6 +166,9 @@ pub struct AppInfo {
     pub screenshots: Vec<AppScreenshot>,
     pub urls: Vec<AppUrl>,
     pub monthly_downloads: u64,
+    /// Only reachable through search, not offered in Explore listings (for example
+    /// catalog entries provided by a tool manager).
+    pub search_only: bool,
 }
 
 impl AppInfo {

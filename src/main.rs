@@ -766,7 +766,7 @@ impl App {
             }
             ExplorePage::PopularApps => {
                 Self::generic_search(apps, backends, |_id, info, _installed| {
-                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                    if !matches!(info.kind, AppKind::DesktopApplication) || info.search_only {
                         return None;
                     }
                     Some(-(info.monthly_downloads as i64))
@@ -793,7 +793,7 @@ impl App {
             }
             ExplorePage::RecentlyUpdated => {
                 Self::generic_search(apps, backends, |id, info, _installed| {
-                    if !matches!(info.kind, AppKind::DesktopApplication) {
+                    if !matches!(info.kind, AppKind::DesktopApplication) || info.search_only {
                         return None;
                     }
                     // Finds the newest release and sorts from newest to oldest
