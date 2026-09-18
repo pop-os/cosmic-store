@@ -113,6 +113,15 @@ struct Cli {
     startup_notification_id: Option<String>,
 }
 
+fn appstream_component(url: &reqwest::Url) -> &str {
+    let path = url.path();
+    if path.trim_start_matches('/').is_empty() {
+        url.host_str().unwrap_or_default()
+    } else {
+        path
+    }
+}
+
 /// Runs application with these settings
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
@@ -1004,7 +1013,7 @@ impl App {
         if let Ok(url) = reqwest::Url::parse(&input) {
             match url.scheme() {
                 "appstream" => {
-                    return self.handle_appstream_url(input, url.path());
+                    return self.handle_appstream_url(input, appstream_component(&url));
                 }
                 "file" => {
                     return self.handle_file_url(input, url.path());
@@ -2971,4 +2980,26 @@ pub fn abortable_blocking_task(
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::appstream_component;
+
+    #[test]
+    fn appstream_component_uses_path_or_authority() {
+        let cases = [
+            ("appstream:com.example.App", "com.example.App"),
+            ("appstream://com.example.App", "com.example.App"),
+            ("appstream://com.example.App/", "com.example.App"),
+            ("appstream:///com.example.App", "/com.example.App"),
+            ("appstream:", ""),
+            ("appstream://authority/com.example.App", "/com.example.App"),
+        ];
+
+        for (uri, expected) in cases {
+            let url = reqwest::Url::parse(uri).unwrap();
+            assert_eq!(appstream_component(&url), expected, "{uri}");
+        }
+    }
 }
