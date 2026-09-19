@@ -16,7 +16,6 @@ import = Importer
 notification-in-progress = Installeringer og oppdateringer pågår.
 match-desktop = Følg skrivebordet
 open = Åpne
-see-all = Se alle
 no-results = Ingen resultater for «{ $search }».
 uninstall = Avinstaller
 update = Oppdater

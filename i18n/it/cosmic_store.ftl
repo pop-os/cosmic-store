@@ -12,7 +12,6 @@ no-updates = Tutte le applicazioni installate sono aggiornate.
 no-results = Nessun risultato per "{ $search }".
 notification-in-progress = Le installazioni e gli aggiornamenti sono in corso.
 open = Apri
-see-all = Vedi tutti
 uninstall = Disinstalla
 update = Aggiorna
 update-all = Aggiorna tutti

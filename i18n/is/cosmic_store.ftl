@@ -27,7 +27,6 @@ no-installed-applications = Engin uppsett forrit.
 no-updates = Öll uppsett forrit eru uppfærð í nýjustu útgáfu.
 no-results = Engar niðurstöður fyrir „{ $search }“.
 notification-in-progress = Uppsetningar og uppfærslur eru í gangi.
-see-all = Sjá allt
 uninstall = Fjarlægja
 update = Uppfæra
 update-all = Uppfæra allt

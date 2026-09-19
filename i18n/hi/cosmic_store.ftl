@@ -9,7 +9,6 @@ no-updates = सभी इंस्टॉल किए गए एप्लिक
 no-results = "{ $search }" के लिए कोई परिणाम नहीं।
 notification-in-progress = इंस्टॉलेशन और अपडेट प्रगति में हैं।
 open = खोलें
-see-all = सभी देखें
 uninstall = अनइंस्टॉल करें
 update = अपडेट करें
 update-all = सभी को अपडेट करें

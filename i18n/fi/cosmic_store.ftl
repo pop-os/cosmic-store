@@ -8,7 +8,6 @@ no-installed-applications = Ei asennettuja sovelluksia.
 no-updates = Kaikki asennetut sovellukset ovat ajan tasalla.
 no-results = Ei tuloksia haulle "{ $search }".
 open = Avaa
-see-all = Näytä kaikki
 uninstall = Poista
 update = Päivitä
 update-all = Päivitä kaikki

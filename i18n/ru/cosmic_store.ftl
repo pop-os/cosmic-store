@@ -9,7 +9,6 @@ no-installed-applications = Нет установленных приложени
 no-updates = Все установленные приложения обновлены.
 no-results = Нет результатов по запросу «{ $search }».
 open = Открыть
-see-all = См. все
 uninstall = Удалить
 update = Обновить
 update-all = Обновить все
@@ -141,3 +140,4 @@ system-packages-summary =
     }
 comment = Магазин приложений для среды COSMIC
 loading = Загрузка...
+by-name = От: { $name }

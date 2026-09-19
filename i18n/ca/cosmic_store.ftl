@@ -5,7 +5,6 @@ details = Detalls
 dismiss = Descarta el missatge
 check-for-updates = Comprova si hi ha actualitzacions
 close = Tancar
-see-all = Mostra-ho tot
 no-updates = Totes les aplicacions estan actualitzades.
 update-all = Actualitza-ho tot
 checking-for-updates = Cercant actualitzacions...
