@@ -12,7 +12,6 @@ no-updates = جميع التطبيقات المنصبة محدثة.
 no-results = لا توجد نتائج لـ ”{ $search }“.
 notification-in-progress = عمليات التنصيب والتحديث جارية.
 open = افتح
-see-all = اعرض الكل
 uninstall = ألغِ التنصيب
 update = حدِّث
 update-all = حدِّث الكل

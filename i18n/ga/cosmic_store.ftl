@@ -9,7 +9,6 @@ no-updates = Tá gach feidhmchlár suiteáilte cothrom le dáta.
 no-results = Gan torthaí le haghaidh "{ $search }".
 notification-in-progress = Tá suiteálacha agus nuashonruithe ar siúl.
 open = Oscail
-see-all = Féach ar gach rud
 uninstall = Díshuiteáil
 update = Nuashonraigh
 update-all = Nuashonraigh gach rud

@@ -24,7 +24,6 @@ no-installed-applications = Ulac isnasen yettwasbedden.
 no-updates = Akk isnasen yettwasbedden ttwaleqqemen.
 no-results = Ulac igmaḍ i "{ $search }".
 notification-in-progress = Isbeddiyen d yileqman tteddun.
-see-all = Wali-ten akk
 uninstall = Kkes asbeddi
 update = Leqqem
 update-all = Leqqem-iten akk

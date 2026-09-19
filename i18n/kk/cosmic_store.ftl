@@ -10,7 +10,6 @@ no-updates = Барлық орнатылған қолданбалар жаңар
 no-results = "{ $search }" үшін нәтижелер жоқ.
 notification-in-progress = Орнатулар мен жаңартулар орындалуда.
 open = Ашу
-see-all = Барлығын көру
 uninstall = Өшіру
 update = Жаңарту
 update-all = Барлығын жаңарту

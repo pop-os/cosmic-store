@@ -32,7 +32,6 @@ no-installed-applications = Non hai aplicacións instaladas.
 no-updates = Todas as aplicacións instaladas estan actualizadas.
 no-results = Non se atoparon resultados para "{ $search }".
 notification-in-progress = As instalacións e actualizacións están en progreso.
-see-all = Amosar todo
 uninstall = Desinstalar
 update = Actualizar
 update-all = Actualizar todo

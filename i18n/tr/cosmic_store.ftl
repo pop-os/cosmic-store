@@ -9,7 +9,6 @@ no-updates = Yüklü tüm uygulamalar güncel.
 no-results = "{ $search }" için sonuç bulunamadı.
 notification-in-progress = Kurulumlar ve güncellemeler devam ediyor.
 open = Aç
-see-all = Tümünü gör
 uninstall = Kaldır
 update = Güncelle
 update-all = Tümünü güncelle

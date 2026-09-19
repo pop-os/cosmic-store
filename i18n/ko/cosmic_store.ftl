@@ -15,7 +15,6 @@ bug-tracker = 버그 추적
 music-and-video-apps = 음악과 비디오 앱
 operations = 동작
 delete-app-data = 앱 데이터를 완전히 삭제
-see-all = 모두 보기
 developer = 개발자
 no-updates = 모든 설치된 앱이 최신입니다.
 graphics-and-photography-tools = 그래픽 및 사진 앱

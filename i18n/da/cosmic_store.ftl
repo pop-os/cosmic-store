@@ -9,7 +9,6 @@ no-updates = Alle installerede programmer er opdateret.
 no-results = Der er ingen resultater med "{ $search }".
 notification-in-progress = Installationer og opdateringer udføres.
 open = Åbn
-see-all = Se alle
 uninstall = Afinstaller
 update = Opdater
 update-all = Opdater alle

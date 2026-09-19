@@ -10,7 +10,6 @@ no-updates = Всички инсталирани програми са обно�
 no-results = Няма резултати за „{ $search }“.
 notification-in-progress = Изпълняват се инсталации и обновления.
 open = Отваряне
-see-all = Виж всички
 uninstall = Деинсталиране
 update = Обновяване
 update-all = Обновяване на всички
