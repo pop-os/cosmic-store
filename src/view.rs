@@ -23,12 +23,39 @@ use crate::icon_cache::icon_cache_handle;
 use crate::localize::LANGUAGE_SORTER;
 use crate::nav::NavPage;
 use crate::operation::OperationKind;
-use crate::search::{GridMetrics, SearchResult};
+use crate::search::SearchResult;
 use crate::{
-    App, AppEntry, ContextPage, DialogPage, ICON_SIZE_DETAILS, ICON_SIZE_PACKAGE, MAX_RESULTS,
+    App, AppEntry, ContextPage, DialogPage, ICON_SIZE_CARD, ICON_SIZE_DETAILS, MAX_RESULTS,
     Message, SelectedSource, SourceKind,
 };
 use crate::{CARD_TEXT_WIDTH, app_id::AppId};
+
+pub struct GridMetrics {
+    pub cols: usize,
+    pub item_width: usize,
+    pub column_spacing: u16,
+}
+
+impl GridMetrics {
+    pub fn new(spacing: &cosmic_theme::Spacing, width: usize) -> Self {
+        let min_width =
+            (ICON_SIZE_CARD + spacing.space_xs + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize;
+        let column_spacing = spacing.space_xxs;
+        let width_m1 = width.saturating_sub(min_width);
+        let cols_m1 = width_m1 / (min_width + column_spacing as usize);
+        let cols = cols_m1 + 1;
+        let item_width = width
+            .saturating_sub(cols_m1 * column_spacing as usize)
+            .checked_div(cols)
+            .unwrap_or(0);
+
+        Self {
+            cols,
+            item_width,
+            column_spacing,
+        }
+    }
+}
 
 pub fn format_downloads(x: u64) -> String {
     for &(threshold, suffix) in &[
@@ -85,78 +112,59 @@ pub fn card_tags<'a>(info: &'a AppInfo, spacing: &cosmic_theme::Spacing) -> Elem
         .into()
 }
 
-pub fn package_card_view<'a>(
+pub fn card_view<'a>(
     info: &'a AppInfo,
     icon_opt: Option<&'a widget::icon::Handle>,
-    controls: Vec<Element<'a, Message>>,
+    footer: Element<'a, Message>,
     spacing: &cosmic_theme::Spacing,
     width: usize,
 ) -> Element<'a, Message> {
-    let height = 21.0 + 21.0 + spacing.space_xs as f32 + 32.0 + 2.0 * spacing.space_xxs as f32;
+    let icon = match icon_opt {
+        Some(icon) => widget::icon::icon(icon.clone())
+            .size(ICON_SIZE_CARD)
+            .apply(Element::from),
+        None => widget::space()
+            .width(ICON_SIZE_CARD)
+            .height(ICON_SIZE_CARD)
+            .apply(Element::from),
+    }
+    .apply(widget::container)
+    .padding(spacing.space_xxs)
+    .class(theme::Container::Card);
+
     let column = widget::column::with_children([
-        widget::column::with_children([
-            widget::text::heading(&info.name)
-                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-                .height(21.0)
-                .into(),
-            widget::text::body(&info.summary)
-                .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-                .height(21.0)
-                .into(),
-        ])
-        .into(),
-        widget::space::vertical()
-            .height(Length::Fixed(spacing.space_xs.into()))
+        widget::text::heading(&info.name)
+            .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
             .into(),
-        widget::row::with_children(controls)
+        widget::text::body(&info.summary)
+            .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
+            .into(),
+        footer
+            .apply(widget::container)
             .height(32.0)
-            .spacing(spacing.space_xxs)
+            .align_y(Alignment::Center)
             .into(),
     ]);
 
-    let icon: Element<_> = match icon_opt {
-        Some(icon) => widget::icon::icon(icon.clone())
-            .size(ICON_SIZE_PACKAGE)
-            .into(),
-        None => widget::space()
-            .width(ICON_SIZE_PACKAGE)
-            .height(ICON_SIZE_PACKAGE)
-            .into(),
-    };
-
-    widget::row::with_capacity(2)
-        .push(
-            widget::container(icon)
-                .padding(spacing.space_xxs)
-                .class(theme::Container::Card),
-        )
-        .push(column)
+    widget::row![icon, column]
         .align_y(Alignment::Center)
         .spacing(spacing.space_xs)
-        .apply(widget::container)
-        .align_y(Alignment::Center)
         .width(width as f32)
-        .height(height)
         .padding([spacing.space_xxs, spacing.space_s])
         .into()
 }
 
 impl Package {
-    pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
-        GridMetrics::new(
-            width,
-            (ICON_SIZE_PACKAGE + spacing.space_xs + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
-            spacing.space_xxs,
-        )
-    }
-
-    pub fn card_view<'a>(
+    fn package_card_view<'a>(
         &'a self,
         controls: Vec<Element<'a, Message>>,
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        package_card_view(&self.info, Some(&self.icon), controls, spacing, width)
+        let controls = widget::row::with_children(controls)
+            .spacing(spacing.space_xxs)
+            .into();
+        card_view(&self.info, Some(&self.icon), controls, spacing, width)
     }
 }
 
@@ -183,6 +191,32 @@ impl App {
             })
     }
 
+    fn is_waiting_refresh(
+        &self,
+        backend_name: BackendName,
+        source_id: &str,
+        package_id: &AppId,
+    ) -> bool {
+        self.waiting_installed
+            .iter()
+            .chain(self.waiting_updates.iter())
+            .any(|(b, s, p)| *b == backend_name && s == source_id && p == package_id)
+    }
+
+    fn progress_opt(
+        &self,
+        backend_name: BackendName,
+        source_id: &str,
+        package_id: &AppId,
+    ) -> Option<f32> {
+        self.pending_operations.values().find_map(|(op, progress)| {
+            (op.backend_name == backend_name
+                && op.infos.iter().any(|info| info.source_id == *source_id)
+                && op.package_ids.iter().any(|pid| pid == package_id))
+            .then_some(*progress)
+        })
+    }
+
     fn selected_buttons(
         &self,
         selected_backend_name: BackendName,
@@ -191,20 +225,10 @@ impl App {
         addon: bool,
     ) -> Vec<Element<'_, Message>> {
         //TODO: more efficient checks
-        let mut waiting_refresh = false;
-        for (backend_name, source_id, package_id) in self
-            .waiting_installed
-            .iter()
-            .chain(self.waiting_updates.iter())
-        {
-            if *backend_name == selected_backend_name
-                && source_id == &selected_info.source_id
-                && package_id == selected_id
-            {
-                waiting_refresh = true;
-                break;
-            }
-        }
+        let waiting_refresh =
+            self.is_waiting_refresh(selected_backend_name, &selected_info.source_id, selected_id);
+        let progress_opt =
+            self.progress_opt(selected_backend_name, &selected_info.source_id, selected_id);
         let is_installed = self.is_installed(selected_backend_name, selected_id, selected_info);
         let applet_provide = AppProvide::Id("com.system76.CosmicApplet".to_string());
         let mut update_opt = None;
@@ -222,22 +246,6 @@ impl App {
                     ));
                     break;
                 }
-            }
-        }
-        let mut progress_opt = None;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
-            if op.backend_name == selected_backend_name
-                && op
-                    .infos
-                    .iter()
-                    .any(|info| info.source_id == selected_info.source_id)
-                && op
-                    .package_ids
-                    .iter()
-                    .any(|package_id| package_id == selected_id)
-            {
-                progress_opt = Some(*progress);
-                break;
             }
         }
 
@@ -797,9 +805,7 @@ impl App {
                                         match self.explore_results.get(explore_page) {
                                             Some(results) if !results.is_empty() => {
                                                 let GridMetrics { cols, .. } =
-                                                    SearchResult::grid_metrics(
-                                                        &spacing, grid_width,
-                                                    );
+                                                    GridMetrics::new(&spacing, grid_width);
 
                                                 let max_results = match cols {
                                                     1 => 4,
@@ -881,7 +887,7 @@ impl App {
                                     cols,
                                     item_width,
                                     column_spacing,
-                                } = Package::grid_metrics(&spacing, grid_width);
+                                } = GridMetrics::new(&spacing, grid_width);
                                 let mut grid = widget::grid();
                                 let mut col = 0;
                                 for (installed_i, result) in installed.iter().enumerate() {
@@ -889,25 +895,20 @@ impl App {
                                         grid = grid.insert_row();
                                         col = 0;
                                     }
-                                    let mut buttons = Vec::with_capacity(1);
-                                    if let Some(desktop_id) = result.info.desktop_ids.first() {
-                                        buttons.push(
-                                            widget::button::standard(fl!("open"))
-                                                .on_press(Message::OpenDesktopId(
-                                                    desktop_id.clone(),
-                                                ))
-                                                .into(),
-                                        );
+                                    let button: Element<_> = if let Some(desktop_id) =
+                                        result.info.desktop_ids.first()
+                                    {
+                                        widget::button::standard(fl!("open"))
+                                            .on_press(Message::OpenDesktopId(desktop_id.clone()))
+                                            .into()
                                     } else {
-                                        buttons.push(
-                                            widget::space::vertical().height(Length::Shrink).into(),
-                                        );
-                                    }
+                                        widget::space().into()
+                                    };
                                     grid = grid.push(
-                                        widget::mouse_area(package_card_view(
+                                        widget::mouse_area(card_view(
                                             &result.info,
                                             result.icon_opt.as_ref(),
-                                            buttons,
+                                            button,
                                             &spacing,
                                             item_width,
                                         ))
@@ -984,41 +985,22 @@ impl App {
                                     cols,
                                     item_width,
                                     column_spacing,
-                                } = Package::grid_metrics(&spacing, grid_width);
+                                } = GridMetrics::new(&spacing, grid_width);
                                 let mut grid = widget::grid();
                                 let mut col = 0;
                                 for (updates_i, (backend_name, package)) in
                                     updates.iter().enumerate()
                                 {
-                                    let mut waiting_refresh = false;
-                                    for (other_backend_name, source_id, package_id) in self
-                                        .waiting_installed
-                                        .iter()
-                                        .chain(self.waiting_updates.iter())
-                                    {
-                                        if other_backend_name == backend_name
-                                            && source_id == &package.info.source_id
-                                            && package_id == &package.id
-                                        {
-                                            waiting_refresh = true;
-                                            break;
-                                        }
-                                    }
-                                    let mut progress_opt = None;
-                                    for (_id, (op, progress)) in self.pending_operations.iter() {
-                                        if &op.backend_name == backend_name
-                                            && op.infos.iter().any(|info| {
-                                                info.source_id == package.info.source_id
-                                            })
-                                            && op
-                                                .package_ids
-                                                .iter()
-                                                .any(|package_id| package_id == &package.id)
-                                        {
-                                            progress_opt = Some(*progress);
-                                            break;
-                                        }
-                                    }
+                                    let waiting_refresh = self.is_waiting_refresh(
+                                        *backend_name,
+                                        &package.info.source_id,
+                                        &package.id,
+                                    );
+                                    let progress_opt = self.progress_opt(
+                                        *backend_name,
+                                        &package.info.source_id,
+                                        &package.id,
+                                    );
                                     let controls = if let Some(progress) = progress_opt {
                                         vec![
                                             widget::determinate_linear(progress)
@@ -1057,7 +1039,8 @@ impl App {
                                     }
                                     grid = grid.push(
                                         widget::mouse_area(
-                                            package.card_view(controls, &spacing, item_width),
+                                            package
+                                                .package_card_view(controls, &spacing, item_width),
                                         )
                                         .on_press(Message::SelectUpdates(updates_i)),
                                     );

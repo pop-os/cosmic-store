@@ -5,43 +5,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use cosmic::{
-    Apply, Element, cosmic_theme,
-    iced::{
-        Alignment, Length,
-        core::text::{Ellipsize, EllipsizeHeightLimit},
-    },
-    theme, widget,
-};
+use cosmic::{Element, cosmic_theme, widget};
 
+use crate::app_id::AppId;
+use crate::app_info::AppInfo;
 use crate::backend::{BackendName, Backends};
 use crate::explore::ExplorePage;
-use crate::{CARD_TEXT_WIDTH, app_id::AppId};
-use crate::{ICON_SIZE_SEARCH, MAX_RESULTS, Message};
-use crate::{app_info::AppInfo, view::card_tags};
-
-pub struct GridMetrics {
-    pub cols: usize,
-    pub item_width: usize,
-    pub column_spacing: u16,
-}
-
-impl GridMetrics {
-    pub fn new(width: usize, min_width: usize, column_spacing: u16) -> Self {
-        let width_m1 = width.saturating_sub(min_width);
-        let cols_m1 = width_m1 / (min_width + column_spacing as usize);
-        let cols = cols_m1 + 1;
-        let item_width = width
-            .saturating_sub(cols_m1 * column_spacing as usize)
-            .checked_div(cols)
-            .unwrap_or(0);
-        Self {
-            cols,
-            item_width,
-            column_spacing,
-        }
-    }
-}
+use crate::view::{GridMetrics, card_tags, card_view};
+use crate::{MAX_RESULTS, Message};
 
 #[derive(Clone, Debug)]
 pub struct SearchResult {
@@ -230,14 +201,6 @@ pub fn apply_icons_to_results(
 }
 
 impl SearchResult {
-    pub fn grid_metrics(spacing: &cosmic_theme::Spacing, width: usize) -> GridMetrics {
-        GridMetrics::new(
-            width,
-            (ICON_SIZE_SEARCH + spacing.space_xs + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize,
-            spacing.space_xxs,
-        )
-    }
-
     pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
         results: &'a [Self],
         spacing: cosmic_theme::Spacing,
@@ -248,7 +211,7 @@ impl SearchResult {
             cols,
             item_width,
             column_spacing,
-        } = Self::grid_metrics(&spacing, width);
+        } = GridMetrics::new(&spacing, width);
 
         let mut grid = widget::grid();
         let mut col = 0;
@@ -258,7 +221,7 @@ impl SearchResult {
                 col = 0;
             }
             grid = grid.push(
-                widget::mouse_area(result.card_view(&spacing, item_width))
+                widget::mouse_area(result.search_card_view(&spacing, item_width))
                     .on_press(callback(result_i)),
             );
             col += 1;
@@ -268,49 +231,17 @@ impl SearchResult {
             .into()
     }
 
-    pub fn card_view<'a>(
+    fn search_card_view<'a>(
         &'a self,
         spacing: &cosmic_theme::Spacing,
         width: usize,
     ) -> Element<'a, Message> {
-        let icon: Element<_> = match &self.icon_opt {
-            Some(icon) => widget::icon::icon(icon.clone())
-                .size(ICON_SIZE_SEARCH)
-                .into(),
-            None => widget::space()
-                .width(ICON_SIZE_SEARCH)
-                .height(ICON_SIZE_SEARCH)
-                .into(),
-        };
-        widget::row::with_children([
-            widget::container(icon)
-                .padding(spacing.space_xxs)
-                .class(theme::Container::Card)
-                .into(),
-            widget::column::with_children([
-                widget::text::heading(&self.info.name)
-                    .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-                    .height(Length::Fixed(21.0))
-                    .into(),
-                widget::text::body(&self.info.summary)
-                    .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
-                    .height(Length::Fixed(21.0))
-                    .into(),
-                widget::space().height(spacing.space_xxs).into(),
-                card_tags(&self.info, spacing),
-            ])
-            .into(),
-        ])
-        .align_y(Alignment::Center)
-        .spacing(spacing.space_xs)
-        .apply(widget::container)
-        .align_y(Alignment::Center)
-        .width(Length::Fixed(width as f32))
-        .height(Length::Fixed(
-            (21.0 + 21.0 + (spacing.space_xxs as f32) + 17.0 + (spacing.space_xxs as f32) * 2.0)
-                .max(ICON_SIZE_SEARCH as f32 + (spacing.space_xxs as f32) * 4.0),
-        ))
-        .padding([spacing.space_xxs, spacing.space_s])
-        .into()
+        card_view(
+            &self.info,
+            self.icon_opt.as_ref(),
+            card_tags(&self.info, spacing),
+            spacing,
+            width,
+        )
     }
 }
