@@ -7,7 +7,6 @@ use cosmic::{
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
-    iced::widget::scrollable::AbsoluteOffset,
     iced::{
         Alignment, Length, Limits, Size, Subscription,
         core::SmolStr,
@@ -1171,7 +1170,7 @@ impl App {
             match self.scroll_views.get(&scroll_context) {
                 Some(viewport) => {
                     let offset = viewport.absolute_offset();
-                    AbsoluteOffset {
+                    scrollable::AbsoluteOffset {
                         x: Some(offset.x),
                         y: Some(offset.y),
                     }
@@ -2073,25 +2072,36 @@ impl App {
         widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
 
+    fn side_padding(&self) -> u16 {
+        if self.core.is_condensed() {
+            theme::spacing().space_s
+        } else {
+            theme::spacing().space_l
+        }
+    }
+
     fn back_button(&self) -> Option<Element<'_, Message>> {
         if self.selected_opt.is_some() {
             Some(
                 //TODO: describe where we are going back to
                 widget::button::text(fl!("back"))
                     .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                    .on_press(Message::SelectNone)
-                    .into(),
+                    .on_press(Message::SelectNone),
             )
         } else if self.explore_page_opt.is_some() {
             Some(
                 widget::button::text(NavPage::Explore.title())
                     .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                    .on_press(Message::ExplorePage(None))
-                    .into(),
+                    .on_press(Message::ExplorePage(None)),
             )
         } else {
             None
         }
+        .map(|b| {
+            widget::container(b)
+                .padding([0, self.side_padding()])
+                .into()
+        })
     }
 }
 
@@ -2618,41 +2628,30 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
-            space_xl,
             space_m,
             space_s,
             space_xs,
             space_xxs,
             ..
         } = theme::spacing();
-
+        let padding = self.side_padding();
         let content = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
-                widget::id_container(
-                    widget::column::with_capacity(2)
-                        .spacing(space_xxs)
-                        .push_maybe(self.back_button().map(|element| {
-                            element
-                                .apply(widget::container)
-                                .padding([0, space_xl, 0, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                        }))
-                        .push(
-                            self.view_responsive(size)
-                                .apply(widget::container)
-                                .padding([0, space_xl, space_m, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                                .apply(widget::scrollable)
-                                .on_scroll(Message::ScrollView),
-                        ),
-                    self.scrollable_id.clone(),
-                )
-                .into()
+                let column = widget::column::with_capacity(2)
+                    .spacing(space_xxs)
+                    .push_maybe(self.back_button())
+                    .push(
+                        self.view_responsive(size)
+                            .apply(widget::container)
+                            .padding([0, padding, space_m, padding])
+                            .max_width(MAX_GRID_WIDTH)
+                            .apply(widget::container)
+                            .align_x(Alignment::Center)
+                            .apply(widget::scrollable)
+                            .on_scroll(Message::ScrollView),
+                    );
+                widget::id_container(column, self.scrollable_id.clone()).into()
             })
             .into(),
             Mode::GStreamer {
