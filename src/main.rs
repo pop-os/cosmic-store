@@ -96,8 +96,7 @@ mod view;
 mod update;
 
 pub const CARD_TEXT_WIDTH: u16 = 180;
-pub const ICON_SIZE_SEARCH: u16 = 64;
-pub const ICON_SIZE_PACKAGE: u16 = 64;
+pub const ICON_SIZE_CARD: u16 = 64;
 pub const ICON_SIZE_DETAILS: u16 = 128;
 pub const MAX_GRID_WIDTH: f32 = 1600.0;
 pub const MAX_RESULTS: usize = 100;
