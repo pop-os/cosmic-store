@@ -7,7 +7,6 @@ use cosmic::{
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
-    iced::widget::scrollable::AbsoluteOffset,
     iced::{
         Alignment, Length, Limits, Size, Subscription,
         core::SmolStr,
@@ -1159,7 +1158,7 @@ impl App {
             match self.scroll_views.get(&scroll_context) {
                 Some(viewport) => {
                     let offset = viewport.absolute_offset();
-                    AbsoluteOffset {
+                    scrollable::AbsoluteOffset {
                         x: Some(offset.x),
                         y: Some(offset.y),
                     }
@@ -2505,7 +2504,7 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
-            space_xl,
+            space_l,
             space_m,
             space_s,
             space_xs,
@@ -2516,30 +2515,23 @@ impl Application for App {
         let content = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
-                widget::id_container(
-                    widget::column::with_capacity(2)
-                        .spacing(space_xxs)
-                        .push_maybe(self.back_button().map(|element| {
-                            element
-                                .apply(widget::container)
-                                .padding([0, space_xl, 0, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                        }))
-                        .push(
-                            self.view_responsive(size)
-                                .apply(widget::container)
-                                .padding([0, space_xl, space_m, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                                .apply(widget::scrollable)
-                                .on_scroll(Message::ScrollView),
-                        ),
-                    self.scrollable_id.clone(),
-                )
-                .into()
+                let column = widget::column::with_capacity(2)
+                    .spacing(space_xxs)
+                    .push_maybe(
+                        self.back_button()
+                            .map(|element| element.apply(widget::container).padding([0, space_l])),
+                    )
+                    .push(
+                        self.view_responsive(size)
+                            .apply(widget::container)
+                            .padding([0, space_l, space_m, space_l])
+                            .max_width(MAX_GRID_WIDTH)
+                            .apply(widget::container)
+                            .align_x(Alignment::Center)
+                            .apply(widget::scrollable)
+                            .on_scroll(Message::ScrollView),
+                    );
+                widget::id_container(column, self.scrollable_id.clone()).into()
             })
             .into(),
             Mode::GStreamer {

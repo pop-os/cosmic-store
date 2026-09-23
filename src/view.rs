@@ -404,7 +404,7 @@ impl App {
             ..
         } = spacing;
         let title_padding = [0, space_s];
-        let grid_width = (size.width - 2.0 * space_xl as f32).floor().max(0.0) as usize;
+        let grid_width = (size.width - 2.0 * space_l as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
             Some(selected) => {
                 let mut selected_source = None;
