@@ -39,8 +39,8 @@ pub struct GridMetrics {
 impl GridMetrics {
     pub fn new(spacing: &cosmic_theme::Spacing, width: usize) -> Self {
         let min_width =
-            (ICON_SIZE_CARD + spacing.space_xs + CARD_TEXT_WIDTH + 2 * spacing.space_s) as usize;
-        let column_spacing = spacing.space_xxs;
+            (ICON_SIZE_CARD + 2 * spacing.space_xxs + spacing.space_xs + CARD_TEXT_WIDTH) as usize;
+        let column_spacing = spacing.space_m;
         let width_m1 = width.saturating_sub(min_width);
         let cols_m1 = width_m1 / (min_width + column_spacing as usize);
         let cols = cols_m1 + 1;
@@ -78,7 +78,7 @@ pub fn card_tags<'a>(info: &'a AppInfo, spacing: &cosmic_theme::Spacing) -> Elem
     let mut tags = Vec::with_capacity(3);
     if info.monthly_downloads > 0 {
         tags.push(
-            widget::row::with_children(vec![
+            widget::row::with_children([
                 widget::icon::from_name("folder-download-symbolic").into(),
                 widget::text::caption(format_downloads(info.monthly_downloads))
                     .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
@@ -94,7 +94,7 @@ pub fn card_tags<'a>(info: &'a AppInfo, spacing: &cosmic_theme::Spacing) -> Elem
             tags.push(widget::divider::vertical::default().into());
         }
         tags.push(
-            widget::row::with_children(vec![
+            widget::row::with_children([
                 widget::icon::from_name("system-users-symbolic").into(),
                 widget::text::caption(&info.developer_name)
                     .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)))
@@ -149,8 +149,7 @@ pub fn card_view<'a>(
     widget::row![icon, column]
         .align_y(Alignment::Center)
         .spacing(spacing.space_xs)
-        .width(width as f32)
-        .padding([spacing.space_xxs, spacing.space_s])
+        .width(width as u32)
         .into()
 }
 
@@ -411,7 +410,6 @@ impl App {
             space_xxxs,
             ..
         } = spacing;
-        let title_padding = [0, space_s];
         let grid_width = (size.width - 2.0 * space_l as f32).floor().max(0.0) as usize;
         match &self.selected_opt {
             Some(selected) => {
@@ -565,10 +563,7 @@ impl App {
                             .center_y(image_height)
                             .into()
                     } else {
-                        widget::space::horizontal()
-                            .width(Length::Fill)
-                            .height(image_height)
-                            .into()
+                        widget::space::horizontal().height(image_height).into()
                     };
                     row = row.push(
                         widget::column::with_children([
@@ -756,10 +751,7 @@ impl App {
                                 let mut column = widget::column::with_capacity(2)
                                     .spacing(space_xxs)
                                     .width(Length::Fill);
-                                column = column.push(
-                                    widget::container(widget::text::title4(explore_page.title()))
-                                        .padding(title_padding),
-                                );
+                                column = column.push(widget::text::title4(explore_page.title()));
                                 //TODO: ensure explore_page matches
                                 match self.explore_results.get(&explore_page) {
                                     Some(results) => {
@@ -819,30 +811,27 @@ impl App {
                                                     cmp::min(results.len(), max_results);
 
                                                 column = column.push(
-                                                    widget::column::with_children(vec![
+                                                    widget::column::with_children([
                                                         widget::row::with_children([
-                                                            widget::mouse_area(
-                                                                widget::text::title4(
-                                                                    explore_page.title(),
-                                                                ),
+                                                            widget::text::title4(
+                                                                explore_page.title(),
                                                             )
+                                                            .apply(widget::mouse_area)
                                                             .on_press(Message::ExplorePage(Some(
                                                                 *explore_page,
                                                             )))
                                                             .into(),
-                                                            widget::button::icon(
-                                                                icon_cache_handle(
-                                                                    "go-next-symbolic",
-                                                                    16,
-                                                                ),
+                                                            icon_cache_handle(
+                                                                "go-next-symbolic",
+                                                                16,
                                                             )
+                                                            .apply(widget::button::icon)
                                                             .on_press(Message::ExplorePage(Some(
                                                                 *explore_page,
                                                             )))
                                                             .into(),
                                                         ])
                                                         .align_y(Alignment::Center)
-                                                        .padding(title_padding)
                                                         .into(),
                                                         SearchResult::grid_view(
                                                             &results[..results_len],
@@ -872,10 +861,7 @@ impl App {
                         let mut column = widget::column::with_capacity(3)
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(
-                            widget::container(widget::text::title2(NavPage::Installed.title()))
-                                .padding(title_padding),
-                        );
+                        column = column.push(widget::text::title2(NavPage::Installed.title()));
                         match &self.installed_results {
                             Some(installed) => {
                                 if installed.is_empty() {
@@ -936,12 +922,7 @@ impl App {
                             Some(updates) => {
                                 if updates.is_empty() {
                                     column = column
-                                        .push(
-                                            widget::container(widget::text::title2(
-                                                NavPage::Updates.title(),
-                                            ))
-                                            .padding(title_padding),
-                                        )
+                                        .push(widget::text::title2(NavPage::Updates.title()))
                                         .push(
                                             widget::column::with_capacity(2)
                                                 .spacing(space_s)
@@ -976,8 +957,7 @@ impl App {
                                                 )
                                                 .into(),
                                         ])
-                                        .align_items(Alignment::Center)
-                                        .padding(title_padding),
+                                        .align_items(Alignment::Center),
                                     );
                                 }
 
@@ -1020,17 +1000,16 @@ impl App {
                                                     package.info.clone(),
                                                 ))
                                                 .into(),
-                                            widget::button::icon(widget::icon::from_name(
-                                                "help-info-symbolic",
-                                            ))
-                                            .class(theme::Button::Standard)
-                                            .on_press(Message::ToggleContextPage(
-                                                ContextPage::ReleaseNotes(
-                                                    updates_i,
-                                                    package.info.name.clone(),
-                                                ),
-                                            ))
-                                            .into(),
+                                            widget::icon::from_name("help-info-symbolic")
+                                                .apply(widget::button::icon)
+                                                .class(theme::Button::Standard)
+                                                .on_press(Message::ToggleContextPage(
+                                                    ContextPage::ReleaseNotes(
+                                                        updates_i,
+                                                        package.info.name.clone(),
+                                                    ),
+                                                ))
+                                                .into(),
                                         ]
                                     };
                                     if col >= cols {
@@ -1038,11 +1017,10 @@ impl App {
                                         col = 0;
                                     }
                                     grid = grid.push(
-                                        widget::mouse_area(
-                                            package
-                                                .package_card_view(controls, &spacing, item_width),
-                                        )
-                                        .on_press(Message::SelectUpdates(updates_i)),
+                                        package
+                                            .package_card_view(controls, &spacing, item_width)
+                                            .apply(widget::mouse_area)
+                                            .on_press(Message::SelectUpdates(updates_i)),
                                     );
                                     col += 1;
                                 }
@@ -1056,12 +1034,7 @@ impl App {
                                     .spacing(space_xxs)
                                     .width(Length::Fill)
                                     .height(Length::Fixed(size.height))
-                                    .push(
-                                        widget::container(widget::text::title2(
-                                            NavPage::Updates.title(),
-                                        ))
-                                        .padding(title_padding),
-                                    )
+                                    .push(widget::text::title2(NavPage::Updates.title()))
                                     .push(self.loading_indicator(&fl!("checking-for-updates")))
                                     .into();
                             }
@@ -1076,10 +1049,7 @@ impl App {
                                 .spacing(space_xxs)
                                 .width(Length::Fill)
                                 .height(Length::Fixed(size.height))
-                                .push(
-                                    widget::container(widget::text::title2(nav_page.title()))
-                                        .padding(title_padding),
-                                )
+                                .push(widget::text::title2(nav_page.title()))
                                 .push(self.loading_indicator(&fl!("loading")))
                                 .into();
                         }
@@ -1087,10 +1057,7 @@ impl App {
                         let mut column = widget::column::with_capacity(3)
                             .spacing(space_xxs)
                             .width(Length::Fill);
-                        column = column.push(
-                            widget::container(widget::text::title2(nav_page.title()))
-                                .padding(title_padding),
-                        );
+                        column = column.push(widget::text::title2(nav_page.title()));
                         if matches!(nav_page, NavPage::Applets) {
                             let sources = self.sources();
                             if !sources.is_empty()
