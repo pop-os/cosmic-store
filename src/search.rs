@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use cosmic::{Element, cosmic_theme, widget};
+use cosmic::{Element, widget};
 
 use crate::app_id::AppId;
 use crate::app_info::AppInfo;
@@ -203,44 +203,23 @@ pub fn apply_icons_to_results(
 impl SearchResult {
     pub fn grid_view<'a, F: Fn(usize) -> Message + 'a>(
         results: &'a [Self],
-        spacing: cosmic_theme::Spacing,
         width: usize,
         callback: F,
     ) -> Element<'a, Message> {
-        let GridMetrics {
-            cols,
-            item_width,
-            column_spacing,
-        } = GridMetrics::new(&spacing, width);
-
-        let mut grid = widget::grid();
-        let mut col = 0;
-        for (result_i, result) in results.iter().enumerate() {
-            if col >= cols {
-                grid = grid.insert_row();
-                col = 0;
-            }
-            grid = grid.push(
-                widget::mouse_area(result.search_card_view(&spacing, item_width))
-                    .on_press(callback(result_i)),
-            );
-            col += 1;
-        }
-        grid.column_spacing(column_spacing)
-            .row_spacing(column_spacing)
-            .into()
+        let metrics = GridMetrics::new(width);
+        let items = results.iter().enumerate().map(|(result_i, result)| {
+            widget::mouse_area(result.search_card_view(metrics.item_width))
+                .on_press(callback(result_i))
+                .into()
+        });
+        metrics.build_grid(items)
     }
 
-    fn search_card_view<'a>(
-        &'a self,
-        spacing: &cosmic_theme::Spacing,
-        width: usize,
-    ) -> Element<'a, Message> {
+    fn search_card_view<'a>(&'a self, width: usize) -> Element<'a, Message> {
         card_view(
             &self.info,
             self.icon_opt.as_ref(),
-            card_tags(&self.info, spacing),
-            spacing,
+            card_tags(&self.info),
             width,
         )
     }
