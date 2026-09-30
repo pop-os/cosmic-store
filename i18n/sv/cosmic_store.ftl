@@ -11,7 +11,6 @@ no-updates = Alla installerade program är uppdaterade.
 no-results = Inga resultat för "{ $search }".
 notification-in-progress = Installationer och uppdateringar pågår.
 open = Öppna
-see-all = Se alla
 uninstall = Avinstallera
 update = Uppdatera
 update-all = Uppdatera alla
@@ -140,3 +139,4 @@ system-packages-summary =
     }
 system-packages = Systempaket
 loading = Läser in...
+by-name = Efter { $name }
