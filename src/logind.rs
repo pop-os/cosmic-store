@@ -12,7 +12,7 @@ pub async fn inhibit() -> zbus::Result<Vec<OwnedFd>> {
     let mut fds = Vec::new();
     for what in &[InhibitType::Shutdown, InhibitType::Sleep] {
         //TODO: update logind-zbus to fix inhibit signature
-        let fd: zbus::zvariant::OwnedFd = manager
+        let fd: zbus::OwnedFd = manager
             .inner()
             .call("Inhibit", &(what, who, why, mode))
             .await?;

@@ -36,10 +36,10 @@ impl RpmOstree {
             let staged_section = parts[0];
             for line in staged_section.lines() {
                 let line = line.trim();
-                if line.starts_with("Commit:") || line.starts_with("BaseCommit:") {
-                    if let Some(commit) = line.split(':').nth(1).map(|s| s.trim().to_string()) {
-                        return Ok(Some(commit));
-                    }
+                if (line.starts_with("Commit:") || line.starts_with("BaseCommit:"))
+                    && let Some(commit) = line.split(':').nth(1).map(|s| s.trim().to_string())
+                {
+                    return Ok(Some(commit));
                 }
             }
         }
