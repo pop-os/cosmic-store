@@ -108,9 +108,9 @@ pub fn enforce_size_limit() {
             continue;
         };
         let size = metadata.len();
-        let accessed = metadata.accessed().unwrap_or(
-            metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-        );
+        let accessed = metadata
+            .accessed()
+            .unwrap_or(metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH));
         total_size += size;
         files.push((path, size, accessed));
     }
