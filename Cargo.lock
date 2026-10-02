@@ -1249,6 +1249,7 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "serde",
+ "serde_json",
  "serde_yaml",
  "spdx",
  "switcheroo-control",

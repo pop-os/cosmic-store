@@ -52,6 +52,8 @@ packagekit-zbus = { version = "0.2", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
 freedesktop-desktop-entry = { version = "0.8.1", optional = true }
 switcheroo-control = { git = "https://github.com/pop-os/dbus-settings-bindings", optional = true }
+# homebrew feature
+serde_json = { version = "1", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -67,6 +69,7 @@ default = [
     "dbus-config",
     "desktop-systemd-scope",
     "flatpak",
+    "homebrew",
     "logind",
     "notify",
     "single-instance",
@@ -83,6 +86,7 @@ desktop = [
 ]
 desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
 flatpak = ["dep:libflatpak", "xdg-portal"]
+homebrew = ["dep:serde_json"]
 logind = ["dep:logind-zbus", "dep:zbus"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus"]
