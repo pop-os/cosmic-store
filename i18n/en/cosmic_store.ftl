@@ -1,6 +1,6 @@
 app-name = COSMIC Store
 comment = Application store for the COSMIC desktop
-keywords = App;Software;Store;Shop;
+keywords = App;Package;Program;Software;Store;Shop;Repository;Source;Install;Uninstall;Add;Remove;Update;Upgrade;Flatpak;
 back = Back
 by-name = By {$name}
 cancel = Cancel
