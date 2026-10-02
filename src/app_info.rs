@@ -169,6 +169,15 @@ pub struct AppInfo {
 }
 
 impl AppInfo {
+    /// Latest release version, or "" if unknown. Used to key cached screenshots
+    /// so a new app version refetches them instead of showing stale images.
+    pub fn version(&self) -> &str {
+        self.releases
+            .first()
+            .map(|release| release.version.as_str())
+            .unwrap_or_default()
+    }
+
     pub fn new(
         source_id: &str,
         source_name: &str,

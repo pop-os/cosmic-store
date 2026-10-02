@@ -108,7 +108,8 @@ impl App {
                     preserve_icons_from(old_results, &mut results);
                 }
                 self.category_results = Some((categories, results));
-                // Load icons in background
+                // Queue initial preview images
+                self.queue_visible_previews(None);
                 return Task::batch([self.update_scroll(), self.load_category_icons(categories)]);
             }
             Message::CategoryIconsLoaded(categories, icons) => {
@@ -171,6 +172,8 @@ impl App {
             }
             Message::ExplorePage(explore_page_opt) => {
                 self.explore_page_opt = explore_page_opt;
+                // Queue initial preview images
+                self.queue_visible_previews(None);
                 return self.update_scroll();
             }
             Message::AllExploreResults(mut all_results, cached) => {
@@ -185,6 +188,9 @@ impl App {
                         tasks.push(self.load_explore_icons(explore_page));
                     }
                 }
+
+                // Queue preview images for all explore sections
+                self.queue_explore_previews();
 
                 // Save pre-built cache in background
                 rayon::spawn(move || {
@@ -350,6 +356,30 @@ impl App {
                 }
             }
             Message::Key(modifiers, key, text) => {
+                // Handle screenshot gallery navigation/close while it is open
+                if self
+                    .selected_opt
+                    .as_ref()
+                    .is_some_and(|selected| selected.screenshot_gallery)
+                    && !modifiers.logo()
+                    && !modifiers.control()
+                    && !modifiers.alt()
+                    && !modifiers.shift()
+                {
+                    match key {
+                        Key::Named(key::Named::Escape) => {
+                            return self.handle_update(Message::ScreenshotGallery(false));
+                        }
+                        Key::Named(key::Named::ArrowLeft | key::Named::ArrowUp) => {
+                            return self.handle_update(Message::ScreenshotGalleryPrev);
+                        }
+                        Key::Named(key::Named::ArrowRight | key::Named::ArrowDown) => {
+                            return self.handle_update(Message::ScreenshotGalleryNext);
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Handle ESC key to close dialogs
                 if !self.dialog_pages.is_empty()
                     && matches!(key, Key::Named(key::Named::Escape))
@@ -572,6 +602,10 @@ impl App {
             Message::ScrollView(viewport) => {
                 self.scroll_views.insert(self.scroll_context(), viewport);
             }
+            Message::PreviewTick => {
+                let viewport = self.scroll_views.get(&self.scroll_context()).copied();
+                self.queue_visible_previews(viewport.as_ref());
+            }
             Message::SearchActivate => {
                 self.search_active = true;
                 return widget::text_input::focus(self.search_id.clone());
@@ -658,8 +692,9 @@ impl App {
                         }
                     }
                     self.search_results = Some((input.clone(), results));
+                    // Queue initial preview images
+                    self.queue_visible_previews(None);
                     tasks.push(self.update_scroll());
-                    // Load icons in background
                     tasks.push(self.load_search_icons(input));
                     return Task::batch(tasks);
                 } else {
@@ -788,18 +823,78 @@ impl App {
                 }
             }
             Message::SelectedScreenshot(i, url, data) => {
+                // Only decode if this screenshot still belongs to the current selection
+                let matches = self.selected_opt.as_ref().is_some_and(|selected| {
+                    selected
+                        .info
+                        .screenshots
+                        .get(i)
+                        .is_some_and(|screenshot| screenshot.url == url)
+                });
+                if matches {
+                    // Decode + downscale off the UI thread to the display size so
+                    // switching gallery images doesn't stall on a full-res decode.
+                    let (display_w, display_h) = self
+                        .size
+                        .get()
+                        .map(|size| (size.width as u32, size.height as u32))
+                        .unwrap_or((1920, 1080));
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                crate::screenshot_image::decode_scaled(&data, display_w, display_h)
+                                    .map(|(w, h, rgba)| {
+                                        action::app(Message::SelectedScreenshotDecoded(
+                                            i, url, w, h, rgba,
+                                        ))
+                                    })
+                                    .unwrap_or(action::none())
+                            })
+                            .await
+                            .unwrap_or(action::none())
+                        },
+                        |x| x,
+                    );
+                }
+            }
+            Message::SelectedScreenshotDecoded(i, url, width, height, rgba) => {
                 if let Some(selected) = &mut self.selected_opt
                     && let Some(screenshot) = selected.info.screenshots.get(i)
                     && screenshot.url == url
                 {
                     selected
                         .screenshot_images
-                        .insert(i, widget::image::Handle::from_bytes(data));
+                        .insert(i, widget::image::Handle::from_rgba(width, height, rgba));
                 }
             }
             Message::SelectedScreenshotShown(i) => {
                 if let Some(selected) = &mut self.selected_opt {
                     selected.screenshot_shown = i;
+                }
+            }
+            Message::ScreenshotGallery(open) => {
+                if let Some(selected) = &mut self.selected_opt {
+                    // Only open the gallery when there is a screenshot to show
+                    selected.screenshot_gallery = open && !selected.info.screenshots.is_empty();
+                }
+            }
+            Message::ScreenshotGalleryPrev => {
+                if let Some(selected) = &mut self.selected_opt {
+                    let len = selected.info.screenshots.len();
+                    if len > 0 {
+                        selected.screenshot_shown = selected
+                            .screenshot_shown
+                            .checked_sub(1)
+                            .unwrap_or(len - 1);
+                    }
+                }
+            }
+            Message::ScreenshotGalleryNext => {
+                if let Some(selected) = &mut self.selected_opt {
+                    let len = selected.info.screenshots.len();
+                    if len > 0 {
+                        selected.screenshot_shown = (selected.screenshot_shown + 1) % len;
+                    }
                 }
             }
             Message::ToggleUninstallPurgeData(value) => {
