@@ -6,24 +6,20 @@ checking-for-updates = Se verifică actualizările...
 install = Instalează
 no-installed-applications = Nicio aplicație instalată.
 no-updates = Toate aplicațiile instalate sunt la zi.
-no-results = Niciun rezultat pentru "{$search}".
+no-results = Niciun rezultat pentru "{ $search }".
 notification-in-progress = Instalări și actualizări în curs.
 open = Deschide
-see-all = Vezi tot
 uninstall = Dezinstalează
 update = Actualizează
 update-all = Actualizează tot
-
 # Progress footer
 details = Detalii
 dismiss = Închide mesajul
-operations-running = {$running} operațiuni în desfășurare ({$percent}%)...
-operations-running-finished = {$running} operațiuni în desfășurare ({$percent}%), {$finished} finalizate...
-
+operations-running = { $running } operațiuni în desfășurare ({ $percent }%)...
+operations-running-finished = { $running } operațiuni în desfășurare ({ $percent }%), { $finished } finalizate...
 # Uninstall Dialog
-uninstall-app = Dezinstalează {$name}
-uninstall-app-warning = Ești sigur că vrei să dezinstalezi {$name}?
-
+uninstall-app = Dezinstalează { $name }
+uninstall-app-warning = Ești sigur că vrei să dezinstalezi { $name }?
 # Nav Pages
 explore = Explorează
 create = Creează
@@ -36,7 +32,6 @@ socialize = Socializare
 utilities = Utilitare
 installed-apps = Aplicații instalate
 updates = Actualizări
-
 # Explore Pages
 editors-choice = Alegerea editorilor
 popular-apps = Aplicații populare
@@ -51,16 +46,16 @@ social-networking-apps = Aplicații de rețele sociale
 games = Jocuri
 music-and-video-apps = Aplicații muzică și video
 apps-for-learning = Aplicații pentru învățare
-
 # Details Page
-source-installed = {$source} (instalat)
+source-installed = { $source } (instalat)
 developer = Dezvoltator
-app-developers = Dezvoltatorii {$app}
+app-developers = Dezvoltatorii { $app }
 monthly-downloads = Descărcări lunare Flathub
 licenses = Licențe
 proprietary = Proprietar
 
 ## App URLs
+
 bug-tracker = Urmărire erori
 contact = Contact
 donation = Donație
@@ -71,7 +66,9 @@ translate = Tradu
 
 # Context Pages
 
+
 ## Operations
+
 cancelled = Anulat
 operations = Operațiuni
 no-operations = Nicio operațiune în istoric.
@@ -80,13 +77,16 @@ failed = Eșuat
 complete = Complet
 
 ## Settings
+
 settings = Setări
 
 ## Release notes
+
 latest-version = Ultima versiune
 no-description = Nicio descriere disponibilă.
 
 ### Appearance
+
 appearance = Aspect
 theme = Temă
 match-desktop = Potrivește cu desktopul

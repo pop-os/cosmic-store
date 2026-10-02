@@ -9,7 +9,6 @@ no-updates = { "." }برنامه ها به روز هستند
 no-results = نتیحه ای یافت نشد "{ $search }"برای
 notification-in-progress = نصب و بروزرسانی برنامه ها در حال انجام است
 open = باز کردن
-see-all = دیدن همه
 uninstall = حذف نصب
 update = بروزرسانی
 update-all = بروزرسانی همه

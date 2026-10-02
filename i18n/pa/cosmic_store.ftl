@@ -27,7 +27,6 @@ bug-tracker = ਬੱਗ ਟਰੈਕਰ
 music-and-video-apps = ਸੰਗੀਤ ਅਤੇ ਵੀਡੀਓ ਐਪਾਂ
 operations = ਓਪਰੇਸ਼ਨ
 delete-app-data = ਐਪ ਡਾਟੇ ਨੂੰ ਪੱਕੇ ਤੌਰ ਉੱਤੇ ਹਟਾਓ
-see-all = ਸਭ ਵੇਖੋ
 developer = ਡਿਵੈਲਪਰ
 no-updates = ਸਭ ਇੰਸਟਾਲ ਹੋਈਆਂ ਐਪਲੀਕੇਸ਼ਨਾਂ ਅੱਪ ਟੂ ਡੇਟ ਹਨ।
 graphics-and-photography-tools = ਗਰਾਫਿਕਸ ਅਤੇ ਫੋਟੋਗਰਾਫੀ ਟੂਲ

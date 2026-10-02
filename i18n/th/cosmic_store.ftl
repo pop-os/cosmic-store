@@ -9,7 +9,6 @@ no-updates = ทุกแอพพลิเคชันเป็นเวอร�
 no-results = ไม่พบผลลัพธ์สำหรับ "{ $search }"
 notification-in-progress = กำลังดำเนินการติดตั้งและอัปเดต...
 open = เปิด
-see-all = ดูทั้งหมด
 uninstall = ถอนการติดตั้ง
 update = อัปเดต
 update-all = อัปเดตทั้งหมด

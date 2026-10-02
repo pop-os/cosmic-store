@@ -19,7 +19,6 @@ codec-header = „{ $application }“ захтева додатне пакете
 music-and-video-apps = Програми за музику и видео
 operations = Радње
 delete-app-data = Трајно обриши податке програма
-see-all = Прикажи све
 developer = Програмер
 no-updates = Сви инсталирани програми су ажурирани.
 graphics-and-photography-tools = Алати за графику и фотографију
