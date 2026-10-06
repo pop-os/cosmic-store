@@ -9,7 +9,6 @@ no-updates = Sve instalirane aplikacije su ažurne.
 no-results = Nema rezultata za "{ $search }".
 notification-in-progress = Instalacije i ažuriranja su u toku.
 open = Otvori
-see-all = Vidi sve
 uninstall = Deinstaliraj
 update = Ažuriraj
 update-all = Ažuriraj sve

@@ -9,7 +9,6 @@ no-updates = כל היישומים המותקנים עדכניים.
 no-results = אין תוצאות לחיפוש אחר „{ $search }”.
 notification-in-progress = מתבצעים התקנות ועדכונים.
 open = פתיחה
-see-all = להציג הכול
 uninstall = הסרה
 update = עדכון
 update-all = עדכון של הכול

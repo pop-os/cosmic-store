@@ -8,7 +8,6 @@ no-installed-applications = Keine installierten Anwendungen.
 no-updates = Alle installierten Anwendungen sind auf dem neuesten Stand.
 no-results = Keine Ergebnisse für „{ $search }“.
 open = Öffnen
-see-all = Alle anzeigen
 uninstall = Deinstallieren
 update = Aktualisieren
 update-all = Alle aktualisieren
@@ -147,3 +146,4 @@ repository-remove-body =
     }. Sie müssen neu installiert werden, wenn das Repositorium erneut hinzugefügt wird.
 keywords = App;Software;Store;Shop;
 loading = Wird geladen ...
+by-name = Von { $name }

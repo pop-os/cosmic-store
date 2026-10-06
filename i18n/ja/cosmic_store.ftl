@@ -8,7 +8,6 @@ no-installed-applications = インストール済みのアプリはありませ�
 no-updates = アプリはすべて最新です。
 no-results = 「{ $search }」を含む結果はありません。
 open = 開く
-see-all = すべて表示
 uninstall = アンインストール
 update = アップデート
 update-all = すべてアップデート
