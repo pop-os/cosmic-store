@@ -9,7 +9,6 @@ no-updates = Alle geïnstalleerde toepassingen zijn bijgewerkt.
 no-results = Geen resultaten voor “{ $search }”.
 notification-in-progress = Installaties en updates worden uitgevoerd.
 open = Openen
-see-all = Alles bekijken
 uninstall = Verwijderen
 update = Bijwerken
 update-all = Alles bijwerken

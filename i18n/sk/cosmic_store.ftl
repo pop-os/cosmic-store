@@ -9,10 +9,9 @@ close = Zavrieť
 install = Inštalovať
 no-installed-applications = Žiadne nainštalované aplikácie.
 no-updates = Všetky nainštalované aplikácie sú aktuálne.
-no-results = Žiadne výsledky pre "{$search}".
+no-results = Žiadne výsledky pre "{ $search }".
 notification-in-progress = Prebieha inštalácia a aktualizácie.
 open = Otvoriť
-see-all = Zobraziť všetko
 uninstall = Odinštalovať
 update = Aktualizovať
 update-all = Aktualizovať všetko
@@ -22,10 +21,9 @@ place-applet-desc = Vyberte, kam chcete pridať miniaplikáciu pred jej presným
 panel = Panel
 dock = Dock
 place-and-refine = Umiestniť a upraviť
-
 # Codec dialog
 codec-title = Inštalovať ďalšie balíky?
-codec-header = "{$application}" vyžaduje ďalšie balíky poskytujúce "{$description}".
+codec-header = "{ $application }" vyžaduje ďalšie balíky poskytujúce "{ $description }".
 codec-footer =
     Používanie týchto balíkov môže byť obmedzené v niektorých krajinách.
     Musíte overiť, že platí jedno z nasledujúceho:
@@ -34,31 +32,27 @@ codec-footer =
      • Používate tento softvér len na výskumné účely
 codec-error = Počas inštalácie balíkov sa vyskytli chyby.
 codec-installed = Balíky boli nainštalované.
-
 # Progress footer
 details = Podrobnosti
 dismiss = Zavrieť správu
-operations-running = {$running} operácií prebieha ({$percent}%)...
-operations-running-finished = {$running} operácií prebieha ({$percent}%), {$finished} dokončených...
-
+operations-running = { $running } operácií prebieha ({ $percent }%)...
+operations-running-finished = { $running } operácií prebieha ({ $percent }%), { $finished } dokončených...
 # Repository add error dialog
 repository-add-error-title = "Nepodarilo sa pridať repozitár"
-
 # Repository remove dialog
-repository-remove-title = Odstrániť repozitár "{$name}"?
-repository-remove-body = Odstránením tohto repozitára sa { $dependency ->
-    [none] odstránia
-    *[other] odstráni "{$dependency}" a odstránia
-} nasledujúce aplikácie a položky. Budú musieť byť znovu nainštalované, ak repozitár opäť pridáte.
+repository-remove-title = Odstrániť repozitár "{ $name }"?
+repository-remove-body =
+    Odstránením tohto repozitára sa { $dependency ->
+        [none] odstránia
+       *[other] odstráni "{ $dependency }" a odstránia
+    } nasledujúce aplikácie a položky. Budú musieť byť znovu nainštalované, ak repozitár opäť pridáte.
 add = Pridať
 adding = Pridáva sa...
 remove = Odstrániť
 removing = Odstraňuje sa...
-
 # Uninstall Dialog
-uninstall-app = Odinštalovať {$name}
-uninstall-app-warning = Ste si istý, že chcete odinštalovať {$name}?
-
+uninstall-app = Odinštalovať { $name }
+uninstall-app-warning = Ste si istý, že chcete odinštalovať { $name }?
 # Nav Pages
 explore = Preskúmať
 create = Vytvoriť
@@ -74,9 +68,9 @@ installed-apps = Nainštalované aplikácie
 updates = Aktualizácie
 
 ## Applets page
+
 enable-flathub-cosmic = Povoliť Flathub a COSMIC Flatpak pre zobrazenie dostupných miniaplikácií.
 manage-repositories = Spravovať repozitáre
-
 # Explore Pages
 editors-choice = Výber redaktora
 popular-apps = Populárne aplikácie
@@ -91,16 +85,16 @@ social-networking-apps = Sociálne siete
 games = Hry
 music-and-video-apps = Hudobné & video aplikácie
 apps-for-learning = Aplikácie na učenie
-
 # Details Page
-source-installed = {$source} (nainštalované)
+source-installed = { $source } (nainštalované)
 developer = Vývojár
-app-developers = Vývojári aplikácie {$app}
+app-developers = Vývojári aplikácie { $app }
 monthly-downloads = Mesačné stiahnutia z Flathub
 licenses = Licencie
 proprietary = Proprietárne
 
 ## App URLs
+
 bug-tracker = Sledovanie chýb
 contact = Kontakt
 donation = Príspevok
@@ -111,7 +105,9 @@ translate = Preložiť
 
 # Context Pages
 
+
 ## Operations
+
 cancelled = Zrušené
 operations = Operácie
 no-operations = Žiadne operácie v histórii.
@@ -120,13 +116,16 @@ failed = Zlyhalo
 complete = Dokončené
 
 ## Settings
+
 settings = Nastavenia
 
 ## Release notes
+
 latest-version = Najnovšia verzia
 no-description = Nie je dostupný žiadny popis.
 
 ## Repositories
+
 recommended-flatpak-sources = Odporúčané zdroje Flatpak
 custom-flatpak-sources = Vlastné zdroje Flatpak
 import-flatpakrepo = Importovať súbor .flatpakrepo na pridanie vlastného zdroja
@@ -136,6 +135,7 @@ no-flatpak = Žiadna podpora flatpak
 software-repositories = Softvérové repozitáre
 
 ### Appearance
+
 appearance = Vzhľad
 theme = Téma
 match-desktop = Prispôsobiť ploche

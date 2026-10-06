@@ -10,7 +10,6 @@ no-updates = Visos įdiegtos aplikacijos yra pilnai atnaujintos.
 no-results = Nėra „{ $search }“ užklausos rezultatų.
 notification-in-progress = Vyksta aplikacijų diegimai ir atnaujinai.
 open = Atidaryti
-see-all = Peržiūrėti visus
 uninstall = Pašalinti
 update = Atnaujinti
 update-all = Atnaujinti viską

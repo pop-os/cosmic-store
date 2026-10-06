@@ -16,7 +16,6 @@ no-updates = Kõik paigaldatud rakenduse on uuendatud.
 no-results = Otsingule „{ $search }“ pole vastuseid.
 notification-in-progress = Paigaldamine ja uuendamine on töös.
 open = Ava
-see-all = Vaata kõiki
 uninstall = Eemalda rakendus
 update = Uuenda
 update-all = Uuenda kõik
