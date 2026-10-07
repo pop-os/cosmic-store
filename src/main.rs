@@ -7,7 +7,6 @@ use cosmic::{
     app::{Core, CosmicFlags, Settings, Task, context_drawer},
     cosmic_config::{self, CosmicConfigEntry},
     cosmic_theme, executor,
-    iced::widget::scrollable::AbsoluteOffset,
     iced::{
         Alignment, Length, Limits, Size, Subscription,
         core::SmolStr,
@@ -27,7 +26,6 @@ use rayon::prelude::*;
 use std::{
     any::TypeId,
     cell::Cell,
-    cmp,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
     future::pending,
@@ -89,16 +87,16 @@ mod explore;
 use nav::{Category, CategoryIndex, NavPage, ScrollContext};
 mod nav;
 
-use search::{CachedExploreResults, GridMetrics, SearchResult};
+use search::{CachedExploreResults, SearchResult};
 mod search;
 
+use view::GridMetrics;
 mod view;
 
 mod update;
 
 pub const CARD_TEXT_WIDTH: u16 = 180;
-pub const ICON_SIZE_SEARCH: u16 = 64;
-pub const ICON_SIZE_PACKAGE: u16 = 64;
+pub const ICON_SIZE_CARD: u16 = 64;
 pub const ICON_SIZE_DETAILS: u16 = 128;
 pub const MAX_GRID_WIDTH: f32 = 1600.0;
 pub const MAX_RESULTS: usize = 100;
@@ -512,36 +510,36 @@ impl App {
                 .collect::<Vec<_>>();
 
             let appid = fde::unicase::Ascii::new(desktop_id);
-            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid) {
-                if let Some(exec) = desktop_entry.exec().map(String::from) {
-                    let appid = desktop_entry.appid.clone();
-                    let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
-                        GpuPreference::NonDefault
-                    } else {
-                        GpuPreference::Default
-                    };
-                    let terminal = desktop_entry.terminal();
-                    tokio::spawn(async move {
-                        let mut envs = Vec::new();
+            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid)
+                && let Some(exec) = desktop_entry.exec().map(String::from)
+            {
+                let appid = desktop_entry.appid.clone();
+                let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
+                    GpuPreference::NonDefault
+                } else {
+                    GpuPreference::Default
+                };
+                let terminal = desktop_entry.terminal();
+                tokio::spawn(async move {
+                    let mut envs = Vec::new();
 
-                        if let Some(gpu_envs) = try_get_gpu_envs(gpu_pref).await {
-                            envs.extend(gpu_envs);
-                        }
+                    if let Some(gpu_envs) = try_get_gpu_envs(gpu_pref).await {
+                        envs.extend(gpu_envs);
+                    }
 
-                        std::thread::spawn(move || {
-                            tokio::runtime::Builder::new_current_thread()
-                                .enable_io()
-                                .build()
-                                .unwrap()
-                                .block_on(cosmic::desktop::spawn_desktop_exec(
-                                    &exec,
-                                    envs,
-                                    Some(&appid),
-                                    terminal,
-                                ));
-                        });
+                    std::thread::spawn(move || {
+                        tokio::runtime::Builder::new_current_thread()
+                            .enable_io()
+                            .build()
+                            .unwrap()
+                            .block_on(cosmic::desktop::spawn_desktop_exec(
+                                &exec,
+                                envs,
+                                Some(&appid),
+                                terminal,
+                            ));
                     });
-                }
+                });
             }
         });
     }
@@ -614,12 +612,11 @@ impl App {
                 })
             })
             .collect();
-        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
-            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => a.backend_name.cmp(&b.backend_name),
-                ordering => ordering,
-            },
-            ordering => ordering,
+        results.par_sort_unstable_by(|a, b| {
+            a.weight
+                .cmp(&b.weight)
+                .then_with(|| LANGUAGE_SORTER.compare(&a.info.name, &b.info.name))
+                .then_with(|| a.backend_name.cmp(&b.backend_name))
         });
         log::debug!(
             "generic_search: scanned {} apps in {:?}",
@@ -683,12 +680,11 @@ impl App {
             .collect();
 
         // Sort by weight (monthly downloads), then by name
-        results.par_sort_unstable_by(|a, b| match a.weight.cmp(&b.weight) {
-            cmp::Ordering::Equal => match LANGUAGE_SORTER.compare(&a.info.name, &b.info.name) {
-                cmp::Ordering::Equal => a.backend_name.cmp(&b.backend_name),
-                ordering => ordering,
-            },
-            ordering => ordering,
+        results.par_sort_unstable_by(|a, b| {
+            a.weight
+                .cmp(&b.weight)
+                .then_with(|| LANGUAGE_SORTER.compare(&a.info.name, &b.info.name))
+                .then_with(|| a.backend_name.cmp(&b.backend_name))
         });
 
         log::debug!(
@@ -1168,15 +1164,14 @@ impl App {
         }
         scrollable::scroll_to(
             self.scrollable_id.clone(),
-            match self.scroll_views.get(&scroll_context) {
-                Some(viewport) => {
-                    let offset = viewport.absolute_offset();
-                    AbsoluteOffset {
-                        x: Some(offset.x),
-                        y: Some(offset.y),
-                    }
+            if let Some(viewport) = self.scroll_views.get(&scroll_context) {
+                let offset = viewport.absolute_offset();
+                scrollable::AbsoluteOffset {
+                    x: Some(offset.x),
+                    y: Some(offset.y),
                 }
-                None => scrollable::AbsoluteOffset::default(),
+            } else {
+                scrollable::AbsoluteOffset::default()
             },
         )
     }
@@ -1216,18 +1211,16 @@ impl App {
     }
 
     /// Calculate grid width from window size
-    fn grid_width(&self, spacing: &cosmic_theme::Spacing) -> usize {
+    fn grid_width(&self) -> usize {
         self.size
             .get()
-            .map(|s| (s.width - 2.0 * spacing.space_s as f32).floor().max(0.0) as usize)
+            .map(|s| self.calc_grid_width(s))
             .unwrap_or(800)
     }
 
     /// Queue preview images for explore page sections
     fn queue_explore_previews(&self) {
-        let spacing = theme::active().cosmic().spacing;
-        let GridMetrics { cols, .. } =
-            SearchResult::grid_metrics(&spacing, self.grid_width(&spacing));
+        let GridMetrics { cols, .. } = GridMetrics::new(self.grid_width());
 
         for results in self.explore_results.values() {
             Self::queue_previews(results, Self::explore_section_max_results(cols));
@@ -1240,10 +1233,8 @@ impl App {
             return;
         };
 
-        let spacing = theme::active().cosmic().spacing;
-        let GridMetrics { cols, .. } =
-            SearchResult::grid_metrics(&spacing, self.grid_width(&spacing));
-        let row_height = SearchResult::card_height(&spacing) + spacing.space_xxs as f32;
+        let GridMetrics { cols, .. } = GridMetrics::new(self.grid_width());
+        let row_height = view::card_height() + theme::spacing().space_m as f32;
 
         let (first_item, count) = match viewport {
             Some(vp) => {
@@ -1275,40 +1266,30 @@ impl App {
         cosmic::command::set_theme(self.config.app_theme.theme())
     }
 
+    //TODO: also do flatpak refs?
+    fn matching_pkgnames(package: &Package, info: &AppInfo) -> bool {
+        package.id.is_system()
+            && !info.pkgnames.is_empty()
+            && info
+                .pkgnames
+                .iter()
+                .all(|pkgname| package.info.pkgnames.contains(pkgname))
+    }
+
     fn is_installed_inner(
         installed_opt: &Option<Vec<(BackendName, Package)>>,
         backend_name: BackendName,
         id: &AppId,
         info: &AppInfo,
     ) -> bool {
-        if let Some(installed) = installed_opt {
-            for (installed_backend_name, package) in installed {
-                if *installed_backend_name == backend_name
+        installed_opt
+            .iter()
+            .flatten()
+            .any(|(installed_backend_name, package)| {
+                *installed_backend_name == backend_name
                     && package.info.source_id == info.source_id
-                {
-                    // Simple app match found
-                    if &package.id == id {
-                        return true;
-                    }
-
-                    // Search for matching pkgnames
-                    //TODO: also do flatpak refs?
-                    if package.id.is_system() && !info.pkgnames.is_empty() {
-                        let mut found = true;
-                        for pkgname in info.pkgnames.iter() {
-                            if !package.info.pkgnames.contains(pkgname) {
-                                found = false;
-                                break;
-                            }
-                        }
-                        if found {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
+                    && (&package.id == id || Self::matching_pkgnames(package, info))
+            })
     }
 
     pub fn is_installed(&self, backend_name: BackendName, id: &AppId, info: &AppInfo) -> bool {
@@ -1330,27 +1311,18 @@ impl App {
 
                     let entry_sort = |a: &AppEntry, b: &AppEntry, id: &AppId| {
                         // Sort with installed first
-                        match b.installed.cmp(&a.installed) {
-                            cmp::Ordering::Equal => {
+                        b.installed
+                            .cmp(&a.installed)
+                            .then_with(|| {
                                 // Sort by highest priority first to lowest priority
                                 let a_priority = priority(a.backend_name, &a.info.source_id, id);
                                 let b_priority = priority(b.backend_name, &b.info.source_id, id);
-                                match b_priority.cmp(&a_priority) {
-                                    cmp::Ordering::Equal => {
-                                        match LANGUAGE_SORTER
-                                            .compare(&a.info.source_id, &b.info.source_id)
-                                        {
-                                            cmp::Ordering::Equal => {
-                                                a.backend_name.cmp(&b.backend_name)
-                                            }
-                                            ordering => ordering,
-                                        }
-                                    }
-                                    ordering => ordering,
-                                }
-                            }
-                            ordering => ordering,
-                        }
+                                b_priority.cmp(&a_priority)
+                            })
+                            .then_with(|| {
+                                LANGUAGE_SORTER.compare(&a.info.source_id, &b.info.source_id)
+                            })
+                            .then_with(|| a.backend_name.cmp(&b.backend_name))
                     };
 
                     // Collect all entries from backends in parallel
@@ -1754,17 +1726,12 @@ impl App {
 
         let mut children = Vec::new();
 
-        //TODO: get height from theme?
-        let progress_bar_height = Length::Fixed(4.0);
-
         if !self.pending_operations.is_empty() {
             let mut section = widget::settings::section().title(fl!("pending"));
-            for (_id, (op, progress)) in self.pending_operations.iter().rev() {
+            for (op, progress) in self.pending_operations.values().rev() {
                 section = section.add(widget::column![
-                    widget::determinate_linear(*progress)
-                        .width(Length::Fill)
-                        .girth(progress_bar_height),
-                    widget::space::vertical().height(space_xs),
+                    widget::determinate_linear(*progress).width(Length::Fill),
+                    widget::space().height(space_xs),
                     widget::text(op.pending_text((*progress * 100.0) as i32)),
                 ]);
             }
@@ -1773,18 +1740,18 @@ impl App {
 
         if !self.failed_operations.is_empty() {
             let mut section = widget::settings::section().title(fl!("failed"));
-            for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
-                section = section.add(widget::column::with_children([
-                    widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
-                    widget::text(error).into(),
-                ]));
+            for (op, progress, error) in self.failed_operations.values().rev() {
+                section = section.add(widget::column![
+                    widget::text(op.pending_text((*progress * 100.0) as i32)),
+                    widget::text(error),
+                ]);
             }
             children.push(section.into());
         }
 
         if !self.complete_operations.is_empty() {
             let mut section = widget::settings::section().title(fl!("complete"));
-            for (_id, op) in self.complete_operations.iter().rev() {
+            for op in self.complete_operations.values().rev() {
                 section = section.add(widget::text(op.completed_text()));
             }
             children.push(section.into());
@@ -2073,25 +2040,36 @@ impl App {
         widget::settings::view_column(vec![recommended.into(), custom.into()]).into()
     }
 
+    fn side_padding(&self) -> u16 {
+        if self.core.is_condensed() {
+            theme::spacing().space_s
+        } else {
+            theme::spacing().space_l
+        }
+    }
+
     fn back_button(&self) -> Option<Element<'_, Message>> {
         if self.selected_opt.is_some() {
             Some(
                 //TODO: describe where we are going back to
                 widget::button::text(fl!("back"))
                     .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                    .on_press(Message::SelectNone)
-                    .into(),
+                    .on_press(Message::SelectNone),
             )
         } else if self.explore_page_opt.is_some() {
             Some(
                 widget::button::text(NavPage::Explore.title())
                     .leading_icon(icon_cache_handle("go-previous-symbolic", 16))
-                    .on_press(Message::ExplorePage(None))
-                    .into(),
+                    .on_press(Message::ExplorePage(None)),
             )
         } else {
             None
         }
+        .map(|b| {
+            widget::container(b)
+                .padding([0, self.side_padding()])
+                .into()
+        })
     }
 }
 
@@ -2498,7 +2476,7 @@ impl Application for App {
         let mut title = String::new();
         let mut total_progress = 0.0;
         let mut count = 0;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if title.is_empty() {
                 title = op.pending_text((*progress * 100.0) as i32);
             }
@@ -2532,17 +2510,13 @@ impl Application for App {
             }
         }
 
-        //TODO: get height from theme?
-        let progress_bar_height = Length::Fixed(4.0);
-        let progress_bar = widget::determinate_linear(total_progress)
-            .width(Length::Fill)
-            .girth(progress_bar_height);
+        let progress_bar = widget::determinate_linear(total_progress).width(Length::Fill);
 
         let container = widget::column::with_children([
             progress_bar.into(),
-            widget::space::vertical().height(space_xs).into(),
+            widget::space().height(space_xs).into(),
             widget::text::body(title).into(),
-            widget::space::vertical().height(space_s).into(),
+            widget::space().height(space_s).into(),
             widget::row::with_children([
                 widget::button::link(fl!("details"))
                     .on_press(Message::ToggleContextPage(ContextPage::Operations))
@@ -2618,41 +2592,30 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
-            space_xl,
             space_m,
             space_s,
             space_xs,
             space_xxs,
             ..
         } = theme::spacing();
-
+        let padding = self.side_padding();
         let content = match &self.mode {
             Mode::Normal => widget::responsive(move |mut size| {
                 size.width = size.width.min(MAX_GRID_WIDTH);
-                widget::id_container(
-                    widget::column::with_capacity(2)
-                        .spacing(space_xxs)
-                        .push_maybe(self.back_button().map(|element| {
-                            element
-                                .apply(widget::container)
-                                .padding([0, space_xl, 0, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                        }))
-                        .push(
-                            self.view_responsive(size)
-                                .apply(widget::container)
-                                .padding([0, space_xl, space_m, space_xl])
-                                .max_width(MAX_GRID_WIDTH)
-                                .apply(widget::container)
-                                .align_x(Alignment::Center)
-                                .apply(widget::scrollable)
-                                .on_scroll(Message::ScrollView),
-                        ),
-                    self.scrollable_id.clone(),
-                )
-                .into()
+                let column = widget::column::with_capacity(2)
+                    .spacing(space_xxs)
+                    .push_maybe(self.back_button())
+                    .push(
+                        self.view_responsive(size)
+                            .apply(widget::container)
+                            .padding([0, padding, space_m, padding])
+                            .max_width(MAX_GRID_WIDTH)
+                            .apply(widget::container)
+                            .align_x(Alignment::Center)
+                            .apply(widget::scrollable)
+                            .on_scroll(Message::ScrollView),
+                    );
+                widget::id_container(column, self.scrollable_id.clone()).into()
             })
             .into(),
             Mode::GStreamer {
@@ -2672,25 +2635,22 @@ impl Application for App {
                 if *installing {
                     let mut list = widget::list_column();
 
-                    for (_id, (op, progress)) in self.pending_operations.iter().rev() {
-                        list = list.add(widget::column::with_children([
-                            widget::determinate_linear(*progress)
-                                .width(Length::Fill)
-                                .girth(Length::Fixed(4.0))
-                                .into(),
-                            widget::space::vertical().height(space_xs).into(),
-                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
-                        ]));
+                    for (op, progress) in self.pending_operations.values().rev() {
+                        list = list.add(widget::column![
+                            widget::determinate_linear(*progress).width(Length::Fill),
+                            widget::space().height(space_xs),
+                            widget::text(op.pending_text((*progress * 100.0) as i32)),
+                        ]);
                     }
 
-                    for (_id, (op, progress, error)) in self.failed_operations.iter().rev() {
-                        list = list.add(widget::column::with_children([
-                            widget::text(op.pending_text((*progress * 100.0) as i32)).into(),
-                            widget::text(error).into(),
-                        ]));
+                    for (op, progress, error) in self.failed_operations.values().rev() {
+                        list = list.add(widget::column![
+                            widget::text(op.pending_text((*progress * 100.0) as i32)),
+                            widget::text(error),
+                        ]);
                     }
 
-                    for (_id, op) in self.complete_operations.iter().rev() {
+                    for op in self.complete_operations.values().rev() {
                         list = list.add(widget::text(op.completed_text()));
                     }
 
@@ -2709,50 +2669,45 @@ impl Application for App {
                         );
                     }
                 } else {
-                    match &self.search_results {
-                        Some((_input, results)) => {
-                            let mut list = widget::list_column();
-                            for (i, result) in results.iter().enumerate() {
-                                list = list.add(
-                                    widget::row::with_children([
-                                        widget::column::with_children([
-                                            widget::text::body(&result.info.name).into(),
-                                            widget::text::caption(&result.info.summary).into(),
-                                        ])
-                                        .into(),
-                                        widget::space::horizontal().into(),
-                                        if selected.contains(&i) {
-                                            widget::icon::from_name("checkbox-checked-symbolic")
-                                                .size(16)
-                                                .into()
-                                        } else {
-                                            widget::space::horizontal()
-                                                .width(Length::Fixed(16.0))
-                                                .into()
-                                        },
-                                    ])
-                                    .spacing(space_s)
-                                    .align_y(Alignment::Center)
-                                    .apply(widget::button::custom)
-                                    .width(Length::Fill)
-                                    .class(theme::Button::MenuItem)
-                                    .force_enabled(true)
-                                    .apply(widget::mouse_area)
-                                    .on_press(Message::GStreamerToggle(i)),
-                                );
-                            }
-                            dialog = dialog.control(widget::scrollable(list)).control(
+                    if let Some((_input, results)) = &self.search_results {
+                        let mut list = widget::list_column();
+                        for (i, result) in results.iter().enumerate() {
+                            list = list.add(
                                 widget::row::with_children([
-                                    widget::icon::from_name("dialog-warning").size(16).into(),
-                                    widget::text(fl!("codec-footer")).into(),
+                                    widget::column::with_children([
+                                        widget::text::body(&result.info.name).into(),
+                                        widget::text::caption(&result.info.summary).into(),
+                                    ])
+                                    .into(),
+                                    widget::space::horizontal().into(),
+                                    if selected.contains(&i) {
+                                        widget::icon::from_name("checkbox-checked-symbolic")
+                                            .size(16)
+                                            .into()
+                                    } else {
+                                        widget::space().width(16).into()
+                                    },
                                 ])
-                                .spacing(space_xxs),
+                                .spacing(space_s)
+                                .align_y(Alignment::Center)
+                                .apply(widget::button::custom)
+                                .width(Length::Fill)
+                                .class(theme::Button::MenuItem)
+                                .force_enabled(true)
+                                .apply(widget::mouse_area)
+                                .on_press(Message::GStreamerToggle(i)),
                             );
                         }
-                        None => {
-                            //TODO: loading indicator?
-                            //column = column.push(widget::text("Loading..."));
-                        }
+                        dialog = dialog.control(widget::scrollable(list)).control(
+                            widget::row::with_children([
+                                widget::icon::from_name("dialog-warning").size(16).into(),
+                                widget::text(fl!("codec-footer")).into(),
+                            ])
+                            .spacing(space_xxs),
+                        );
+                    } else {
+                        //TODO: loading indicator?
+                        //column = column.push(widget::text("Loading..."));
                     }
                     let mut install_button = widget::button::suggested(fl!("install"));
                     if !selected.is_empty() {
@@ -2866,32 +2821,27 @@ impl Application for App {
                     |_| {
                         stream::channel(
                             1,
-                            move |msg_tx: futures::channel::mpsc::Sender<Message>| async move {
-                                let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
-                                tokio::task::spawn_blocking(move || {
-                                    match notify_rust::Notification::new()
+                            move |mut msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                                match tokio::task::spawn_blocking(|| {
+                                    notify_rust::Notification::new()
                                         .summary(&fl!("notification-in-progress"))
                                         .auto_icon()
                                         .show()
-                                    {
-                                        Ok(notification) => {
-                                            let _ = futures::executor::block_on(async {
-                                                msg_tx
-                                                    .lock()
-                                                    .await
-                                                    .send(Message::Notification(Arc::new(
-                                                        Mutex::new(notification),
-                                                    )))
-                                                    .await
-                                            });
-                                        }
-                                        Err(err) => {
-                                            log::warn!("failed to create notification: {}", err);
-                                        }
-                                    }
                                 })
                                 .await
-                                .unwrap();
+                                .unwrap()
+                                {
+                                    Ok(notification) => {
+                                        let _ = msg_tx
+                                            .send(Message::Notification(Arc::new(Mutex::new(
+                                                notification,
+                                            ))))
+                                            .await;
+                                    }
+                                    Err(err) => {
+                                        log::warn!("failed to create notification: {}", err)
+                                    }
+                                }
 
                                 pending().await
                             },
@@ -2935,69 +2885,52 @@ impl Application for App {
                     let id = *id;
                     stream::channel(
                         16,
-                        move |msg_tx: futures::channel::mpsc::Sender<Message>| async move {
-                            let msg_tx = Arc::new(tokio::sync::Mutex::new(msg_tx));
-                            let res = match backend_opt {
-                                Some(backend) => {
-                                    let on_progress = {
-                                        let msg_tx = msg_tx.clone();
-                                        Box::new(move |progress| {
+                        move |mut msg_tx: futures::channel::mpsc::Sender<Message>| async move {
+                            let res = if let Some(backend) = backend_opt {
+                                let on_progress = {
+                                    let mut msg_tx = msg_tx.clone();
+                                    Box::new(move |progress| {
+                                        let _ = futures::executor::block_on(async {
+                                            msg_tx
+                                                .send(Message::PendingProgress(id, progress))
+                                                .await
+                                        });
+                                    })
+                                };
+                                let mut msg_tx = msg_tx.clone();
+                                tokio::task::spawn_blocking(move || {
+                                    backend.operation(&op, on_progress).or_else(|err| {
+                                        if let Some(repo_rm) =
+                                            err.downcast_ref::<RepositoryRemoveError>()
+                                        {
                                             let _ = futures::executor::block_on(async {
                                                 msg_tx
-                                                    .lock()
-                                                    .await
-                                                    .send(Message::PendingProgress(id, progress))
+                                                    .send(Message::DialogPage(
+                                                        DialogPage::RepositoryRemove(
+                                                            op.backend_name,
+                                                            repo_rm.clone(),
+                                                        ),
+                                                    ))
                                                     .await
                                             });
-                                        })
-                                    };
-                                    let msg_tx = msg_tx.clone();
-                                    tokio::task::spawn_blocking(move || {
-                                        match backend.operation(&op, on_progress) {
-                                            Ok(()) => Ok(()),
-                                            Err(err) => {
-                                                match err.downcast_ref::<RepositoryRemoveError>() {
-                                                    Some(repo_rm) => {
-                                                        let _ =
-                                                            futures::executor::block_on(async {
-                                                                msg_tx
-                                                            .lock()
-                                                            .await
-                                                            .send(Message::DialogPage(
-                                                                DialogPage::RepositoryRemove(
-                                                                    op.backend_name,
-                                                                    repo_rm.clone(),
-                                                                ),
-                                                            ))
-                                                            .await
-                                                            });
-                                                        Ok(())
-                                                    }
-                                                    None => Err(err.to_string()),
-                                                }
-                                            }
+                                            Ok(())
+                                        } else {
+                                            Err(err.to_string())
                                         }
                                     })
-                                    .await
-                                    .unwrap()
-                                }
-                                None => Err(format!("backend {:?} not found", op.backend_name)),
+                                })
+                                .await
+                                .unwrap()
+                            } else {
+                                Err(format!("backend {:?} not found", op.backend_name))
                             };
 
                             match res {
                                 Ok(()) => {
-                                    let _ = msg_tx
-                                        .lock()
-                                        .await
-                                        .send(Message::PendingComplete(id))
-                                        .await;
+                                    let _ = msg_tx.send(Message::PendingComplete(id)).await;
                                 }
                                 Err(err) => {
-                                    let _ = msg_tx
-                                        .lock()
-                                        .await
-                                        .send(Message::PendingError(id, err))
-                                        .await;
+                                    let _ = msg_tx.send(Message::PendingError(id, err)).await;
                                 }
                             }
                             pending().await
@@ -3040,11 +2973,18 @@ impl Application for App {
                                             if let Err(e) =
                                                 preview_cache::save_to_cache(&url, &version, &data)
                                             {
-                                                log::warn!("failed to cache screenshot {}: {}", url, e);
+                                                log::warn!(
+                                                    "failed to cache screenshot {}: {}",
+                                                    url,
+                                                    e
+                                                );
                                             }
                                             let _ = msg_tx
-                                                .send(Message::SelectedScreenshot(screenshot_i,
-                                                    url.clone(), data))
+                                                .send(Message::SelectedScreenshot(
+                                                    screenshot_i,
+                                                    url.clone(),
+                                                    data,
+                                                ))
                                                 .await;
                                         }
                                         Err(err) => {
