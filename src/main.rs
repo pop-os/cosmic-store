@@ -2573,6 +2573,7 @@ impl Application for App {
                     .on_clear(Message::SearchClear)
                     .on_input(Message::SearchInput)
                     .on_submit(Message::SearchSubmit)
+                    .capture_escape(false)
                     .into()
             } else {
                 widget::button::icon(widget::icon::from_name("system-search-symbolic"))
@@ -3040,11 +3041,18 @@ impl Application for App {
                                             if let Err(e) =
                                                 preview_cache::save_to_cache(&url, &version, &data)
                                             {
-                                                log::warn!("failed to cache screenshot {}: {}", url, e);
+                                                log::warn!(
+                                                    "failed to cache screenshot {}: {}",
+                                                    url,
+                                                    e
+                                                );
                                             }
                                             let _ = msg_tx
-                                                .send(Message::SelectedScreenshot(screenshot_i,
-                                                    url.clone(), data))
+                                                .send(Message::SelectedScreenshot(
+                                                    screenshot_i,
+                                                    url.clone(),
+                                                    data,
+                                                ))
                                                 .await;
                                         }
                                         Err(err) => {
