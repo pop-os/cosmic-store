@@ -101,13 +101,15 @@ pub trait Backend: fmt::Debug + Send + Sync {
 
 // BTreeMap for stable sort order
 pub type Backends = BTreeMap<BackendName, Arc<dyn Backend>>;
+type BackendResult = Option<(BackendName, Arc<dyn Backend>)>;
+type BackendReceiver = tokio::sync::oneshot::Receiver<BackendResult>;
 
 /// Load store backends using rayon parallelism and concurrency.
-pub fn backends<'a>(
-    locale: &'a str,
+pub fn backends(
+    locale: &str,
     refresh: bool,
 ) -> impl futures::Stream<Item = (BackendName, Arc<dyn Backend>)> + Send + Unpin + 'static {
-    let backends = futures::stream::FuturesUnordered::new();
+    let backends = futures::stream::FuturesUnordered::<BackendReceiver>::new();
 
     #[cfg(feature = "flatpak")]
     {

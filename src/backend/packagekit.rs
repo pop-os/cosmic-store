@@ -12,7 +12,9 @@ use packagekit_zbus::{
 use std::{collections::HashMap, error::Error, fmt::Write, sync::Arc};
 
 use super::{Backend, Package};
-use crate::{AppId, AppInfo, AppUrl, AppstreamCache, GStreamerCodec, Operation, OperationKind};
+use crate::{
+    AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation, OperationKind, app_info::AppUrl,
+};
 
 #[derive(Debug)]
 struct TransactionDetails {

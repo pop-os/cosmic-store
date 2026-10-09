@@ -47,7 +47,7 @@ impl Backend for Pkgar {
             let file_name = file_name_os.to_string_lossy();
             if file_name.ends_with(".pkgar_head") {
                 let package_name = file_name.trim_end_matches(".pkgar_head");
-                let version_opt = None; //TODO: get pkgar version
+                let version = String::new(); //TODO: get pkgar version
                 println!("installed: {}", package_name);
                 match appstream_cache.pkgnames.get(package_name) {
                     Some(ids) => {
@@ -58,7 +58,7 @@ impl Backend for Pkgar {
                                         id: id.clone(),
                                         icon: appstream_cache.icon(info),
                                         info: info.clone(),
-                                        version: version_opt.unwrap_or("").to_string(),
+                                        version: version.clone(),
                                         extra: HashMap::new(),
                                     });
                                 }
@@ -71,10 +71,7 @@ impl Backend for Pkgar {
                     None => {
                         // Ignore packages with no components
                         log::debug!("no components for package {}", package_name);
-                        system_packages.push((
-                            package_name.to_string(),
-                            version_opt.unwrap_or("").to_string(),
-                        ));
+                        system_packages.push((package_name.to_string(), version));
                     }
                 }
             }
