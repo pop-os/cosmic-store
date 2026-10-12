@@ -483,23 +483,29 @@ pub struct App {
 impl App {
     #[cfg(feature = "desktop")]
     fn open_desktop_id(&self, desktop_id: String) {
-        #[derive(Debug, Clone, Copy)]
-        pub enum GpuPreference {
-            Default,
-            NonDefault,
-        }
+        use cosmic::desktop::gpu::{Descriptor, Preference};
 
-        async fn try_get_gpu_envs(gpu: GpuPreference) -> Option<HashMap<String, String>> {
+        async fn try_get_gpu_envs(gpu: Preference) -> Option<HashMap<String, String>> {
+            if gpu == Preference::Default {
+                return None;
+            }
+
             let connection = zbus::Connection::system().await.ok()?;
             let proxy = switcheroo_control::SwitcherooControlProxy::new(&connection)
                 .await
                 .ok()?;
             let gpus = proxy.get_gpus().await.ok()?;
-            match gpu {
-                GpuPreference::Default => gpus.into_iter().find(|gpu| gpu.default),
-                GpuPreference::NonDefault => gpus.into_iter().find(|gpu| !gpu.default),
-            }
-            .map(|gpu| gpu.environment)
+            let gpus = gpus
+                .into_iter()
+                .map(|gpu| Descriptor {
+                    name: gpu.name,
+                    environment: gpu.environment,
+                    default: gpu.default,
+                    discrete: gpu.discrete,
+                })
+                .collect::<Vec<_>>();
+            let index = gpu.select(&gpus)?;
+            Some(gpus[index].environment.clone())
         }
 
         tokio::task::spawn_blocking(move || {
@@ -516,9 +522,9 @@ impl App {
                 if let Some(exec) = desktop_entry.exec().map(String::from) {
                     let appid = desktop_entry.appid.clone();
                     let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
-                        GpuPreference::NonDefault
+                        Preference::NonDefault
                     } else {
-                        GpuPreference::Default
+                        Preference::Default
                     };
                     let terminal = desktop_entry.terminal();
                     tokio::spawn(async move {
