@@ -121,6 +121,6 @@ system-packages-summary =
 system-packages = Жүйелік дестелер
 flatpak-runtimes = Flatpak орындалу орталары
 comment = COSMIC жұмыс үстелі үшін қолданбалар дүкені
-keywords = App;Software;Store;Shop;Қолданба;БҚ;Дүкен;
+keywords = Қолданба;Десте;Бағдарлама;БҚ;Бағдарламалық қамтама;Дүкен;Репозиторий;Дереккөз;Орнату;Өшіру;Қосу;Жаңарту;Жаңғырту;
 loading = Жүктеу...
 by-name = { $name } ұсынған

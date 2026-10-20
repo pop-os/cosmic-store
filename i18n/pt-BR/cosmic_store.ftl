@@ -153,6 +153,6 @@ system-packages-summary =
     }
 system-packages = Pacotes do sistema
 flatpak-runtimes = Ambientes de execução de Flatpak
-keywords = Aplicativo;Software;Loja;App;
+keywords = Aplicativo;App;Pacote;Programa;Software;Loja;Compras;Repositório;Fonte;Instalar;Desinstalar;Adicionar;Remover;Atualizar;Upgrade;Flatpak;
 loading = Carregando...
 by-name = Por { $name }

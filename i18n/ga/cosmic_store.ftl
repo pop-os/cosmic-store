@@ -87,9 +87,9 @@ no-description = Níl aon tuairisc ar fáil.
 
 ### Appearance
 
-appearance = Dealramh
+appearance = Cuma
 theme = Téama
-match-desktop = Meaitseáil deasc
+match-desktop = Meaitseáil leis an deasc
 dark = Dorcha
 light = Solas
 close = Dún
@@ -144,6 +144,6 @@ system-packages-summary =
        *[other] { $count } pacáistí
     }
 comment = Siopa feidhmchlár don deasc COSMIC
-keywords = Aip;Bogearraí;Siopa;
+keywords = Aip;Pacáiste;Clár;Bogearraí;Siopa;Stór;Foinse;Suiteáil;Díshuiteáil;Cuir leis;Bain;Nuashonraigh;Uasghrádaigh;Flatpak;Store;
 loading = Ag lódáil...
 by-name = Le { $name }

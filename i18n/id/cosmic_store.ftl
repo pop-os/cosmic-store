@@ -120,7 +120,7 @@ system-packages-summary =
     }
 system-packages = Paket Sistem
 flatpak-runtimes = Waktu Proses Flatpak
-keywords = Aplikasi;Perangkat Lunak;Toko;Belanja;
+keywords = Aplikasi;Paket;Program;Perangkat Lunak;Toko;Belanja;Repositori;Sumber;Pasang;Copot;Tambahkan;Hapus;Perbarui;Tingkatkan;Flatpak;
 comment = Toko aplikasi untuk desktop COSMIC
 loading = Memuat...
 by-name = Berdasarkan { $name }

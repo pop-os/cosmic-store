@@ -144,6 +144,6 @@ repository-remove-body =
         [none] gelöscht
        *[other] gelöscht und „{ $dependency }“ entfernt
     }. Sie müssen neu installiert werden, wenn das Repositorium erneut hinzugefügt wird.
-keywords = App;Software;Store;Shop;
+keywords = App;Paket;Programm;Software;Store;Shop;Repository;Quelle;Installieren;Deinstallieren;Hinzufügen;Entfernen;Aktualisieren;Upgrade;Flatpak;
 loading = Wird geladen ...
 by-name = Von { $name }
