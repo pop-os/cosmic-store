@@ -1,6 +1,6 @@
 app-name = Sklep COSMIC
 comment = Sklep z aplikacjami dla środowiska COSMIC
-keywords = Aplikacje;Soft;Oprogramowanie;Sklep;
+keywords = Aplikacje;Soft;Oprogramowanie;Sklep;Flatpak;Repozytorium;Dodaj;Usuń;Aktualizuj;Paczka;Program;Odinstaluj;Zainstaluj;
 back = Powrót
 cancel = Anuluj
 check-for-updates = Sprawdź aktualizacje

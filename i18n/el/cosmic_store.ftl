@@ -121,6 +121,6 @@ system-packages-summary =
     }
 flatpak-runtimes = Flatpak Runtime
 comment = Κατάστημα εφαρμογών για το περιβάλλον επιφάνειας εργασίας COSMIC
-keywords = Κατάστημα;Μαγαζί;Εφαρμογή;Λογισμικό;App;Software;Store;Shop;
+keywords = Πακέτο;Πρόγραμμα;Αποθετήριο;Πηγή;Εγκατάσταση;Αφαίρεση;Απεγκατάσταση;Κατάργηση;Ενημέρωση;Αναβάθμιση;Κατάστημα;Μαγαζί;Εφαρμογή;Λογισμικό;App;Package;Program;Software;Store;Shop;Repository;Source;Install;Uninstall;Add;Remove;Update;Upgrade;Flatpak;
 loading = Φόρτωση...
 by-name = Από { $name }

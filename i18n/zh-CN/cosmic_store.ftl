@@ -153,6 +153,6 @@ system-packages-summary =
 system-packages = 系统软件包
 flatpak-runtimes = Flatpak 运行时
 comment = COSMIC 桌面的软件商店
-keywords = 应用;应用程序;软件;商店;
+keywords = 应用;软件包;程序;应用程序;软件;商店;商场;远程仓库;代码源;安装;卸载;添加;移除;更新;升级;Flatpak;
 loading = 正在加载…
 by-name = 以 { $name }

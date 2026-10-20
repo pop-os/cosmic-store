@@ -144,6 +144,6 @@ system-packages-summary =
 system-packages = Paquets système
 flatpak-runtimes = Runtimes Flatpak
 comment = Store d'applications pour le bureau COSMIC
-keywords = Appli;Logiciel;Store;Magasin;
+keywords = Appli;Paquet;Programme;Logiciel;Store;Magasin;Dépôt;Source;Installer;Désinstaller;Ajouter;Supprimer;Mettre à jour;Mise à jour;Flatpak;
 loading = Chargement...
 by-name = Par { $name }

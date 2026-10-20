@@ -1,6 +1,6 @@
 app-name = COSMIC Butik
 comment = Programbutik för skrivbordsmiljön COSMIC
-keywords = App;Software;Store;Program;Applikation;Butik;
+keywords = App;Paket;Program;Programvara;Butik;Handla;Förråd;Källa;Installera;Avinstallera;Lägg till;Ta bort;Uppdatera;Uppgradera;Flatpak;
 back = Bakåt
 cancel = Avbryt
 check-for-updates = Sök efter uppdateringar
@@ -45,8 +45,8 @@ apps-for-learning = Program för lärande
 # Details Page
 source-installed = { $source } (installerad)
 developer = Utvecklare
-app-developers = { $app } Utvecklare
-monthly-downloads = Flathub månatliga nedladdningar
+app-developers = Utvecklare av { $app }
+monthly-downloads = Nedladdningar per månad på Flathub
 
 # Context Pages
 
@@ -88,23 +88,23 @@ codec-footer =
 codec-error = Det uppstod fel under paketinstallationen.
 details = Detaljer
 dismiss = Avfärda meddelande
-operations-running = { $running } operationer körs ({ $percent }%)...
-operations-running-finished = { $running } operationer körs ({ $percent }%), { $finished } klart...
-operations = Operationer
-no-operations = Inga operationer i historiken.
+operations-running = { $running } åtgärder körs ({ $percent }%)...
+operations-running-finished = { $running } åtgärder körs ({ $percent }%), { $finished } klara...
+operations = Åtgärder
+no-operations = Inga åtgärder i historiken.
 pending = Väntar
 failed = Misslyckad
 complete = Färdig
 repository-add-error-title = "Misslyckades att lägga till arkiv"
-repository-remove-title = Ta bort "{ $name }" arkiv?
+repository-remove-title = Ta bort arkivet "{ $name }"?
 repository-remove-body =
     Att ta bort detta arkiv kommer { $dependency ->
-        [none] radera
+        [none] att radera
        *[other] ta bort "{ $dependency }" och radera
     } följande program och objekt. De kommer att behöva ominstalleras om arkivet läggs till igen.
 add = Lägg till
 adding = Lägger till...
-bug-tracker = Felrapporteringssytem
+bug-tracker = Felrapporteringssystem
 contact = Kontakt
 donation = Donation
 faq = FAQ
@@ -119,7 +119,7 @@ licenses = Licenser
 proprietary = Proprietär
 recommended-flatpak-sources = Rekommenderade Flatpak-källor
 custom-flatpak-sources = Anpassade Flatpak-källor
-import-flatpakrepo = Importera .flatpakrepo fil för att lägga till en anpassad källa
+import-flatpakrepo = Importera en .flatpakrepo-fil för att lägga till en anpassad källa
 no-custom-flatpak-sources = Inga anpassade Flatpak-källor
 import = Importera
 no-flatpak = Inget flatpak-stöd
@@ -128,7 +128,7 @@ applets = Miniprogram
 addons = Tillägg
 view-more = Visa mer
 version = Version { $version }
-delete-app-data = Radera program-data permanent
+delete-app-data = Radera programdata permanent
 uninstall-app-flatpak-warning = Om du avinstallerar { $name } kommer du att behålla dess dokument och data.
 system-package-updates = Paketuppdateringar
 flatpak-runtimes = Körtidsfiler för Flatpak
@@ -139,4 +139,4 @@ system-packages-summary =
     }
 system-packages = Systempaket
 loading = Läser in...
-by-name = Efter { $name }
+by-name = Av { $name }
