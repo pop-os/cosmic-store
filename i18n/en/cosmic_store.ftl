@@ -136,6 +136,7 @@ system-package-updates = Package updates
 ## System package names
 system-packages = System Packages
 flatpak-runtimes = Flatpak Runtimes
+homebrew-packages = Homebrew Packages
 system-packages-summary = { $count ->
     [one] { $count } package
    *[other] { $count } packages
