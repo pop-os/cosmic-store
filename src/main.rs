@@ -2287,6 +2287,7 @@ impl Application for App {
         } else if self.search_active {
             // Close search if open
             self.search_active = false;
+            self.search_input.clear();
             if self.search_results.take().is_some() {
                 return self.update_scroll();
             }
@@ -3040,11 +3041,18 @@ impl Application for App {
                                             if let Err(e) =
                                                 preview_cache::save_to_cache(&url, &version, &data)
                                             {
-                                                log::warn!("failed to cache screenshot {}: {}", url, e);
+                                                log::warn!(
+                                                    "failed to cache screenshot {}: {}",
+                                                    url,
+                                                    e
+                                                );
                                             }
                                             let _ = msg_tx
-                                                .send(Message::SelectedScreenshot(screenshot_i,
-                                                    url.clone(), data))
+                                                .send(Message::SelectedScreenshot(
+                                                    screenshot_i,
+                                                    url.clone(),
+                                                    data,
+                                                ))
                                                 .await;
                                         }
                                         Err(err) => {
