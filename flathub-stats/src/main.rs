@@ -2,6 +2,7 @@ use std::{collections::HashMap, error::Error, fs};
 
 use app_id::AppId;
 #[path = "../../src/app_id.rs"]
+#[allow(dead_code)]
 mod app_id;
 
 #[derive(serde::Deserialize)]
@@ -23,7 +24,7 @@ async fn stats(year: u16, month: u8, day: u8) -> Result<Stats, Box<dyn Error>> {
 }
 
 fn leap_year(year: u16) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
 #[tokio::main]
@@ -57,14 +58,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             for (r, archs) in stats.refs {
                 for (_arch, (downloads, _updates)) in archs {
                     let id = r.split('/').next().unwrap();
-                    *ref_downloads.entry(AppId::new(&id)).or_insert(0) += downloads;
+                    *ref_downloads.entry(AppId::new(id)).or_insert(0) += downloads;
                 }
             }
         }
     }
 
     let bitcode = bitcode::encode(&ref_downloads);
-    fs::write(format!("res/flathub-stats.bitcode-v0-6"), &bitcode)?;
+    fs::write("res/flathub-stats.bitcode-v0-6", &bitcode)?;
 
     println!("Wrote stats for {} apps", ref_downloads.len());
 
