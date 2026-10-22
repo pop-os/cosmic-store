@@ -1176,7 +1176,11 @@ impl App {
                         y: Some(offset.y),
                     }
                 }
-                None => scrollable::AbsoluteOffset::default(),
+                // None means "leave unchanged" here, so spell out zero to reset to top
+                None => AbsoluteOffset {
+                    x: Some(0.0),
+                    y: Some(0.0),
+                },
             },
         )
     }
