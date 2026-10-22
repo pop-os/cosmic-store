@@ -2648,6 +2648,7 @@ impl Application for App {
                                 .apply(widget::container)
                                 .align_x(Alignment::Center)
                                 .apply(widget::scrollable)
+                                .id(self.scrollable_id.clone())
                                 .on_scroll(Message::ScrollView),
                         ),
                     self.scrollable_id.clone(),
