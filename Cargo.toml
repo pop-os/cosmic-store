@@ -39,8 +39,8 @@ serde_yaml = "0.9"
 # fast cache
 atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
-dirs = "6"
-zstd = "0.13"
+dirs = "7.0.0"
+zstd = "0.14.3"
 # flatpak feature
 libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
@@ -51,13 +51,18 @@ notify-rust = { version = "4", optional = true }
 # packagekit feature
 packagekit-zbus = { version = "0.2", optional = true }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel", optional = true }
-freedesktop-desktop-entry = { version = "0.8.1", optional = true }
-switcheroo-control = { git = "https://github.com/pop-os/dbus-settings-bindings", optional = true }
+freedesktop-desktop-entry = { version = "0.8.4", optional = true }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
 features = ["multi-window", "tokio", "winit"]
+
+[dependencies.cosmic-launch]
+git = "https://github.com/pop-os/libcosmic.git"
+optional = true
+default-features = false
+features = ["tokio"]
 
 [build-dependencies]
 xdgen = "0.1"
@@ -66,7 +71,7 @@ xdgen = "0.1"
 #todo : add a11y back to default
 default = [
     "dbus-config",
-    "desktop-systemd-scope",
+    "desktop-systemd",
     "flatpak",
     "logind",
     "notify",
@@ -76,23 +81,20 @@ default = [
     "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
-dbus-config = ["libcosmic/dbus-config"]
-desktop = [
-    "dep:freedesktop-desktop-entry",
-    "dep:switcheroo-control",
-    "libcosmic/desktop",
-]
-desktop-systemd-scope = ["desktop", "libcosmic/desktop-systemd-scope"]
+dbus = ["dep:zbus"]
+dbus-config = ["dbus", "libcosmic/dbus-config"]
+desktop = ["dep:cosmic-launch", "dep:freedesktop-desktop-entry"]
+desktop-systemd = ["dbus", "desktop", "cosmic-launch/systemd"]
 flatpak = ["dep:libflatpak", "xdg-portal"]
-logind = ["dep:logind-zbus", "dep:zbus"]
+logind = ["dep:logind-zbus", "dbus"]
 notify = ["dep:notify-rust"]
-packagekit = ["dep:packagekit-zbus"]
+packagekit = ["dep:packagekit-zbus", "dbus"]
 pkgar = []
 rpm-ostree = []
-single-instance = ["libcosmic/single-instance"]
+single-instance = ["libcosmic/single-instance", "dbus"]
 wayland = ["libcosmic/wayland", "dep:cosmic-panel-config"]
 wgpu = ["libcosmic/wgpu"]
-xdg-portal = ["libcosmic/xdg-portal"]
+xdg-portal = ["dbus", "libcosmic/xdg-portal"]
 
 [profile.release-with-debug]
 inherits = "release"
@@ -108,9 +110,9 @@ members = ["flathub-stats"]
 # libcosmic = { path = "../libcosmic" }
 # cosmic-config = { path = "../libcosmic/cosmic-config" }
 # cosmic-theme = { path = "../libcosmic/cosmic-theme" }
-# libcosmic = { git = "https://github.com/pop-os/libcosmic//", branch = "theme-v2" }
-# cosmic-config = { git = "https://github.com/pop-os/libcosmic//", branch = "theme-v2" }
-# cosmic-theme = { git = "https://github.com/pop-os/libcosmic//", branch = "theme-v2" }
+# libcosmic = { git = "https://github.com/pop-os/libcosmic//", branch = "cosmic-launch" }
+# cosmic-config = { git = "https://github.com/pop-os/libcosmic//", branch = "cosmic-launch" }
+# cosmic-theme = { git = "https://github.com/pop-os/libcosmic//", branch = "cosmic-launch" }
 # [patch.'https://github.com/jackpot51/appstream.git']
 # appstream = { path = "../../appstream" }
 
