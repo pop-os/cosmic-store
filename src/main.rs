@@ -431,6 +431,12 @@ pub struct App {
     pub config_handler: Option<cosmic_config::Config>,
     pub config: Config,
     pub mode: Mode,
+    /// Shared zbus session connection.
+    #[cfg(feature = "dbus")]
+    pub zbus_session_conn: Option<zbus::Connection>,
+    /// Use as an input for cosmic_launch::spawn.
+    #[cfg(feature = "desktop")]
+    pub gpus: Option<Arc<[cosmic_launch::gpu::Descriptor]>>,
     pub locale: String,
     pub app_themes: Vec<String>,
     pub apps: Arc<Apps>,
@@ -483,33 +489,14 @@ pub struct App {
 impl App {
     #[cfg(feature = "desktop")]
     fn open_desktop_id(&self, desktop_id: String) {
-        use cosmic::desktop::gpu::{Descriptor, Preference};
+        #[cfg(feature = "desktop-systemd")]
+        let Some(conn) = self.zbus_session_conn.clone() else {
+            log::error!("no dbus session connection");
+            return;
+        };
 
-        async fn try_get_gpu_envs(gpu: Preference) -> Option<HashMap<String, String>> {
-            if gpu == Preference::Default {
-                return None;
-            }
-
-            let connection = zbus::Connection::system().await.ok()?;
-            let proxy = switcheroo_control::SwitcherooControlProxy::new(&connection)
-                .await
-                .ok()?;
-            let gpus = proxy.get_gpus().await.ok()?;
-            let gpus = gpus
-                .into_iter()
-                .map(|gpu| Descriptor {
-                    name: gpu.name,
-                    environment: gpu.environment,
-                    default: gpu.default,
-                    discrete: gpu.discrete,
-                })
-                .collect::<Vec<_>>();
-            let index = gpu.select(&gpus)?;
-            Some(gpus[index].environment.clone())
-        }
-
+        let gpus = self.gpus.clone();
         tokio::task::spawn_blocking(move || {
-            let desktop_id = desktop_id.strip_suffix(".desktop").unwrap_or(&desktop_id);
             let locales = fde::get_languages_from_env();
 
             let desktop_entries = fde::Iter::new(fde::default_paths())
@@ -517,38 +504,46 @@ impl App {
                 .filter_map(Result::ok)
                 .collect::<Vec<_>>();
 
-            let appid = fde::unicase::Ascii::new(desktop_id);
-            if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid) {
-                if let Some(exec) = desktop_entry.exec().map(String::from) {
-                    let appid = desktop_entry.appid.clone();
-                    let gpu_pref = if desktop_entry.prefers_non_default_gpu() {
-                        Preference::NonDefault
-                    } else {
-                        Preference::Default
-                    };
-                    let terminal = desktop_entry.terminal();
-                    tokio::spawn(async move {
-                        let mut envs = Vec::new();
+            tokio::spawn(async move {
+                let desktop_id = desktop_id.strip_suffix(".desktop").unwrap_or(&desktop_id);
+                let appid = fde::unicase::Ascii::new(desktop_id);
+                if let Some(desktop_entry) = fde::find_app_by_id(&desktop_entries, appid)
+                    && desktop_entry.exec().is_some()
+                {
+                    // TODO: avoid the clone by getting the index of the entry.
+                    let exec = cosmic_launch::EntryLauncher::new(
+                        Arc::new(desktop_entry.clone()),
+                        Arc::from(locales),
+                    );
 
-                        if let Some(gpu_envs) = try_get_gpu_envs(gpu_pref).await {
-                            envs.extend(gpu_envs);
-                        }
+                    #[cfg(feature = "desktop-systemd")]
+                    {
+                        _ = cosmic_launch::spawn(
+                            &conn,
+                            &exec,
+                            None,
+                            gpus.as_deref().unwrap_or_default(),
+                            None,
+                            Vec::new(),
+                            &[] as &[String],
+                        )
+                        .await;
+                    }
 
-                        std::thread::spawn(move || {
-                            tokio::runtime::Builder::new_current_thread()
-                                .enable_io()
-                                .build()
-                                .unwrap()
-                                .block_on(cosmic::desktop::spawn_desktop_exec(
-                                    &exec,
-                                    envs,
-                                    Some(&appid),
-                                    terminal,
-                                ));
-                        });
-                    });
+                    #[cfg(not(feature = "desktop-systemd"))]
+                    {
+                        _ = cosmic_launch::spawn(
+                            &exec,
+                            None,
+                            gpus.as_deref().unwrap_or_default(),
+                            None,
+                            Vec::new(),
+                            &[] as &[String],
+                        )
+                        .await;
+                    }
                 }
-            }
+            });
         });
     }
 
@@ -2129,6 +2124,28 @@ impl Application for App {
 
     /// Creates the application, and optionally emits command on initialize.
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
+        #[cfg(all(feature = "dbus", feature = "desktop"))]
+        let (zbus_session_conn, gpus) = futures::executor::block_on(async {
+            // Initialize dbus connections for shared reuse.
+            let (session, system) =
+                futures::future::join(zbus::Connection::session(), zbus::Connection::system())
+                    .await;
+
+            // Get a list of available GPUs.
+            let mut gpus: Option<Arc<[cosmic_launch::gpu::Descriptor]>> = None;
+            if let Ok(conn) = system.as_ref() {
+                gpus = cosmic_launch::gpu::enumerate(conn)
+                    .await
+                    .map(|iter| Arc::from(iter.collect::<Vec<_>>()));
+            }
+
+            (session.ok(), gpus)
+        });
+
+        #[cfg(all(feature = "dbus", not(feature = "desktop")))]
+        let zbus_session_conn =
+            futures::executor::block_on(async { zbus::Connection::session().await.ok() });
+
         let locale = sys_locale::get_locale().unwrap_or_else(|| {
             log::warn!("failed to get system locale, falling back to en-US");
             String::from("en-US")
@@ -2164,6 +2181,10 @@ impl Application for App {
             config: flags.config,
             mode: flags.mode,
             locale,
+            #[cfg(feature = "dbus")]
+            zbus_session_conn,
+            #[cfg(feature = "desktop")]
+            gpus,
             app_themes,
             apps: Arc::new(Apps::new()),
             category_index: Arc::new(CategoryIndex::new()),
@@ -3051,11 +3072,18 @@ impl Application for App {
                                             if let Err(e) =
                                                 preview_cache::save_to_cache(&url, &version, &data)
                                             {
-                                                log::warn!("failed to cache screenshot {}: {}", url, e);
+                                                log::warn!(
+                                                    "failed to cache screenshot {}: {}",
+                                                    url,
+                                                    e
+                                                );
                                             }
                                             let _ = msg_tx
-                                                .send(Message::SelectedScreenshot(screenshot_i,
-                                                    url.clone(), data))
+                                                .send(Message::SelectedScreenshot(
+                                                    screenshot_i,
+                                                    url.clone(),
+                                                    data,
+                                                ))
                                                 .await;
                                         }
                                         Err(err) => {

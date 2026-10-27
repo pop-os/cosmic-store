@@ -882,10 +882,8 @@ impl App {
                 if let Some(selected) = &mut self.selected_opt {
                     let len = selected.info.screenshots.len();
                     if len > 0 {
-                        selected.screenshot_shown = selected
-                            .screenshot_shown
-                            .checked_sub(1)
-                            .unwrap_or(len - 1);
+                        selected.screenshot_shown =
+                            selected.screenshot_shown.checked_sub(1).unwrap_or(len - 1);
                     }
                 }
             }
@@ -1039,7 +1037,7 @@ impl App {
                 self.dialog_pages.pop_front();
 
                 // Panel or Dock specific references
-                let panel_info = if Some(self.applet_placement_buttons.active())
+                let (panel_name, panel_exec) = if Some(self.applet_placement_buttons.active())
                     == self.applet_placement_buttons.entity_at(1)
                 {
                     ("Dock", "cosmic-settings dock-applet")
@@ -1048,14 +1046,14 @@ impl App {
                 };
 
                 // Load in panel or dock configs for adding new applet
-                let panel_config_helper = CosmicPanelConfig::cosmic_config(panel_info.0).ok();
+                let panel_config_helper = CosmicPanelConfig::cosmic_config(panel_name).ok();
                 let mut applet_config =
                     panel_config_helper
                         .as_ref()
                         .and_then(|panel_config_helper| {
                             let panel_config =
                                 CosmicPanelConfig::get_entry(panel_config_helper).ok()?;
-                            (panel_config.name == panel_info.0).then_some(panel_config)
+                            (panel_config.name == panel_name).then_some(panel_config)
                         });
                 let Some(applet_config) = applet_config.as_mut() else {
                     return Task::none();
@@ -1100,18 +1098,48 @@ impl App {
                     };
                 }
 
-                // launch the applet settings
                 #[cfg(feature = "desktop")]
                 {
-                    let exec = panel_info.1;
+                    // Launch the applet settings page
+                    let gpus = self.gpus.clone();
+                    let exec = cosmic_launch::CustomExecutable::new(
+                        String::from("com.system76.CosmicSettings"),
+                        String::from(panel_exec),
+                    );
+
+                    #[cfg(feature = "desktop-systemd")]
+                    let Some(conn) = self.zbus_session_conn.clone() else {
+                        log::error!("no dbus session connection");
+                        return Task::none();
+                    };
+
                     tokio::task::spawn(async move {
-                        cosmic::desktop::spawn_desktop_exec(
-                            &exec,
-                            Vec::<(&str, &str)>::new(),
-                            Some("com.system76.CosmicSettings"),
-                            false,
-                        )
-                        .await;
+                        #[cfg(feature = "desktop-systemd")]
+                        {
+                            _ = cosmic_launch::spawn(
+                                &conn,
+                                &exec,
+                                None,
+                                gpus.as_deref().unwrap_or_default(),
+                                None,
+                                Vec::new(),
+                                &[] as &[String],
+                            )
+                            .await;
+                        }
+
+                        #[cfg(not(feature = "desktop-systemd"))]
+                        {
+                            _ = cosmic_launch::spawn(
+                                &exec,
+                                None,
+                                gpus.as_deref().unwrap_or_default(),
+                                None,
+                                Vec::new(),
+                                &[] as &[String],
+                            )
+                            .await;
+                        }
                     });
                 }
             }
