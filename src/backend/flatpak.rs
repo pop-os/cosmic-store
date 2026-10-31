@@ -574,7 +574,7 @@ impl Backend for Flatpak {
                                     unsafe {
                                         // Subpaths is NULL for installing complete ref
                                         let subpaths = ptr::null_mut();
-                                        let mut previous_ids = vec![id.as_ptr()];
+                                        let mut previous_ids = [id.as_ptr(), ptr::null()];                                        
                                         let mut error: *mut libflatpak::glib::ffi::GError =
                                             ptr::null_mut();
                                         //TODO: wrap in libflatpak crate
