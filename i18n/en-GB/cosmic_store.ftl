@@ -9,3 +9,4 @@ dismiss = Dismiss message
 details = Details
 create = Create
 open = Open
+keywords = App;Package;Program;Software;Store;Shop;Repository;Source;Install;Uninstall;Add;Remove;Update;Upgrade;Flatpak;
