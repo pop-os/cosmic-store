@@ -44,8 +44,8 @@ zstd = "0.14.3"
 # flatpak feature
 libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
-logind-zbus = { version = "5", optional = true }
-zbus = { version = "5", optional = true }
+cosmic-login1-zbus = { git = "https://github.com/pop-os/dbus-settings-bindings", optional = true }
+zbus = { version = "6", optional = true }
 # notify feature
 notify-rust = { version = "4", optional = true }
 # packagekit feature
@@ -86,7 +86,7 @@ dbus-config = ["dbus", "libcosmic/dbus-config"]
 desktop = ["dep:cosmic-launch", "dep:freedesktop-desktop-entry"]
 desktop-systemd = ["dbus", "desktop", "cosmic-launch/systemd"]
 flatpak = ["dep:libflatpak", "xdg-portal"]
-logind = ["dep:logind-zbus", "dbus"]
+logind = ["dep:cosmic-login1-zbus", "dbus"]
 notify = ["dep:notify-rust"]
 packagekit = ["dep:packagekit-zbus", "dbus"]
 pkgar = []
