@@ -2,7 +2,7 @@ use std::os::fd::OwnedFd;
 
 #[cfg(feature = "logind")]
 pub async fn inhibit() -> zbus::Result<Vec<OwnedFd>> {
-    use logind_zbus::manager::{InhibitType, ManagerProxy};
+    use cosmic_login1_zbus::manager::{InhibitType, ManagerProxy};
 
     let connection = zbus::Connection::system().await?;
     let manager = ManagerProxy::new(&connection).await?;
