@@ -47,13 +47,11 @@ impl Flatpak {
 
         let inst = this.installation()?;
         for remote in inst.list_remotes(Cancellable::NONE)? {
-            let source_id = match remote.name() {
-                Some(name) => this.source_id(&name),
-                None => {
-                    log::warn!("remote {:?} missing name", remote);
-                    continue;
-                }
+            let Some(remote_name) = remote.name() else {
+                log::warn!("remote {:?} missing name", remote);
+                continue;
             };
+            let source_id = this.source_id(&remote_name);
 
             let appstream_dir = match remote.appstream_dir(None).and_then(|x| x.path()) {
                 Some(some) => some,
@@ -78,9 +76,9 @@ impl Flatpak {
                 update_appstream = true;
             }
 
-            if update_appstream {
+            if update_appstream && !remote.is_disabled() {
                 log::info!("updating appstream data for remote {:?}", remote);
-                match inst.update_appstream_sync(&source_id, None, Cancellable::NONE) {
+                match inst.update_appstream_sync(&remote_name, None, Cancellable::NONE) {
                     Ok(()) => {}
                     Err(err) => {
                         log::warn!(
