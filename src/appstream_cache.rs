@@ -45,6 +45,8 @@ pub struct AppstreamCacheTag {
     pub size: u64,
 }
 
+type ParsedAppstream = (Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>);
+
 #[derive(Debug, Default, bitcode::Decode, bitcode::Encode)]
 pub struct AppstreamCache {
     pub source_id: String,
@@ -581,7 +583,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedAppstream, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
         //TODO: just running this and not saving the results makes a huge memory leak!
@@ -660,7 +662,7 @@ impl AppstreamCache {
         &self,
         path: P,
         reader: R,
-    ) -> Result<(Option<String>, Vec<(AppId, Arc<AppInfo>)>, Vec<Component>), Box<dyn Error>> {
+    ) -> Result<ParsedAppstream, Box<dyn Error>> {
         let start = Instant::now();
         let path = path.as_ref();
 

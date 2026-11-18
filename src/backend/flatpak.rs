@@ -233,8 +233,8 @@ impl Backend for Flatpak {
 
         self.appstream_caches = futures::executor::block_on(async move {
             local_set.run_until(async move {
-                if refresh {
-                    if let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
+                if refresh
+                    && let Ok(remotes) = inst.list_remotes(Cancellable::NONE) {
                         remotes.into_iter()
                             .filter_map(|remote| remote.name())
                             .for_each(|remote_name| {
@@ -253,11 +253,9 @@ impl Backend for Flatpak {
                                     log::error!(
                                         "failed to update flatpak remote {remote_name} appstream metadata: {why:?}"
                                     );
-                                    return;
                                 }
                             });
                     }
-                }
 
                 // Parallel reload of appstream caches.
                 appstream_caches
@@ -572,7 +570,7 @@ impl Backend for Flatpak {
                                     unsafe {
                                         // Subpaths is NULL for installing complete ref
                                         let subpaths = ptr::null_mut();
-                                        let mut previous_ids = [id.as_ptr(), ptr::null()];                                        
+                                        let mut previous_ids = [id.as_ptr(), ptr::null()];
                                         let mut error: *mut libflatpak::glib::ffi::GError =
                                             ptr::null_mut();
                                         //TODO: wrap in libflatpak crate
