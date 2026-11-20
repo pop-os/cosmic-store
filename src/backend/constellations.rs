@@ -11,8 +11,10 @@ use std::{
 
 use super::{Backend, Package};
 use crate::{
-    AppIcon, AppstreamCache, Operation, app_id::AppId, fl, appstream_cache::remote_icon_path, operation::OperationKind,
+    AppIcon, AppstreamCache, Operation, app_id::AppId, fl, operation::OperationKind,
+    preview_cache::ICONS,
 };
+use futures::StreamExt;
 
 #[derive(Debug)]
 pub struct Constellations {
@@ -49,36 +51,44 @@ impl Constellations {
 
     /// Fetch the remote icons the catalog lists that are not cached yet.
     fn download_icons(&self) {
-        for cache in self.appstream_caches.iter() {
-            for info in cache.infos.values() {
-                for icon in info.icons.iter() {
-                    let AppIcon::Remote(url, ..) = icon else {
-                        continue;
-                    };
-                    let Some(path) = remote_icon_path(url) else {
-                        continue;
-                    };
-                    if path.is_file() {
-                        continue;
-                    }
-                    if let Err(err) = Self::download(url, &path) {
-                        log::warn!("failed to download icon {}: {}", url, err);
-                    }
-                }
-            }
+        let missing: Vec<(String, String)> = self
+            .appstream_caches
+            .iter()
+            .flat_map(|cache| cache.infos.values())
+            .flat_map(|info| {
+                info.icons.iter().filter_map(|icon| match icon {
+                    AppIcon::Remote(url, ..) => Some((url.clone(), info.version().to_owned())),
+                    _ => None,
+                })
+            })
+            .filter(|(url, version)| !ICONS.path(url, version).is_some_and(|p| p.is_file()))
+            .collect();
+        if missing.is_empty() {
+            return;
         }
-    }
-
-    fn download(url: &str, path: &std::path::Path) -> Result<(), Box<dyn Error>> {
-        let bytes = futures::executor::block_on(async {
-            reqwest::get(url).await?.error_for_status()?.bytes().await
-        })?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        atomicwrites::AtomicFile::new(path, atomicwrites::OverwriteBehavior::AllowOverwrite)
-            .write(|file| file.write_all(&bytes))?;
-        Ok(())
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            log::warn!("no async runtime to download {} icons on", missing.len());
+            return;
+        };
+        runtime.spawn(async move {
+            futures::stream::iter(missing)
+                .for_each_concurrent(8, |(url, version)| async move {
+                    let bytes = match reqwest::get(&url).await.and_then(|r| r.error_for_status()) {
+                        Ok(response) => response.bytes().await,
+                        Err(err) => Err(err),
+                    };
+                    match bytes {
+                        Ok(bytes) => {
+                            if let Err(err) = ICONS.save_to_cache(&url, &version, &bytes) {
+                                log::warn!("failed to cache icon {}: {}", url, err);
+                            }
+                        }
+                        Err(err) => log::warn!("failed to download icon {}: {}", url, err),
+                    }
+                })
+                .await;
+            ICONS.enforce_size_limit();
+        });
     }
 
     fn update_catalog(&self, refresh: bool) -> Result<bool, Box<dyn Error>> {
