@@ -30,7 +30,8 @@ impl Constellations {
             appstream_caches: Vec::new(),
             store: Store::new()?,
         };
-        this.update_catalog(false)?;
+        //TODO: content address catalog.xml and only download if changed
+        this.update_catalog(true)?;
         this.appstream_caches.push(AppstreamCache::new(
             "constellations".to_string(),
             fl!("constellations"),
