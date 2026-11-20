@@ -551,7 +551,9 @@ impl AppstreamCache {
                     if size < cached_size {
                         continue;
                     }
-                    if let Some(icon_path) = remote_icon_path(url).filter(|path| path.is_file()) {
+                    // Shown once the backend has downloaded it into the icon cache.
+                    let path = crate::preview_cache::ICONS.path(url, info.version());
+                    if let Some(icon_path) = path.filter(|path| path.is_file()) {
                         best_path = Some(icon_path);
                         cached_size = size;
                     }
@@ -1124,23 +1126,4 @@ impl AppstreamCache {
         );
         Ok((origin_opt, infos, Vec::new()))
     }
-}
-
-pub fn remote_icon_path(url: &str) -> Option<PathBuf> {
-    let name: String = url
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    Some(
-        dirs::cache_dir()?
-            .join("cosmic-store")
-            .join("remote-icons")
-            .join(name),
-    )
 }
