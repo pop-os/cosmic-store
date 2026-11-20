@@ -70,6 +70,7 @@ xdgen = "0.1"
 [features]
 #todo : add a11y back to default
 default = [
+    "constellations",
     "dbus-config",
     "desktop-systemd",
     "flatpak",
@@ -81,6 +82,7 @@ default = [
     "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
+constellations = []
 dbus = ["dep:zbus"]
 dbus-config = ["dbus", "libcosmic/dbus-config"]
 desktop = ["dep:cosmic-launch", "dep:freedesktop-desktop-entry"]

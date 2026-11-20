@@ -611,6 +611,25 @@ impl AppstreamCache {
                                     addons.lock().unwrap().push(component);
                                     return None;
                                 }
+                                ComponentKind::Generic => {
+                                    // Allow generic components if they are COSMIC themes
+                                    let mut is_theme = false;
+                                    if let Some(custom) = e.get_child("custom") {
+                                        for child in
+                                            custom.children.iter().filter_map(|x| x.as_element())
+                                        {
+                                            if let Some(key) = child.attributes.get("key") {
+                                                if key == "x-cosmic-format" {
+                                                    is_theme = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if !is_theme {
+                                        return None;
+                                    }
+                                }
                                 _ => {
                                     // Skip anything that is not a desktop application or addon
                                     //TODO: should we allow more components?
