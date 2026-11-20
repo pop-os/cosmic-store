@@ -116,6 +116,7 @@ pub fn package_card_view<'a>(
 
     let icon: Element<_> = match icon_opt {
         Some(icon) => widget::icon::icon(icon.clone())
+            .content_fit(cosmic::iced::ContentFit::Contain)
             .size(ICON_SIZE_PACKAGE)
             .into(),
         None => widget::space()
@@ -532,6 +533,7 @@ impl App {
                     widget::row::with_children([
                         match &selected.icon_opt {
                             Some(icon) => widget::icon::icon(icon.clone())
+                                .content_fit(cosmic::iced::ContentFit::Contain)
                                 .size(ICON_SIZE_DETAILS)
                                 .into(),
                             None => widget::space::horizontal()
