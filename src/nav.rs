@@ -24,6 +24,7 @@ pub enum Category {
     System,
     Utility,
     CosmicApplet,
+    CosmicThemeBundle,
 }
 
 impl Category {
@@ -41,6 +42,7 @@ impl Category {
             Self::System => "System",
             Self::Utility => "Utility",
             Self::CosmicApplet => "CosmicApplet",
+            Self::CosmicThemeBundle => "CosmicThemeBundle",
         }
     }
 }
@@ -60,6 +62,7 @@ pub enum NavPage {
     Socialize,
     Utilities,
     Applets,
+    Constellations,
     Installed,
     Updates,
 }
@@ -77,6 +80,7 @@ impl NavPage {
             Self::Socialize,
             Self::Utilities,
             Self::Applets,
+            Self::Constellations,
             Self::Installed,
             Self::Updates,
         ]
@@ -94,6 +98,7 @@ impl NavPage {
             Self::Socialize => fl!("socialize"),
             Self::Utilities => fl!("utilities"),
             Self::Applets => fl!("applets"),
+            Self::Constellations => fl!("constellations"),
             Self::Installed => fl!("installed-apps"),
             Self::Updates => fl!("updates"),
         }
@@ -111,6 +116,7 @@ impl NavPage {
             Self::Socialize => Some(&[Category::Network]),
             Self::Utilities => Some(&[Category::Settings, Category::System, Category::Utility]),
             Self::Applets => Some(&[Category::CosmicApplet]),
+            Self::Constellations => Some(&[Category::CosmicThemeBundle]),
             _ => None,
         }
     }
@@ -127,6 +133,8 @@ impl NavPage {
             Self::Socialize => icon_cache_icon("store-socialize-symbolic", 16),
             Self::Utilities => icon_cache_icon("store-utilities-symbolic", 16),
             Self::Applets => icon_cache_icon("store-applets-symbolic", 16),
+            //TODO: icon for constellations
+            Self::Constellations => icon_cache_icon("store-applets-symbolic", 16),
             Self::Installed => icon_cache_icon("store-installed-symbolic", 16),
             Self::Updates => icon_cache_icon("store-updates-symbolic", 16),
         }

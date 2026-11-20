@@ -1,13 +1,22 @@
+use cosmic_theme_bundle_config::Store;
 use sha2::Digest;
-use std::{error::Error, fs, io::Write, path::PathBuf, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    fs,
+    io::Write,
+    path::PathBuf,
+    time::Instant,
+};
 
 use super::{Backend, Package};
-use crate::{AppstreamCache, Operation, operation::OperationKind};
+use crate::{AppstreamCache, Operation, app_id::AppId, fl, operation::OperationKind};
 
 #[derive(Debug)]
 pub struct Constellations {
     url: String,
     appstream_caches: Vec<AppstreamCache>,
+    store: Store,
 }
 
 impl Constellations {
@@ -15,11 +24,12 @@ impl Constellations {
         let mut this = Self {
             url: "https://apt.pop-os.org/cosmic-constellations".to_string(),
             appstream_caches: Vec::new(),
+            store: Store::new()?,
         };
         this.update_catalog(false)?;
         this.appstream_caches.push(AppstreamCache::new(
             "constellations".to_string(),
-            "Constellations".to_string(),
+            fl!("constellations"),
             vec![Self::catalog_path()?],
             vec![],
             locale,
@@ -76,12 +86,30 @@ impl Backend for Constellations {
     }
 
     fn installed(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        //TODO
-        Ok(Vec::new())
+        let appstream_cache = &self.appstream_caches[0];
+
+        let mut installed = Vec::new();
+        for bundle in self.store.bundles()? {
+            let Some(package) = &bundle.package else {
+                continue;
+            };
+            let id = AppId::new(&package.package_id);
+            let Some(info) = appstream_cache.infos.get(&id) else {
+                continue;
+            };
+            installed.push(Package {
+                id: id.clone(),
+                icon: appstream_cache.icon(info),
+                info: info.clone(),
+                version: package.version.clone(),
+                extra: HashMap::new(),
+            });
+        }
+        Ok(installed)
     }
 
     fn updates(&self) -> Result<Vec<Package>, Box<dyn Error>> {
-        //TODO
+        //TODO: constellation updates
         Ok(Vec::new())
     }
 
@@ -96,7 +124,9 @@ impl Backend for Constellations {
     ) -> Result<(), Box<dyn Error>> {
         match op.kind {
             OperationKind::Install => {
-                let mut artifacts = Vec::with_capacity(op.infos.len());
+                log::info!("installing packages {:?}", op.package_ids);
+
+                let mut artifacts = Vec::with_capacity(op.package_ids.len());
                 for (package_id, info) in op.package_ids.iter().zip(op.infos.iter()) {
                     let Some(release) = info.releases.first() else {
                         return Err(format!("{} does not have any releases", info.name).into());
@@ -129,6 +159,7 @@ impl Backend for Constellations {
                 let progress_increment = 100.0 / (artifacts.len() as f32);
                 for (package_id, url, sha256, size) in artifacts.iter() {
                     //TODO: validate url is in self.url?
+                    //TODO: size limit?
                     let mut response =
                         futures::executor::block_on(async { reqwest::get(url).await })?
                             .error_for_status()?;
@@ -143,37 +174,41 @@ impl Backend for Constellations {
                     }
 
                     //TODO: stream to file not memory?
-                    let mut data = Vec::new();
+                    let mut file = tempfile::NamedTempFile::with_prefix("cosmic-constellations")?;
+                    let mut written = 0;
                     let mut hasher = sha2::Sha256::new();
                     let mut progress_time = Instant::now();
                     while let Some(chunk) =
                         futures::executor::block_on(async { response.chunk().await })?
                     {
                         hasher.update(&chunk);
-                        data.extend_from_slice(&chunk);
-                        if u64::try_from(data.len())? > *size {
+                        file.write_all(&chunk)?;
+                        written += u64::try_from(chunk.len())?;
+                        if written > *size {
                             // Too large, break and trigger size error below
                             break;
                         }
 
-                        let progress = total_progress
-                            + progress_increment * (data.len() as f32) / (*size as f32);
+                        // Throttle progress
                         if progress_time.elapsed().as_secs_f32() > 0.1 {
-                            // Throttle progress
-                            callback(progress);
+                            callback(
+                                total_progress
+                                    + progress_increment * (written as f32) / (*size as f32),
+                            );
                             progress_time = Instant::now();
                         }
                     }
-                    if u64::try_from(data.len())? != *size {
+
+                    // Verify size
+                    if written != *size {
                         return Err(format!(
                             "{} size {:?} does not match expected {}",
-                            url,
-                            data.len(),
-                            size
+                            url, written, size
                         )
                         .into());
                     }
 
+                    // Verify hash
                     let data_sha256 = format!("{:x}", hasher.finalize());
                     if &data_sha256 != sha256 {
                         return Err(format!(
@@ -183,10 +218,41 @@ impl Backend for Constellations {
                         .into());
                     }
 
-                    //TODO: actually install, not just download
-
                     total_progress += progress_increment;
-                    callback(total_progress)
+                    callback(total_progress);
+
+                    //TODO: progress should be reported during import
+                    self.store.import_archive(file.path(), None)?;
+                }
+
+                Ok(())
+            }
+            OperationKind::Uninstall { purge_data } => {
+                log::info!(
+                    "uninstalling packages {:?} (purge_data: {})",
+                    op.package_ids,
+                    purge_data
+                );
+
+                let mut slugs = HashSet::with_capacity(op.package_ids.len());
+                for bundle in self.store.bundles()? {
+                    let Some(package) = bundle.package else {
+                        continue;
+                    };
+                    for package_id in op.package_ids.iter() {
+                        if &AppId::new(&package.package_id) == package_id {
+                            slugs.insert(bundle.slug.clone());
+                            break;
+                        }
+                    }
+                }
+
+                let mut total_progress = 0.0;
+                let progress_increment = 100.0 / (slugs.len() as f32);
+                for slug in slugs {
+                    self.store.delete(&slug)?;
+                    total_progress += progress_increment;
+                    callback(total_progress);
                 }
 
                 Ok(())

@@ -734,6 +734,11 @@ impl App {
                                     if info.provides.contains(&applet_provide) {
                                         return Some(-(info.monthly_downloads as i64));
                                     }
+                                } else if matches!(category, Category::CosmicThemeBundle) {
+                                    //TODO: use metadata instead of source ID
+                                    if info.source_id == "constellations" {
+                                        return Some(-(info.monthly_downloads as i64));
+                                    }
                                 } else {
                                     //TODO: contains doesn't work due to type mismatch
                                     if info.categories.iter().any(|x| x == category.id()) {

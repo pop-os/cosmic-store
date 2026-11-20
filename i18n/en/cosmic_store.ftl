@@ -73,6 +73,7 @@ relax = Relax
 socialize = Socialize
 utilities = Utilities
 applets = Applets
+constellations = Constellations
 installed-apps = Installed apps
 updates = Updates
 
