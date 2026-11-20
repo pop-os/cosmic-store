@@ -41,6 +41,8 @@ atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "7.0.0"
 zstd = "0.14.3"
+# constellations feature
+sha2 = { version = "0.10", optional = true }
 # flatpak feature
 libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
@@ -82,7 +84,7 @@ default = [
     "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
-constellations = []
+constellations = ["dep:sha2"]
 dbus = ["dep:zbus"]
 dbus-config = ["dbus", "libcosmic/dbus-config"]
 desktop = ["dep:cosmic-launch", "dep:freedesktop-desktop-entry"]

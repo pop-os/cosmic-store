@@ -1,6 +1,8 @@
 use appstream::{
     Component,
-    enums::{Bundle, ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, Provide},
+    enums::{
+        Bundle, Checksum, ComponentKind, Icon, ImageKind, Launchable, ProjectUrl, Provide, Size,
+    },
     xmltree,
 };
 use std::{error::Error, fmt::Write};
@@ -117,6 +119,13 @@ pub enum AppProvide {
     MediaType(String),
 }
 
+#[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
+pub struct AppArtifact {
+    pub url: String,
+    pub sha256: Option<String>,
+    pub size: Option<u64>,
+}
+
 // Replaced Release due to skip_field not supported in bitcode
 #[derive(Clone, Debug, Hash, Eq, PartialEq, bitcode::Decode, bitcode::Encode)]
 pub struct AppRelease {
@@ -124,6 +133,7 @@ pub struct AppRelease {
     pub version: String,
     pub description: Option<String>,
     pub url: Option<String>,
+    pub artifacts: Vec<AppArtifact>,
 }
 
 // Replaced Screenshot due to skip_field not supported in bitcode
@@ -306,11 +316,28 @@ impl AppInfo {
                         }
                     }
                 });
+                //TODO: this only parses artifact info required for constellations
+                let artifacts = release
+                    .artifacts
+                    .into_iter()
+                    .map(|artifact| AppArtifact {
+                        url: artifact.url.into(),
+                        sha256: artifact.checksums.into_iter().find_map(|x| match x {
+                            Checksum::Sha256(sha256) => Some(sha256),
+                            _ => None,
+                        }),
+                        size: artifact.sizes.into_iter().find_map(|x| match x {
+                            Size::Download(size) => Some(size),
+                            _ => None,
+                        }),
+                    })
+                    .collect();
                 AppRelease {
                     timestamp: release.date.map(|date| date.timestamp()),
                     version: release.version,
                     description,
                     url: release.url.map(|url| url.into()),
+                    artifacts,
                 }
             })
             .collect();
