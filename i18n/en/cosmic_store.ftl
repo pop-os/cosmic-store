@@ -23,6 +23,7 @@ place-applet-desc = Choose where to add the applet before refining its position.
 panel = Panel
 dock = Dock
 place-and-refine = Place and refine
+show-in-settings = Show in Settings
 
 # Codec dialog
 codec-title = Install additional packages?
