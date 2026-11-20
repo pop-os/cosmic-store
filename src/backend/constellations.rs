@@ -10,7 +10,9 @@ use std::{
 };
 
 use super::{Backend, Package};
-use crate::{AppstreamCache, Operation, app_id::AppId, fl, operation::OperationKind};
+use crate::{
+    AppIcon, AppstreamCache, Operation, app_id::AppId, fl, appstream_cache::remote_icon_path, operation::OperationKind,
+};
 
 #[derive(Debug)]
 pub struct Constellations {
@@ -34,6 +36,7 @@ impl Constellations {
             vec![],
             locale,
         ));
+        this.download_icons();
         Ok(this)
     }
 
@@ -42,6 +45,40 @@ impl Constellations {
             .map(|x| x.join("cosmic-constellations"))
             .ok_or("failed to get cosmic-constellations cache_dir")?;
         Ok(cache_dir.join("catalog.xml"))
+    }
+
+    /// Fetch the remote icons the catalog lists that are not cached yet.
+    fn download_icons(&self) {
+        for cache in self.appstream_caches.iter() {
+            for info in cache.infos.values() {
+                for icon in info.icons.iter() {
+                    let AppIcon::Remote(url, ..) = icon else {
+                        continue;
+                    };
+                    let Some(path) = remote_icon_path(url) else {
+                        continue;
+                    };
+                    if path.is_file() {
+                        continue;
+                    }
+                    if let Err(err) = Self::download(url, &path) {
+                        log::warn!("failed to download icon {}: {}", url, err);
+                    }
+                }
+            }
+        }
+    }
+
+    fn download(url: &str, path: &std::path::Path) -> Result<(), Box<dyn Error>> {
+        let bytes = futures::executor::block_on(async {
+            reqwest::get(url).await?.error_for_status()?.bytes().await
+        })?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        atomicwrites::AtomicFile::new(path, atomicwrites::OverwriteBehavior::AllowOverwrite)
+            .write(|file| file.write_all(&bytes))?;
+        Ok(())
     }
 
     fn update_catalog(&self, refresh: bool) -> Result<bool, Box<dyn Error>> {
@@ -78,6 +115,7 @@ impl Backend for Constellations {
             appstream_cache.reload();
             eprintln!("{:?}", appstream_cache.infos);
         }
+        self.download_icons();
         Ok(())
     }
 

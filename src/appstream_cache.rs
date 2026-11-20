@@ -546,8 +546,15 @@ impl AppstreamCache {
                         best_path = Some(icon_path);
                     }
                 }
-                AppIcon::Remote(_url, _width, _height, _scale) => {
-                    //TODO
+                AppIcon::Remote(url, width, height, _scale) => {
+                    let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
+                    if size < cached_size {
+                        continue;
+                    }
+                    if let Some(icon_path) = remote_icon_path(url).filter(|path| path.is_file()) {
+                        best_path = Some(icon_path);
+                        cached_size = size;
+                    }
                 }
                 AppIcon::Local(path, width, height, _scale) => {
                     let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
@@ -1117,4 +1124,23 @@ impl AppstreamCache {
         );
         Ok((origin_opt, infos, Vec::new()))
     }
+}
+
+pub fn remote_icon_path(url: &str) -> Option<PathBuf> {
+    let name: String = url
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    Some(
+        dirs::cache_dir()?
+            .join("cosmic-store")
+            .join("remote-icons")
+            .join(name),
+    )
 }
