@@ -41,6 +41,10 @@ atomicwrites = { git = "https://github.com/jackpot51/rust-atomicwrites" }
 bitcode = { version = "0.6", features = ["serde"] }
 dirs = "7.0.0"
 zstd = "0.14.3"
+# constellations feature
+cosmic-theme-bundle-config = { git = "https://github.com/pop-os/cosmic-settings", optional = true }
+sha2 = { version = "0.10", optional = true }
+tempfile = { version = "3", optional = true }
 # flatpak feature
 libflatpak = { version = "0.7", optional = true }
 # logind feature (for inhibiting suspend/restart/shutdown)
@@ -70,6 +74,7 @@ xdgen = "0.1"
 [features]
 #todo : add a11y back to default
 default = [
+    "constellations",
     "dbus-config",
     "desktop-systemd",
     "flatpak",
@@ -81,6 +86,7 @@ default = [
     "xdg-portal",
 ]
 a11y = ["libcosmic/a11y"]
+constellations = ["dep:cosmic-theme-bundle-config", "dep:sha2", "dep:tempfile"]
 dbus = ["dep:zbus"]
 dbus-config = ["dbus", "libcosmic/dbus-config"]
 desktop = ["dep:cosmic-launch", "dep:freedesktop-desktop-entry"]

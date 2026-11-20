@@ -196,7 +196,7 @@ impl AppstreamCache {
 
     /// Versioned filename of cache
     fn cache_filename() -> &'static str {
-        "appstream_cache-v3.bitcode-v0-6"
+        "appstream_cache-v4.bitcode-v0-6"
     }
 
     /// Remove all files from cache not matching filename
@@ -546,8 +546,17 @@ impl AppstreamCache {
                         best_path = Some(icon_path);
                     }
                 }
-                AppIcon::Remote(_url, _width, _height, _scale) => {
-                    //TODO
+                AppIcon::Remote(url, width, height, _scale) => {
+                    let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
+                    if size < cached_size {
+                        continue;
+                    }
+                    // Shown once the backend has downloaded it into the icon cache.
+                    let path = crate::preview_cache::ICONS.path(url, info.version());
+                    if let Some(icon_path) = path.filter(|path| path.is_file()) {
+                        best_path = Some(icon_path);
+                        cached_size = size;
+                    }
                 }
                 AppIcon::Local(path, width, height, _scale) => {
                     let size = cmp::min(width.unwrap_or(0), height.unwrap_or(0));
@@ -610,6 +619,25 @@ impl AppstreamCache {
                                 ComponentKind::Addon => {
                                     addons.lock().unwrap().push(component);
                                     return None;
+                                }
+                                ComponentKind::Generic => {
+                                    // Allow generic components if they are COSMIC themes
+                                    let mut is_theme = false;
+                                    if let Some(custom) = e.get_child("custom") {
+                                        for child in
+                                            custom.children.iter().filter_map(|x| x.as_element())
+                                        {
+                                            if let Some(key) = child.attributes.get("key") {
+                                                if key == "x-cosmic-format" {
+                                                    is_theme = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if !is_theme {
+                                        return None;
+                                    }
                                 }
                                 _ => {
                                     // Skip anything that is not a desktop application or addon

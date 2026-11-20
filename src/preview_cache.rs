@@ -11,34 +11,98 @@ use tokio::sync::Notify;
 /// Maximum number of URLs to take from queue per tick
 const MAX_BATCH_SIZE: usize = 5;
 
-/// Maximum cache size in bytes (250 MB)
-const MAX_CACHE_BYTES: u64 = 250 * 1024 * 1024;
-
-/// Convert a URL + app version to a cache file path using a hash. Including the
-/// version means a new app release gets a distinct key and refetches its
-/// screenshots instead of serving stale ones.
-fn url_to_path(url: &str, version: &str) -> Option<PathBuf> {
-    let mut hasher = DefaultHasher::new();
-    url.hash(&mut hasher);
-    version.hash(&mut hasher);
-    let hash = format!("{:016x}", hasher.finish());
-    dirs::cache_dir().map(|dir| dir.join("cosmic-store/previews").join(&hash))
+/// A folder of downloaded files keyed by URL and app version, trimmed to a size limit.
+pub struct DiskCache {
+    dir: &'static str,
+    max_bytes: u64,
 }
 
-/// Get cached image data from disk (returns None if not cached)
-pub fn get_cached(url: &str, version: &str) -> Option<Vec<u8>> {
-    let path = url_to_path(url, version)?;
-    std::fs::read(&path).ok()
-}
+pub const PREVIEWS: DiskCache = DiskCache {
+    dir: "previews",
+    max_bytes: 250 * 1024 * 1024,
+};
 
-/// Save data to disk cache
-pub fn save_to_cache(url: &str, version: &str, data: &[u8]) -> std::io::Result<()> {
-    let path = url_to_path(url, version)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no cache directory"))?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+pub const ICONS: DiskCache = DiskCache {
+    dir: "remote-icons",
+    max_bytes: 50 * 1024 * 1024,
+};
+
+impl DiskCache {
+    pub fn path(&self, url: &str, version: &str) -> Option<PathBuf> {
+        let mut hasher = DefaultHasher::new();
+        url.hash(&mut hasher);
+        version.hash(&mut hasher);
+        let hash = format!("{:016x}", hasher.finish());
+        dirs::cache_dir().map(|dir| dir.join("cosmic-store").join(self.dir).join(&hash))
     }
-    std::fs::write(path, data)
+
+    pub fn get_cached(&self, url: &str, version: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.path(url, version)?).ok()
+    }
+
+    pub fn save_to_cache(&self, url: &str, version: &str, data: &[u8]) -> std::io::Result<()> {
+        let path = self.path(url, version).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "no cache directory")
+        })?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, data)
+    }
+
+    pub fn enforce_size_limit(&self) {
+        let Some(cache_dir) = dirs::cache_dir().map(|d| d.join("cosmic-store").join(self.dir))
+        else {
+            return;
+        };
+        let Ok(entries) = std::fs::read_dir(&cache_dir) else {
+            return;
+        };
+
+        let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
+        let mut total_size: u64 = 0;
+
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Ok(metadata) = path.metadata() else {
+                continue;
+            };
+            let size = metadata.len();
+            let accessed = metadata
+                .accessed()
+                .unwrap_or(metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH));
+            total_size += size;
+            files.push((path, size, accessed));
+        }
+
+        if total_size <= self.max_bytes {
+            return;
+        }
+
+        files.sort_by_key(|(_, _, accessed)| *accessed);
+
+        let mut evicted = 0usize;
+        for (path, size, _) in &files {
+            if total_size <= self.max_bytes {
+                break;
+            }
+            if std::fs::remove_file(path).is_ok() {
+                total_size -= size;
+                evicted += 1;
+            }
+        }
+        if evicted > 0 {
+            log::info!(
+                "{} cache: evicted {} files to stay within {} MB limit",
+                self.dir,
+                evicted,
+                self.max_bytes / (1024 * 1024)
+            );
+        }
+    }
 }
 
 /// Global download queue of `(url, version)` (LIFO for prioritizing recently
@@ -56,7 +120,7 @@ fn notify() -> &'static Notify {
 /// already cached
 pub fn queue(url: &str, version: &str) {
     // Skip if already cached
-    if url_to_path(url, version).is_some_and(|p| p.exists()) {
+    if PREVIEWS.path(url, version).is_some_and(|p| p.exists()) {
         return;
     }
     if let Ok(mut queue) = PENDING.lock() {
@@ -84,59 +148,4 @@ pub async fn wait_for_work() {
         return;
     }
     notify().notified().await;
-}
-
-/// Evict least-recently-accessed entries until total cache size is within the limit.
-pub fn enforce_size_limit() {
-    let Some(cache_dir) = dirs::cache_dir().map(|d| d.join("cosmic-store/previews")) else {
-        return;
-    };
-    let Ok(entries) = std::fs::read_dir(&cache_dir) else {
-        return;
-    };
-
-    // Collect all files with their size and access time
-    let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
-    let mut total_size: u64 = 0;
-
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Ok(metadata) = path.metadata() else {
-            continue;
-        };
-        let size = metadata.len();
-        let accessed = metadata.accessed().unwrap_or(
-            metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-        );
-        total_size += size;
-        files.push((path, size, accessed));
-    }
-
-    if total_size <= MAX_CACHE_BYTES {
-        return;
-    }
-
-    // Sort by access time ascending (oldest accessed first)
-    files.sort_by_key(|(_, _, accessed)| *accessed);
-
-    let mut evicted = 0usize;
-    for (path, size, _) in &files {
-        if total_size <= MAX_CACHE_BYTES {
-            break;
-        }
-        if std::fs::remove_file(path).is_ok() {
-            total_size -= size;
-            evicted += 1;
-        }
-    }
-    if evicted > 0 {
-        log::info!(
-            "preview cache: evicted {} files to stay within {} MB limit",
-            evicted,
-            MAX_CACHE_BYTES / (1024 * 1024)
-        );
-    }
 }

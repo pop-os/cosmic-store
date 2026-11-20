@@ -734,6 +734,11 @@ impl App {
                                     if info.provides.contains(&applet_provide) {
                                         return Some(-(info.monthly_downloads as i64));
                                     }
+                                } else if matches!(category, Category::CosmicThemeBundle) {
+                                    //TODO: use metadata instead of source ID
+                                    if info.source_id == "constellations" {
+                                        return Some(-(info.monthly_downloads as i64));
+                                    }
                                 } else {
                                     //TODO: contains doesn't work due to type mismatch
                                     if info.categories.iter().any(|x| x == category.id()) {
@@ -2260,9 +2265,12 @@ impl Application for App {
             // Run one-time preview cache cleanup in background
             Task::perform(
                 async {
-                    tokio::task::spawn_blocking(preview_cache::enforce_size_limit)
-                        .await
-                        .ok();
+                    tokio::task::spawn_blocking(|| {
+                        preview_cache::PREVIEWS.enforce_size_limit();
+                        preview_cache::ICONS.enforce_size_limit();
+                    })
+                    .await
+                    .ok();
                 },
                 |()| action::none(),
             ),
@@ -3055,7 +3063,9 @@ impl Application for App {
                             16,
                             move |mut msg_tx: futures::channel::mpsc::Sender<Message>| async move {
                                 // Check cache first
-                                if let Some(data) = preview_cache::get_cached(&url, &version) {
+                                if let Some(data) =
+                                    preview_cache::PREVIEWS.get_cached(&url, &version)
+                                {
                                     log::debug!("screenshot cache hit: {}", url);
                                     let _ = msg_tx
                                         .send(Message::SelectedScreenshot(screenshot_i, url, data))
@@ -3069,8 +3079,8 @@ impl Application for App {
                                         Ok(bytes) => {
                                             let data = bytes.to_vec();
                                             // Save to cache
-                                            if let Err(e) =
-                                                preview_cache::save_to_cache(&url, &version, &data)
+                                            if let Err(e) = preview_cache::PREVIEWS
+                                                .save_to_cache(&url, &version, &data)
                                             {
                                                 log::warn!(
                                                     "failed to cache screenshot {}: {}",
@@ -3123,12 +3133,12 @@ impl Application for App {
                         if let Ok(resp) = reqwest::get(url).await {
                             if let Ok(bytes) = resp.bytes().await {
                                 bytes_since_limit_check += bytes.len() as u64;
-                                let _ = preview_cache::save_to_cache(url, version, &bytes);
+                                let _ = preview_cache::PREVIEWS.save_to_cache(url, version, &bytes);
                             }
                         }
                     }
                     if bytes_since_limit_check >= SIZE_LIMIT_INTERVAL {
-                        preview_cache::enforce_size_limit();
+                        preview_cache::PREVIEWS.enforce_size_limit();
                         bytes_since_limit_check = 0;
                     }
                 }

@@ -13,6 +13,7 @@ use crate::{AppId, AppInfo, AppstreamCache, GStreamerCodec, Operation};
 /// Enum representing the available backend types
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BackendName {
+    Constellations,
     FlatpakUser,
     FlatpakSystem,
     Packagekit,
@@ -24,6 +25,7 @@ impl BackendName {
     /// Returns the string representation of the backend name
     pub fn as_str(&self) -> &'static str {
         match self {
+            BackendName::Constellations => "constellations",
             BackendName::FlatpakUser => "flatpak-user",
             BackendName::FlatpakSystem => "flatpak-system",
             BackendName::Packagekit => "packagekit",
@@ -49,6 +51,7 @@ impl std::str::FromStr for BackendName {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "constellations" => Ok(BackendName::Constellations),
             "flatpak-user" => Ok(BackendName::FlatpakUser),
             "flatpak-system" => Ok(BackendName::FlatpakSystem),
             "packagekit" => Ok(BackendName::Packagekit),
@@ -58,6 +61,9 @@ impl std::str::FromStr for BackendName {
         }
     }
 }
+
+#[cfg(feature = "constellations")]
+mod constellations;
 
 #[cfg(feature = "flatpak")]
 mod flatpak;
@@ -108,6 +114,39 @@ pub fn backends<'a>(
     refresh: bool,
 ) -> impl futures::Stream<Item = (BackendName, Arc<dyn Backend>)> + Send + Unpin + 'static {
     let backends = futures::stream::FuturesUnordered::new();
+
+    #[cfg(feature = "constellations")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let locale = locale.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            log::info!("adding constellations backend");
+            _ = tx.send(match constellations::Constellations::new(&locale) {
+                Ok(backend) => {
+                    let backend: Arc<dyn Backend> = Arc::new(backend);
+                    let duration = start.elapsed();
+                    log::info!(
+                        "initialized {} backend in {:?}",
+                        BackendName::Constellations,
+                        duration
+                    );
+                    Some((BackendName::Constellations, backend))
+                }
+                Err(err) => {
+                    log::error!(
+                        "failed to load {} backend: {}",
+                        BackendName::Constellations,
+                        err
+                    );
+                    None
+                }
+            })
+        });
+
+        backends.push(rx)
+    }
 
     #[cfg(feature = "flatpak")]
     {

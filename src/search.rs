@@ -275,6 +275,7 @@ impl SearchResult {
     ) -> Element<'a, Message> {
         let icon: Element<_> = match &self.icon_opt {
             Some(icon) => widget::icon::icon(icon.clone())
+                .content_fit(cosmic::iced::ContentFit::Contain)
                 .size(ICON_SIZE_SEARCH)
                 .into(),
             None => widget::space()

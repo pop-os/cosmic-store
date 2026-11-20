@@ -116,6 +116,7 @@ pub fn package_card_view<'a>(
 
     let icon: Element<_> = match icon_opt {
         Some(icon) => widget::icon::icon(icon.clone())
+            .content_fit(cosmic::iced::ContentFit::Contain)
             .size(ICON_SIZE_PACKAGE)
             .into(),
         None => widget::space()
@@ -253,6 +254,16 @@ impl App {
         } else if waiting_refresh {
             // Do not show buttons while waiting for refresh
         } else if is_installed {
+            //TODO: use metadata instead of source ID
+            if selected_info.source_id == "constellations" {
+                buttons.push(
+                    widget::button::suggested(fl!("show-in-settings"))
+                        .on_press(Message::OpenDesktopId(
+                            "com.system76.CosmicSettings.Appearance.desktop".to_string(),
+                        ))
+                        .into(),
+                );
+            }
             //TODO: what if there are multiple desktop IDs?
             if let Some(desktop_id) = selected_info.desktop_ids.first() {
                 if selected_info.provides.contains(&applet_provide) {
@@ -414,11 +425,9 @@ impl App {
             }
             row = row.push(widget::space::horizontal());
             row = row.push(
-                widget::button::icon(
-                    widget::icon::from_name("window-close-symbolic").size(16),
-                )
-                .class(theme::Button::Standard)
-                .on_press(Message::ScreenshotGallery(false)),
+                widget::button::icon(widget::icon::from_name("window-close-symbolic").size(16))
+                    .class(theme::Button::Standard)
+                    .on_press(Message::ScreenshotGallery(false)),
             );
             column = column.push(row);
         }
@@ -430,12 +439,10 @@ impl App {
             row = row.push(widget::space::horizontal().width(space_m));
             if has_multiple {
                 row = row.push(
-                    widget::button::icon(
-                        widget::icon::from_name("go-previous-symbolic").size(16),
-                    )
-                    .padding(spacing.space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::ScreenshotGalleryPrev),
+                    widget::button::icon(widget::icon::from_name("go-previous-symbolic").size(16))
+                        .padding(spacing.space_xs)
+                        .class(theme::Button::Standard)
+                        .on_press(Message::ScreenshotGalleryPrev),
                 );
             }
             let image_element: Element<'_, Message> =
@@ -458,12 +465,10 @@ impl App {
             row = row.push(image_element);
             if has_multiple {
                 row = row.push(
-                    widget::button::icon(
-                        widget::icon::from_name("go-next-symbolic").size(16),
-                    )
-                    .padding(spacing.space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::ScreenshotGalleryNext),
+                    widget::button::icon(widget::icon::from_name("go-next-symbolic").size(16))
+                        .padding(spacing.space_xs)
+                        .class(theme::Button::Standard)
+                        .on_press(Message::ScreenshotGalleryNext),
                 );
             }
             row = row.push(widget::space::horizontal().width(space_m));
@@ -528,6 +533,7 @@ impl App {
                     widget::row::with_children([
                         match &selected.icon_opt {
                             Some(icon) => widget::icon::icon(icon.clone())
+                                .content_fit(cosmic::iced::ContentFit::Contain)
                                 .size(ICON_SIZE_DETAILS)
                                 .into(),
                             None => widget::space::horizontal()
@@ -904,8 +910,8 @@ impl App {
 
                                                 let max_results =
                                                     Self::explore_section_max_results(cols);
-                                            let results_len =
-                                                cmp::min(results.len(), max_results);
+                                                let results_len =
+                                                    cmp::min(results.len(), max_results);
 
                                                 column = column.push(
                                                     widget::column::with_children(vec![
