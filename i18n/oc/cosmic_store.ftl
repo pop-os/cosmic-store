@@ -7,3 +7,6 @@ cancel = Anullar
 details = Detalhs
 settings = Configuracion
 remove = Suprimir
+import = Importar
+panel = Panèl
+help = Ajuda
