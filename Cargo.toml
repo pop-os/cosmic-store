@@ -19,7 +19,7 @@ regex = "1"
 reqwest = "0.13"
 serde = { version = "1", features = ["rc", "serde_derive"] }
 spdx = { git = "https://github.com/jackpot51/spdx.git" }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["fs", "sync"] }
 xdg = "3"
 # Internationalization
 i18n-embed = { version = "0.16", features = [
