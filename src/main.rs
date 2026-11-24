@@ -2349,7 +2349,7 @@ impl Application for App {
             && self.updates.is_some()
         {
             for (name, backend) in self.backends.clone() {
-                commands.push(self.update_backend_installed(name.clone(), backend.clone()));
+                commands.push(self.update_backend_installed(name, backend.clone()));
                 commands.push(self.update_backend_updates(name, backend));
             }
         }
@@ -2529,7 +2529,7 @@ impl Application for App {
         let mut title = String::new();
         let mut total_progress = 0.0;
         let mut count = 0;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if title.is_empty() {
                 title = op.pending_text((*progress * 100.0) as i32);
             }
@@ -3120,11 +3120,11 @@ impl Application for App {
                     let pending = preview_cache::take_pending();
                     for (url, version) in &pending {
                         log::debug!("preview fetch: {}", url);
-                        if let Ok(resp) = reqwest::get(url).await {
-                            if let Ok(bytes) = resp.bytes().await {
-                                bytes_since_limit_check += bytes.len() as u64;
-                                let _ = preview_cache::save_to_cache(url, version, &bytes);
-                            }
+                        if let Ok(resp) = reqwest::get(url).await
+                            && let Ok(bytes) = resp.bytes().await
+                        {
+                            bytes_since_limit_check += bytes.len() as u64;
+                            let _ = preview_cache::save_to_cache(url, version, &bytes);
                         }
                     }
                     if bytes_since_limit_check >= SIZE_LIMIT_INTERVAL {

@@ -225,7 +225,7 @@ impl App {
             }
         }
         let mut progress_opt = None;
-        for (_id, (op, progress)) in self.pending_operations.iter() {
+        for (op, progress) in self.pending_operations.values() {
             if op.backend_name == selected_backend_name
                 && op
                     .infos
@@ -414,11 +414,9 @@ impl App {
             }
             row = row.push(widget::space::horizontal());
             row = row.push(
-                widget::button::icon(
-                    widget::icon::from_name("window-close-symbolic").size(16),
-                )
-                .class(theme::Button::Standard)
-                .on_press(Message::ScreenshotGallery(false)),
+                widget::button::icon(widget::icon::from_name("window-close-symbolic").size(16))
+                    .class(theme::Button::Standard)
+                    .on_press(Message::ScreenshotGallery(false)),
             );
             column = column.push(row);
         }
@@ -430,12 +428,10 @@ impl App {
             row = row.push(widget::space::horizontal().width(space_m));
             if has_multiple {
                 row = row.push(
-                    widget::button::icon(
-                        widget::icon::from_name("go-previous-symbolic").size(16),
-                    )
-                    .padding(spacing.space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::ScreenshotGalleryPrev),
+                    widget::button::icon(widget::icon::from_name("go-previous-symbolic").size(16))
+                        .padding(spacing.space_xs)
+                        .class(theme::Button::Standard)
+                        .on_press(Message::ScreenshotGalleryPrev),
                 );
             }
             let image_element: Element<'_, Message> =
@@ -458,12 +454,10 @@ impl App {
             row = row.push(image_element);
             if has_multiple {
                 row = row.push(
-                    widget::button::icon(
-                        widget::icon::from_name("go-next-symbolic").size(16),
-                    )
-                    .padding(spacing.space_xs)
-                    .class(theme::Button::Standard)
-                    .on_press(Message::ScreenshotGalleryNext),
+                    widget::button::icon(widget::icon::from_name("go-next-symbolic").size(16))
+                        .padding(spacing.space_xs)
+                        .class(theme::Button::Standard)
+                        .on_press(Message::ScreenshotGalleryNext),
                 );
             }
             row = row.push(widget::space::horizontal().width(space_m));
@@ -904,8 +898,8 @@ impl App {
 
                                                 let max_results =
                                                     Self::explore_section_max_results(cols);
-                                            let results_len =
-                                                cmp::min(results.len(), max_results);
+                                                let results_len =
+                                                    cmp::min(results.len(), max_results);
 
                                                 column = column.push(
                                                     widget::column::with_children(vec![
@@ -943,8 +937,7 @@ impl App {
                                                                     result_i,
                                                                 )
                                                             },
-                                                        )
-                                                        .into(),
+                                                        ),
                                                     ])
                                                     .spacing(space_xxs),
                                                 );
@@ -1100,7 +1093,7 @@ impl App {
                                         }
                                     }
                                     let mut progress_opt = None;
-                                    for (_id, (op, progress)) in self.pending_operations.iter() {
+                                    for (op, progress) in self.pending_operations.values() {
                                         if &op.backend_name == backend_name
                                             && op.infos.iter().any(|info| {
                                                 info.source_id == package.info.source_id
