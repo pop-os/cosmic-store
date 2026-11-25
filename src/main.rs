@@ -20,7 +20,7 @@ use cosmic::{
     },
     theme, widget,
 };
-use freedesktop_desktop_entry as fde;
+use freedesktop_entry_parser as fde;
 use futures::StreamExt;
 use localize::LANGUAGE_SORTER;
 use rayon::prelude::*;
