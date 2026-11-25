@@ -2311,8 +2311,7 @@ impl Application for App {
         {
             selected.screenshot_gallery = false;
             return Task::none();
-        }
-        if self.core.window.show_context {
+        } else if self.core.window.show_context {
             // Close context drawer if open
             self.core.window.show_context = false;
         } else if self.search_active {
@@ -2321,6 +2320,15 @@ impl Application for App {
             if self.search_results.take().is_some() {
                 return self.update_scroll();
             }
+        } else if self.selected_opt.is_some() {
+            // Close app page if open
+            self.selected_opt = None;
+            return self.update_scroll();
+        } else if self.explore_page_opt.is_some() {
+            // Close explore page if open
+            self.explore_page_opt = None;
+            self.queue_visible_previews(None);
+            return self.update_scroll();
         }
         Task::none()
     }
