@@ -14,17 +14,28 @@ use serde::Deserialize;
 use std::{
     cmp,
     collections::{BTreeMap, HashMap, HashSet},
+    env,
     error::Error,
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
     time::{Instant, SystemTime},
 };
 
 use crate::{AppIcon, AppId, AppInfo, stats};
 
-const PREFIXES: &[&str] = &["/usr/share", "/var/lib", "/var/cache"];
+static PREFIXES: LazyLock<Box<[PathBuf]>> = LazyLock::new(|| {
+    let mut dirs = Vec::new();
+
+    let data_dirs = env::var_os("XDG_DATA_DIRS")
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "/usr/local/share:/usr/share".into());
+    dirs.extend(env::split_paths(&data_dirs).filter(|p| p.is_absolute()));
+    dirs.extend(["/var/lib".into(), "/var/cache".into()]);
+
+    dirs.into()
+});
 const CATALOGS: &[&str] = &["swcatalog", "app-info"];
 
 #[derive(
@@ -130,15 +141,13 @@ impl AppstreamCache {
     pub fn system(source_id: String, source_name: String, locale: &str) -> Self {
         let mut paths = Vec::new();
         let mut icons_paths = Vec::new();
-        //TODO: get using xdg dirs?
-        for prefix in PREFIXES {
-            let prefix_path = Path::new(prefix);
-            if !prefix_path.is_dir() {
+        for prefix in &*PREFIXES {
+            if !prefix.is_dir() {
                 continue;
             }
 
             for catalog in CATALOGS {
-                let catalog_path = prefix_path.join(catalog);
+                let catalog_path = prefix.join(catalog);
                 if !catalog_path.is_dir() {
                     continue;
                 }
