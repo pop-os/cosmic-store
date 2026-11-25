@@ -2318,6 +2318,7 @@ impl Application for App {
         } else if self.search_active {
             // Close search if open
             self.search_active = false;
+            self.search_input.clear();
             if self.search_results.take().is_some() {
                 return self.update_scroll();
             }
