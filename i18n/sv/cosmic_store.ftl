@@ -1,6 +1,6 @@
 app-name = COSMIC Butik
 comment = Programbutik för skrivbordsmiljön COSMIC
-keywords = App;Paket;Program;Programvara;Butik;Handla;Förråd;Källa;Installera;Avinstallera;Lägg till;Ta bort;Uppdatera;Uppgradera;Flatpak;
+keywords = App;Paket;Program;Programvara;Butik;Handla;Förråd;Källa;Installera;Avinstallera;Lägg till;Ta bort;Uppdatera;Uppgradera;Flatpak;Store;
 back = Bakåt
 cancel = Avbryt
 check-for-updates = Sök efter uppdateringar

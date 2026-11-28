@@ -119,6 +119,6 @@ no-custom-flatpak-sources = Không có nguồn Flatpak tùy chỉnh
 enable-flathub-cosmic = Vui lòng bật Flathub và COSMIC Flatpak để xem các applet có sẵn.
 no-flatpak = Không hỗ trợ flatpak
 failed = Thất bại
-comment = Kho ứng dụng dành cho desktop COSMIC
+comment = Kho ứng dụng dành cho máy tính COSMIC
 by-name = Bởi { $name }
 loading = Đang tải...
