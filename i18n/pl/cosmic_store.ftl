@@ -55,7 +55,7 @@ uninstall-app = Odinstalować { $name }?
 uninstall-app-warning = Odinstalowanie { $name } usunie dane programu.
 # Nav Pages
 explore = Odkrywaj
-create = Twórcze
+create = Utwórz
 work = Praca
 develop = Programistyczne
 learn = Nauka
